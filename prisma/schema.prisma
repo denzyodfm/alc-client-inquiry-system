@@ -1,0 +1,195 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  INQUIRY_USER
+  AUDITOR
+}
+
+enum BranchStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+}
+
+enum LoanStatus {
+  ACTIVE
+  PAID
+  CLOSED
+  WRITTEN_OFF
+}
+
+enum SyncStatus {
+  SUCCESS
+  FAILED
+  PARTIAL
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String   @db.VarChar(120)
+  email        String   @unique @db.VarChar(160)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  role         UserRole @default(INQUIRY_USER)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Branch {
+  id                  Int          @id @default(autoincrement())
+  branchName          String       @map("branch_name") @db.VarChar(140)
+  branchCode          String       @unique @map("branch_code") @db.VarChar(40)
+  publicIp            String?      @map("public_ip") @db.VarChar(80)
+  dbHost              String       @map("db_host") @db.VarChar(160)
+  dbName              String       @map("db_name") @db.VarChar(120)
+  dbUser              String       @map("db_user") @db.VarChar(120)
+  encryptedDbPassword String       @map("encrypted_db_password") @db.Text
+  status              BranchStatus @default(ACTIVE)
+  lastSyncAt          DateTime?    @map("last_sync_at")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+  clients             Client[]
+  loans               Loan[]
+  payments            Payment[]
+  amortizationSchedules AmortizationSchedule[]
+  syncLogs            SyncLog[]
+
+  @@map("branches")
+}
+
+model Client {
+  id              Int       @id @default(autoincrement())
+  branchId        Int       @map("branch_id")
+  remoteId        String    @map("remote_id") @db.VarChar(80)
+  clientId        String?   @map("client_id") @db.VarChar(80)
+  fullName        String    @map("full_name") @db.VarChar(180)
+  birthdate       DateTime? @db.Date
+  contactNumber   String?   @map("contact_number") @db.VarChar(80)
+  validIdNumber   String?   @map("valid_id_number") @db.VarChar(120)
+  address         String?   @db.VarChar(255)
+  remoteUpdatedAt DateTime? @map("remote_updated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  branch          Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  loans           Loan[]
+  payments        Payment[]
+  amortizationSchedules AmortizationSchedule[]
+
+  @@unique([branchId, remoteId])
+  @@index([fullName])
+  @@index([birthdate])
+  @@index([contactNumber])
+  @@index([clientId])
+  @@index([validIdNumber])
+  @@map("clients")
+}
+
+model Loan {
+  id              Int        @id @default(autoincrement())
+  branchId        Int        @map("branch_id")
+  clientId        Int        @map("client_id")
+  remoteId        String     @map("remote_id") @db.VarChar(80)
+  loanNumber      String?    @map("loan_number") @db.VarChar(100)
+  principalAmount Decimal    @default(0) @map("principal_amount") @db.Decimal(14, 2)
+  interestRate    Decimal    @default(0) @map("interest_rate") @db.Decimal(8, 4)
+  interestAmount  Decimal    @default(0) @map("interest_amount") @db.Decimal(14, 2)
+  penaltyAmount   Decimal    @default(0) @map("penalty_amount") @db.Decimal(14, 2)
+  terms           String?    @db.VarChar(40)
+  paidAmount      Decimal    @default(0) @map("paid_amount") @db.Decimal(14, 2)
+  balance         Decimal    @default(0) @db.Decimal(14, 2)
+  status          LoanStatus @default(ACTIVE)
+  sourceStatusCode Int?      @map("source_status_code")
+  sourceStatusName String?   @map("source_status_name") @db.VarChar(80)
+  releasedAt      DateTime?  @map("released_at") @db.Date
+  maturityAt      DateTime?  @map("maturity_at") @db.Date
+  remoteUpdatedAt DateTime?  @map("remote_updated_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  branch          Branch     @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  client          Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  payments        Payment[]
+  amortizationSchedules AmortizationSchedule[]
+
+  @@unique([branchId, remoteId])
+  @@index([balance])
+  @@index([loanNumber])
+  @@map("loans")
+}
+
+model AmortizationSchedule {
+  id                Int      @id @default(autoincrement())
+  branchId          Int      @map("branch_id")
+  clientId          Int?     @map("client_id")
+  loanId            Int      @map("loan_id")
+  remoteId          String   @map("remote_id") @db.VarChar(80)
+  amortNo           Int      @map("amort_no")
+  amortDate         DateTime? @map("amort_date") @db.Date
+  principalBalance  Decimal  @default(0) @map("principal_balance") @db.Decimal(14, 2)
+  interestBalance   Decimal  @default(0) @map("interest_balance") @db.Decimal(14, 2)
+  principalAmort    Decimal  @default(0) @map("principal_amort") @db.Decimal(14, 2)
+  interestAmort     Decimal  @default(0) @map("interest_amort") @db.Decimal(14, 2)
+  totalAmort        Decimal  @default(0) @map("total_amort") @db.Decimal(14, 2)
+  paidPrincipal     Decimal  @default(0) @map("paid_principal") @db.Decimal(14, 2)
+  paidInterest      Decimal  @default(0) @map("paid_interest") @db.Decimal(14, 2)
+  paidTotal         Decimal  @default(0) @map("paid_total") @db.Decimal(14, 2)
+  paidStatus        Int?     @map("paid_status")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  branch            Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  client            Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  loan              Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, remoteId])
+  @@index([clientId])
+  @@index([loanId])
+  @@index([amortDate])
+  @@map("amortization_schedules")
+}
+
+model Payment {
+  id              Int       @id @default(autoincrement())
+  branchId        Int       @map("branch_id")
+  clientId        Int       @map("client_id")
+  loanId          Int?      @map("loan_id")
+  remoteId        String    @map("remote_id") @db.VarChar(80)
+  amount          Decimal   @default(0) @db.Decimal(14, 2)
+  paidAt          DateTime? @map("paid_at") @db.Date
+  remoteUpdatedAt DateTime? @map("remote_updated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  branch          Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  client          Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  loan            Loan?     @relation(fields: [loanId], references: [id], onDelete: SetNull)
+
+  @@unique([branchId, remoteId])
+  @@index([paidAt])
+  @@map("payments")
+}
+
+model SyncLog {
+  id             Int        @id @default(autoincrement())
+  branchId       Int?       @map("branch_id")
+  status         SyncStatus
+  startedAt      DateTime   @default(now()) @map("started_at")
+  finishedAt     DateTime?  @map("finished_at")
+  clientsPulled  Int        @default(0) @map("clients_pulled")
+  loansPulled    Int        @default(0) @map("loans_pulled")
+  paymentsPulled Int        @default(0) @map("payments_pulled")
+  branchesCompleted Int     @default(0) @map("branches_completed")
+  branchesFailed    Int     @default(0) @map("branches_failed")
+  message        String?    @db.Text
+  branch         Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([startedAt])
+  @@map("sync_logs")
+}
