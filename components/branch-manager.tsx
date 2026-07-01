@@ -49,6 +49,10 @@ function summarizeSync(result: SyncResult) {
   return `${completed} completed, ${failed} failed. Synced ${clients.toLocaleString()} clients, ${loans.toLocaleString()} loans, ${payments.toLocaleString()} payments.`;
 }
 
+function canSyncBranch(branch: Branch) {
+  return branch.status === "ACTIVE" && branch.connection?.status === "ONLINE";
+}
+
 export function BranchManager({ initialBranches }: { initialBranches: Branch[] }) {
   const [branches, setBranches] = useState(initialBranches);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
@@ -74,6 +78,7 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
     const branch = branches.find((item) => item.id === syncingBranchId);
     return branch?.branchName ?? "selected branch";
   }, [branches, syncingBranchId]);
+  const onlineBranchCount = branches.filter(canSyncBranch).length;
 
   async function refresh() {
     const response = await fetch("/api/branches");
@@ -154,6 +159,11 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
   }
 
   async function runSync(branch?: Branch) {
+    if (branch && !canSyncBranch(branch)) {
+      setError(`${branch.branchName} is ${branch.connection?.status ?? "not checked"}. Sync is available only for online active branches.`);
+      return;
+    }
+
     setLoading(true);
     setSyncingBranchId(branch?.id ?? "all");
     setSyncStartedAt(Date.now());
@@ -229,7 +239,7 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
 
       <section className="space-y-4">
         <div className="flex justify-end">
-          <button className="btn-secondary" onClick={() => runSync()} disabled={loading}>
+          <button className="btn-secondary" onClick={() => runSync()} disabled={loading || onlineBranchCount === 0} title={onlineBranchCount === 0 ? "No online active branches available to sync." : "Sync online active branches."}>
             <RotateCcw className="h-4 w-4" />
             {syncingBranchId === "all" ? "Syncing..." : "Run All"}
           </button>
@@ -253,16 +263,20 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
           </div>
         ) : null}
         <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
-          {branches.map((branch) => (
+          {branches.map((branch) => {
+            const syncable = canSyncBranch(branch);
+
+            return (
             <div key={branch.id} className="panel p-4">
               <div className="flex items-start gap-3">
                 <div className="rounded-md bg-blue-50 p-2.5 text-brand-blue">
                   <Database className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-3">
-                    <h4 className="truncate text-sm font-bold text-slate-950">{branch.branchName}</h4>
-                    <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                  <div className="grid gap-1.5">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <h4 className="min-w-[6rem] flex-1 text-sm font-bold leading-tight text-slate-950">{branch.branchName}</h4>
+                      <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
                       <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-700">{branch.status}</span>
                       <span
                         className={`rounded-md px-2 py-1 text-[11px] font-bold ${
@@ -272,9 +286,10 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
                       >
                         {branch.connection?.status ?? "CHECKING"}
                       </span>
+                      </div>
                     </div>
+                    <p className="break-all text-xs text-slate-500">{branch.branchCode} - {branch.dbHost}</p>
                   </div>
-                  <p className="truncate text-xs text-slate-500">{branch.branchCode} - {branch.dbHost}</p>
                 </div>
               </div>
               <dl className="mt-3 grid gap-1.5 text-xs">
@@ -288,7 +303,13 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
                   <Pencil className="h-4 w-4" />
                   Edit
                 </button>
-                <button type="button" className="btn-secondary h-9 px-2 text-xs" onClick={() => runSync(branch)} disabled={loading}>
+                <button
+                  type="button"
+                  className="btn-secondary h-9 px-2 text-xs"
+                  onClick={() => runSync(branch)}
+                  disabled={loading || !syncable}
+                  title={syncable ? `Sync ${branch.branchName}` : "Sync is available only when this branch is online."}
+                >
                   <RotateCcw className="h-4 w-4" />
                   {syncingBranchId === branch.id ? "Syncing" : "Sync"}
                 </button>
@@ -303,7 +324,8 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
                 </button>
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       </section>
     </div>

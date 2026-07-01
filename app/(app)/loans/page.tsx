@@ -157,7 +157,7 @@ export default async function LoansPage({
       totalAmort: schedule.totalAmort.toString(),
       paidPrincipal: schedule.paidPrincipal.toString(),
       paidInterest: schedule.paidInterest.toString(),
-      paidTotal: schedule.paidTotal.toString(),
+      paidTotal: (Number(schedule.paidPrincipal) + Number(schedule.paidInterest)).toString(),
       paidStatus: schedule.paidStatus
     }))
   }));

@@ -70,7 +70,7 @@ export async function searchClientInquiry(payload: InquiryPayload) {
       branch: true,
       loans: {
         where: visibleLoanFilter,
-        orderBy: [{ balance: "desc" }, { releasedAt: "desc" }],
+        orderBy: [{ releasedAt: "desc" }, { balance: "desc" }],
         include: {
           amortizationSchedules: {
             orderBy: [{ amortNo: "asc" }, { amortDate: "asc" }]

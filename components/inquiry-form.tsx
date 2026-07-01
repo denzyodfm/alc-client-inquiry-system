@@ -1,8 +1,9 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, Search, UserRound, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Search, UserRound, XCircle } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { money, dateOnly } from "@/lib/format";
+import { LoanDetailWindow } from "@/components/loan-detail-window";
 
 type Schedule = {
   id: number;
@@ -79,34 +80,16 @@ function loanStatusText(loan: { sourceStatusCode: number | null; sourceStatusNam
   return sourceCode ? `${sourceCode} - ${description}` : description;
 }
 
-function amortizationTotals(schedules: Schedule[]) {
-  return schedules.reduce(
-    (totals, schedule) => ({
-      principalAmort: totals.principalAmort + Number(schedule.principalAmort),
-      interestAmort: totals.interestAmort + Number(schedule.interestAmort),
-      totalAmort: totals.totalAmort + Number(schedule.totalAmort),
-      paidPrincipal: totals.paidPrincipal + Number(schedule.paidPrincipal),
-      paidInterest: totals.paidInterest + Number(schedule.paidInterest),
-      paidTotal: totals.paidTotal + Number(schedule.paidTotal)
-    }),
-    {
-      principalAmort: 0,
-      interestAmort: 0,
-      totalAmort: 0,
-      paidPrincipal: 0,
-      paidInterest: 0,
-      paidTotal: 0
-    }
-  );
+function loanDateTime(loan: { releasedAt: string | null }) {
+  return loan.releasedAt ? new Date(loan.releasedAt).getTime() : 0;
 }
 
-function scheduleStatusText(schedule: Schedule) {
-  const paidTotal = Number(schedule.paidTotal);
-  const totalAmort = Number(schedule.totalAmort);
+function loanStatusCode(loan: { sourceStatusCode: number | null }) {
+  return loan.sourceStatusCode === null ? "-" : String(loan.sourceStatusCode);
+}
 
-  if (paidTotal > 0 && paidTotal < totalAmort) return "Partial Payment";
-  if (paidTotal >= totalAmort || schedule.paidStatus) return "Paid";
-  return "Open";
+function displayBalance(loan: { sourceStatusCode: number | null; balance: string }) {
+  return loan.sourceStatusCode === 10 ? 0 : Number(loan.balance);
 }
 
 export function InquiryForm() {
@@ -115,7 +98,6 @@ export function InquiryForm() {
   const [loading, setLoading] = useState(false);
   const [quickSearch, setQuickSearch] = useState("");
   const skipInitialQuickSearch = useRef(true);
-  const selectedAmortizationTotals = selectedLoan ? amortizationTotals(selectedLoan.amortizationSchedules) : null;
 
   const runInquiry = useCallback(async (payload: Record<string, FormDataEntryValue | string>) => {
     setLoading(true);
@@ -171,7 +153,10 @@ export function InquiryForm() {
       map.set(key, group);
     }
 
-    return Array.from(map.values());
+    return Array.from(map.values()).map((group) => ({
+      ...group,
+      loans: [...group.loans].sort((a, b) => loanDateTime(b) - loanDateTime(a))
+    }));
   }, [result]);
 
   const StyleIcon = result ? resultStyles[result.status].icon : Search;
@@ -257,7 +242,7 @@ export function InquiryForm() {
                 <div><dt className="font-semibold text-slate-500">Valid ID</dt><dd>{primaryClient.validIdNumber ?? "-"}</dd></div>
               </dl>
               <div className="mt-5 overflow-x-auto">
-                <table className="w-full min-w-[1180px] text-left text-sm">
+                <table className="w-full min-w-[1240px] text-left text-sm">
                   <thead className="bg-slate-50 text-slate-500">
                     <tr>
                       <th className="px-3 py-2">Loan No.</th>
@@ -271,7 +256,8 @@ export function InquiryForm() {
                       <th className="px-3 py-2">Terms</th>
                       <th className="px-3 py-2">Total Payments</th>
                       <th className="px-3 py-2">Balance</th>
-                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2">Status ID</th>
+                      <th className="px-3 py-2">Status Label</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -298,13 +284,14 @@ export function InquiryForm() {
                           <td className="px-3 py-2 font-semibold">{money(total)}</td>
                           <td className="px-3 py-2">{loan.terms ?? "-"}</td>
                           <td className="px-3 py-2 text-brand-green">{money(loan.paidAmount)}</td>
-                          <td className={`px-3 py-2 font-bold ${Number(loan.balance) > 0 ? "text-red-700" : "text-brand-green"}`}>{money(loan.balance)}</td>
+                          <td className={`px-3 py-2 font-bold ${displayBalance(loan) > 0 ? "text-red-700" : "text-brand-green"}`}>{money(displayBalance(loan))}</td>
+                          <td className="px-3 py-2 font-bold text-slate-900">{loanStatusCode(loan)}</td>
                           <td className="px-3 py-2">{loanStatusText(loan)}</td>
                         </tr>
                       );
                     })}
                     {!group.loans.length ? (
-                      <tr><td className="px-3 py-3 text-slate-500" colSpan={12}>No loans with remaining balance for this client.</td></tr>
+                      <tr><td className="px-3 py-3 text-slate-500" colSpan={13}>No loans with remaining balance for this client.</td></tr>
                     ) : null}
                   </tbody>
                 </table>
@@ -314,90 +301,7 @@ export function InquiryForm() {
         })}
       </section>
 
-      {selectedLoan ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-          <div className="max-h-[90vh] w-full max-w-6xl overflow-hidden rounded-lg bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Loan details</p>
-                <h3 className="mt-1 text-xl font-bold text-slate-950">{selectedLoan.loanNumber ?? selectedLoan.id}</h3>
-                <p className="mt-1 text-sm text-slate-500">{selectedLoan.client.fullName} - {selectedLoan.client.branch.branchName}</p>
-              </div>
-              <button type="button" className="btn-secondary h-9 px-3" onClick={() => setSelectedLoan(null)}>
-                <X className="h-4 w-4" />
-                Close
-              </button>
-            </div>
-
-            <div className="max-h-[calc(90vh-92px)] overflow-y-auto p-5">
-              <dl className="grid gap-4 text-sm md:grid-cols-4">
-                <div><dt className="font-semibold text-slate-500">Amount Granted</dt><dd className="mt-1 font-bold">{money(selectedLoan.principalAmount)}</dd></div>
-                <div><dt className="font-semibold text-slate-500">Interest Rate</dt><dd className="mt-1 font-bold">{percent(selectedLoan.interestRate)}</dd></div>
-                <div><dt className="font-semibold text-slate-500">Interest Amount</dt><dd className="mt-1 font-bold">{money(selectedLoan.interestAmount)}</dd></div>
-                <div><dt className="font-semibold text-slate-500">Penalty Amount</dt><dd className="mt-1 font-bold">{money(selectedLoan.penaltyAmount)}</dd></div>
-                <div><dt className="font-semibold text-slate-500">Total Amount</dt><dd className="mt-1 font-bold">{money(Number(selectedLoan.principalAmount) + Number(selectedLoan.interestAmount) + Number(selectedLoan.penaltyAmount))}</dd></div>
-                <div><dt className="font-semibold text-slate-500">Terms</dt><dd className="mt-1 font-bold">{selectedLoan.terms ?? "-"}</dd></div>
-                <div><dt className="font-semibold text-slate-500">Released</dt><dd className="mt-1 font-bold">{dateOnly(selectedLoan.releasedAt)}</dd></div>
-                <div><dt className="font-semibold text-slate-500">Maturity</dt><dd className="mt-1 font-bold">{dateOnly(selectedLoan.maturityAt)}</dd></div>
-                <div><dt className="font-semibold text-slate-500">Total Payments</dt><dd className="mt-1 font-bold text-brand-green">{money(selectedLoan.paidAmount)}</dd></div>
-                <div><dt className="font-semibold text-slate-500">Balance</dt><dd className={`mt-1 font-bold ${Number(selectedLoan.balance) > 0 ? "text-red-700" : "text-brand-green"}`}>{money(selectedLoan.balance)}</dd></div>
-                <div><dt className="font-semibold text-slate-500">Status</dt><dd className="mt-1 font-bold">{loanStatusText(selectedLoan)}</dd></div>
-                <div><dt className="font-semibold text-slate-500">Schedule Rows</dt><dd className="mt-1 font-bold">{selectedLoan.amortizationSchedules.length.toLocaleString("en-US")}</dd></div>
-              </dl>
-
-              <div className="mt-6 overflow-x-auto">
-                <table className="w-full min-w-[980px] text-left text-sm">
-                  <thead className="bg-slate-50 text-slate-500">
-                    <tr>
-                      <th className="px-3 py-2">No.</th>
-                      <th className="px-3 py-2">Date</th>
-                      <th className="px-3 py-2">Principal Amort</th>
-                      <th className="px-3 py-2">Interest Amort</th>
-                      <th className="px-3 py-2">Total Amort</th>
-                      <th className="px-3 py-2">Paid Principal</th>
-                      <th className="px-3 py-2">Paid Interest</th>
-                      <th className="px-3 py-2">Paid Total</th>
-                      <th className="px-3 py-2">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedLoan.amortizationSchedules.map((schedule) => (
-                      <tr key={schedule.id} className="border-t border-slate-100">
-                        <td className="px-3 py-2 font-semibold">{schedule.amortNo}</td>
-                        <td className="px-3 py-2">{dateOnly(schedule.amortDate)}</td>
-                        <td className="px-3 py-2">{money(schedule.principalAmort)}</td>
-                        <td className="px-3 py-2">{money(schedule.interestAmort)}</td>
-                        <td className="px-3 py-2 font-semibold">{money(schedule.totalAmort)}</td>
-                        <td className="px-3 py-2">{money(schedule.paidPrincipal)}</td>
-                        <td className="px-3 py-2">{money(schedule.paidInterest)}</td>
-                        <td className="px-3 py-2 text-brand-green">{money(schedule.paidTotal)}</td>
-                        <td className="px-3 py-2">{scheduleStatusText(schedule)}</td>
-                      </tr>
-                    ))}
-                    {!selectedLoan.amortizationSchedules.length ? (
-                      <tr><td className="px-3 py-4 text-slate-500" colSpan={9}>No amortization schedule rows available.</td></tr>
-                    ) : null}
-                  </tbody>
-                  {selectedAmortizationTotals ? (
-                    <tfoot className="border-t-2 border-slate-200 bg-slate-50 font-bold text-slate-950">
-                      <tr>
-                        <td className="px-3 py-3" colSpan={2}>Totals</td>
-                        <td className="px-3 py-3">{money(selectedAmortizationTotals.principalAmort)}</td>
-                        <td className="px-3 py-3">{money(selectedAmortizationTotals.interestAmort)}</td>
-                        <td className="px-3 py-3">{money(selectedAmortizationTotals.totalAmort)}</td>
-                        <td className="px-3 py-3">{money(selectedAmortizationTotals.paidPrincipal)}</td>
-                        <td className="px-3 py-3">{money(selectedAmortizationTotals.paidInterest)}</td>
-                        <td className="px-3 py-3 text-brand-green">{money(selectedAmortizationTotals.paidTotal)}</td>
-                        <td className="px-3 py-3">-</td>
-                      </tr>
-                    </tfoot>
-                  ) : null}
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {selectedLoan ? <LoanDetailWindow loan={selectedLoan} onClose={() => setSelectedLoan(null)} /> : null}
     </div>
   );
 }

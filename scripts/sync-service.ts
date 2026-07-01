@@ -70,13 +70,12 @@ function asDate(value?: Date | string | null) {
 }
 
 function statusToLoanStatus(value?: string | number | null, balance?: string | number | null): LoanStatus {
-  if (balance !== null && balance !== undefined && Number(balance) <= 0) {
-    return "PAID";
-  }
-
   const normalized = String(value ?? "").toUpperCase();
   if (normalized === "10" || normalized === "CLOSED" || normalized === "PAID") {
     return "CLOSED";
+  }
+  if (balance !== null && balance !== undefined && Number(balance) <= 0) {
+    return "PAID";
   }
   if (normalized === "5" || normalized === "WRITE-OFF" || normalized === "WRITTEN_OFF") {
     return "WRITTEN_OFF";
@@ -88,6 +87,53 @@ function asNumber(value?: string | number | null) {
   if (value === null || value === undefined) return 0;
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
+}
+
+function loanBalance(principalAmount: number, interestAmount: number, penaltyAmount: number, paidAmount: number) {
+  return Math.max(0, principalAmount + interestAmount + penaltyAmount - paidAmount);
+}
+
+function amortizationPaidTotal(schedule: { paidPrincipal: unknown; paidInterest: unknown }) {
+  return asNumber(schedule.paidPrincipal as string | number | null) + asNumber(schedule.paidInterest as string | number | null);
+}
+
+async function reconcileLoanBalancesFromAmortization(branchId: number) {
+  const loans = await prisma.loan.findMany({
+    where: {
+      branchId,
+      amortizationSchedules: { some: {} }
+    },
+    include: {
+      amortizationSchedules: {
+        select: {
+          totalAmort: true,
+          paidPrincipal: true,
+          paidInterest: true,
+          paidStatus: true
+        }
+      }
+    }
+  });
+
+  for (const loan of loans) {
+    const scheduleTotal = loan.amortizationSchedules.reduce((total, schedule) => total + Number(schedule.totalAmort), 0);
+    const schedulePaid = loan.amortizationSchedules.reduce((total, schedule) => total + amortizationPaidTotal(schedule), 0);
+    const allSchedulesPaid = loan.amortizationSchedules.every((schedule) => Number(schedule.paidStatus ?? 0) === 2);
+    const balance = allSchedulesPaid ? 0 : Math.max(0, scheduleTotal - schedulePaid);
+    const sourceStatusCode = allSchedulesPaid ? 10 : loan.sourceStatusCode ?? 0;
+    const sourceStatusName = allSchedulesPaid ? "Closed" : loan.sourceStatusName ?? "Current";
+
+    await prisma.loan.update({
+      where: { id: loan.id },
+      data: {
+        paidAmount: schedulePaid,
+        balance,
+        status: statusToLoanStatus(sourceStatusCode, balance),
+        sourceStatusCode,
+        sourceStatusName
+      }
+    });
+  }
 }
 
 function parseSqlServerHost(dbHost: string) {
@@ -197,7 +243,7 @@ async function fetchBranchRows<T>(connection: ConnectionPool, table: BranchTable
       FROM dbo.tb_loan_data loan
       LEFT JOIN dbo.tb_loan_status loan_status ON loan_status.id_code = loan.p_loan_status
       OUTER APPLY (
-        SELECT SUM(COALESCE(paid_total, paid_principal, 0)) AS paid_amount
+        SELECT SUM(COALESCE(paid_principal, 0) + COALESCE(paid_interest, 0)) AS paid_amount
         FROM dbo.tb_payment_history
         WHERE tb_payment_history.loan_no = loan.loan_no
       ) payments
@@ -210,7 +256,7 @@ async function fetchBranchRows<T>(connection: ConnectionPool, table: BranchTable
         payment.id_code AS id,
         loan.cis_no AS client_remote_id,
         payment.loan_no AS loan_remote_id,
-        COALESCE(payment.paid_total, payment.paid_principal, 0) AS amount,
+        COALESCE(payment.paid_principal, 0) + COALESCE(payment.paid_interest, 0) AS amount,
         COALESCE(payment.tdate, payment.date_created) AS paid_at,
         COALESCE(payment.date_created, payment.tdate) AS updated_at
       FROM dbo.tb_payment_history payment
@@ -236,7 +282,7 @@ async function fetchBranchRows<T>(connection: ConnectionPool, table: BranchTable
         ) AS total_amort,
         COALESCE(amort.paid_principal, 0) AS paid_principal,
         COALESCE(amort.paid_interest, 0) AS paid_interest,
-        COALESCE(amort.paid_total, 0) AS paid_total,
+        COALESCE(amort.paid_principal, 0) + COALESCE(amort.paid_interest, 0) AS paid_total,
         amort.paid_status
       FROM dbo.tb_amort_data amort
       INNER JOIN dbo.tb_loan_data loan ON loan.loan_no = amort.loan_no
@@ -329,8 +375,9 @@ export async function syncBranch(branch: Branch): Promise<BranchSyncResult> {
       const interestAmount = asNumber(row.interest_amount);
       const penaltyAmount = asNumber(row.penalty_amount);
       const paidAmount = asNumber(row.paid_amount);
-      const balance = principalAmount + interestAmount + penaltyAmount - paidAmount;
       const sourceStatusCode = row.source_status_code === null || row.source_status_code === undefined ? null : Number(row.source_status_code);
+      const normalizedStatusCode = Number.isFinite(sourceStatusCode) ? sourceStatusCode : null;
+      const balance = normalizedStatusCode === 10 ? 0 : loanBalance(principalAmount, interestAmount, penaltyAmount, paidAmount);
       const sourceStatusName = row.source_status_name ?? null;
 
       await prisma.loan.upsert({
@@ -348,7 +395,7 @@ export async function syncBranch(branch: Branch): Promise<BranchSyncResult> {
           paidAmount,
           balance,
           status: statusToLoanStatus(row.status, balance),
-          sourceStatusCode: Number.isFinite(sourceStatusCode) ? sourceStatusCode : null,
+          sourceStatusCode: normalizedStatusCode,
           sourceStatusName,
           releasedAt: asDate(row.released_at),
           maturityAt: asDate(row.maturity_at),
@@ -365,7 +412,7 @@ export async function syncBranch(branch: Branch): Promise<BranchSyncResult> {
           paidAmount,
           balance,
           status: statusToLoanStatus(row.status, balance),
-          sourceStatusCode: Number.isFinite(sourceStatusCode) ? sourceStatusCode : null,
+          sourceStatusCode: normalizedStatusCode,
           sourceStatusName,
           releasedAt: asDate(row.released_at),
           maturityAt: asDate(row.maturity_at),
@@ -400,7 +447,7 @@ export async function syncBranch(branch: Branch): Promise<BranchSyncResult> {
           totalAmort: asNumber(row.total_amort),
           paidPrincipal: asNumber(row.paid_principal),
           paidInterest: asNumber(row.paid_interest),
-          paidTotal: asNumber(row.paid_total),
+          paidTotal: asNumber(row.paid_principal) + asNumber(row.paid_interest),
           paidStatus: Number.isFinite(paidStatus) ? paidStatus : null
         },
         update: {
@@ -415,11 +462,13 @@ export async function syncBranch(branch: Branch): Promise<BranchSyncResult> {
           totalAmort: asNumber(row.total_amort),
           paidPrincipal: asNumber(row.paid_principal),
           paidInterest: asNumber(row.paid_interest),
-          paidTotal: asNumber(row.paid_total),
+          paidTotal: asNumber(row.paid_principal) + asNumber(row.paid_interest),
           paidStatus: Number.isFinite(paidStatus) ? paidStatus : null
         }
       });
     }
+
+    await reconcileLoanBalancesFromAmortization(branch.id);
 
     const paymentRows = await fetchBranchRows<BranchPaymentRow>(connection, "tb_payment_history", since);
     for (const row of paymentRows) {
@@ -541,6 +590,26 @@ async function createSyncSummaryLog({
   return { completed, failed, clientsPulled, loansPulled, paymentsPulled, message };
 }
 
+function sortByOldestSync(branches: Branch[]) {
+  return [...branches].sort((a, b) => {
+    const aTime = a.lastSyncAt?.getTime() ?? 0;
+    const bTime = b.lastSyncAt?.getTime() ?? 0;
+    if (aTime !== bTime) return aTime - bTime;
+    return a.branchName.localeCompare(b.branchName);
+  });
+}
+
+async function syncBranchesInBatches(branches: Branch[], concurrency = 2) {
+  const results: BranchSyncResult[] = [];
+
+  for (let index = 0; index < branches.length; index += concurrency) {
+    const batch = branches.slice(index, index + concurrency);
+    results.push(...(await Promise.all(batch.map((branch) => syncBranch(branch)))));
+  }
+
+  return results;
+}
+
 export async function syncAllBranches() {
   const startedAt = new Date();
   const branches = await prisma.branch.findMany({ where: { status: "ACTIVE" } });
@@ -562,8 +631,9 @@ export async function syncAllBranches() {
 
 export async function syncOnlineBranches(messagePrefix = "Midnight sync") {
   const startedAt = new Date();
-  const branches = await prisma.branch.findMany({ where: { status: "ACTIVE" } });
+  const branches = sortByOldestSync(await prisma.branch.findMany({ where: { status: "ACTIVE" } }));
   const results: BranchSyncResult[] = [];
+  const onlineBranches: Branch[] = [];
 
   for (const branch of branches) {
     const connection = await checkBranchConnection(branch);
@@ -572,8 +642,10 @@ export async function syncOnlineBranches(messagePrefix = "Midnight sync") {
       continue;
     }
 
-    results.push(await syncBranch(branch));
+    onlineBranches.push(branch);
   }
+
+  results.push(...(await syncBranchesInBatches(onlineBranches)));
 
   const skipped = results.filter((result) => result.status === "SKIPPED").length;
   const syncResults = results.filter((result) => result.status !== "SKIPPED");
