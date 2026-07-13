@@ -8,16 +8,37 @@ type User = {
   name: string;
   email: string;
   role: string;
+  allBranches: boolean;
   isActive: boolean;
+  branchAccess: Array<{ branchId: number }>;
+};
+
+type BranchOption = {
+  id: number;
+  branchName: string;
+  branchCode: string;
 };
 
 function roleLabel(role: string) {
-  return role.replace("_", " ");
+  return role.replace(/_/g, " ");
 }
 
-export function UserManager({ initialUsers }: { initialUsers: User[] }) {
+function branchAccessLabel(user: User, branches: BranchOption[]) {
+  if (user.role === "ADMIN" || user.allBranches) return "All branches";
+
+  const branchById = new Map(branches.map((branch) => [branch.id, branch]));
+  const labels = user.branchAccess
+    .map((access) => branchById.get(access.branchId))
+    .filter((branch): branch is BranchOption => Boolean(branch))
+    .map((branch) => `${branch.branchName} - ${branch.branchCode}`);
+
+  return labels.length ? labels.join(", ") : "No branch access";
+}
+
+export function UserManager({ initialUsers, branches }: { initialUsers: User[]; branches: BranchOption[] }) {
   const [users, setUsers] = useState(initialUsers);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [allBranches, setAllBranches] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -36,11 +57,13 @@ export function UserManager({ initialUsers }: { initialUsers: User[] }) {
   function editUser(user: User) {
     resetMessages();
     setEditingUser(user);
+    setAllBranches(user.allBranches);
   }
 
   function cancelEdit() {
     resetMessages();
     setEditingUser(null);
+    setAllBranches(true);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -51,6 +74,8 @@ export function UserManager({ initialUsers }: { initialUsers: User[] }) {
     const endpoint = editingUser ? `/api/users/${editingUser.id}` : "/api/users";
     const password = String(payload.password ?? "");
     const confirmPassword = String(payload.confirmPassword ?? "");
+    const branchIds = form.getAll("branchIds").map((value) => Number(value)).filter((value) => Number.isFinite(value));
+    const hasAllBranches = form.get("allBranches") === "on";
 
     setLoading(true);
     resetMessages();
@@ -67,8 +92,9 @@ export function UserManager({ initialUsers }: { initialUsers: User[] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...payload,
-          confirmPassword: undefined,
-          isActive: form.get("isActive") === "on"
+          isActive: form.get("isActive") === "on",
+          allBranches: hasAllBranches,
+          branchIds: hasAllBranches ? [] : branchIds
         })
       });
       const data = await response.json().catch(() => null);
@@ -95,12 +121,14 @@ export function UserManager({ initialUsers }: { initialUsers: User[] }) {
       const response = await fetch(`/api/users/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          isActive: !user.isActive
-        })
+      body: JSON.stringify({
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        allBranches: user.allBranches,
+        branchIds: user.branchAccess.map((access) => access.branchId),
+        isActive: !user.isActive
+      })
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
@@ -189,7 +217,44 @@ export function UserManager({ initialUsers }: { initialUsers: User[] }) {
             <option value="ADMIN">Admin</option>
             <option value="INQUIRY_USER">Inquiry User</option>
             <option value="AUDITOR">Auditor</option>
+            <option value="ACCOUNT_OFFICER">Account Officer</option>
+            <option value="AREA_TEAM_LEADER">Area Team Leader</option>
+            <option value="CREDIT_COMMITTEE">Credit Committee</option>
           </select>
+          <div className="rounded-lg border border-slate-200 p-3">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <input
+                name="allBranches"
+                type="checkbox"
+                className="h-4 w-4 rounded border-slate-300"
+                checked={allBranches}
+                onChange={(event) => setAllBranches(event.target.checked)}
+              />
+              Access all branches
+            </label>
+            {!allBranches ? (
+              <div className="mt-3 grid max-h-56 gap-2 overflow-auto pr-1 sm:grid-cols-2">
+                {branches.map((branch) => {
+                  const checked = editingUser?.branchAccess.some((access) => access.branchId === branch.id) ?? false;
+                  return (
+                    <label key={branch.id} className="flex items-start gap-2 rounded-md border border-slate-100 px-2 py-2 text-sm text-slate-700">
+                      <input
+                        name="branchIds"
+                        type="checkbox"
+                        value={branch.id}
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                        defaultChecked={checked}
+                      />
+                      <span>
+                        <span className="block font-semibold text-slate-900">{branch.branchName}</span>
+                        <span className="text-xs text-slate-500">{branch.branchCode}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
           <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
             <input
               name="isActive"
@@ -214,6 +279,7 @@ export function UserManager({ initialUsers }: { initialUsers: User[] }) {
                 <th className="px-4 py-3">User</th>
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Role</th>
+                <th className="px-4 py-3">Branches</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
@@ -229,6 +295,15 @@ export function UserManager({ initialUsers }: { initialUsers: User[] }) {
                   </td>
                   <td className="px-4 py-3">{user.email}</td>
                   <td className="px-4 py-3">{roleLabel(user.role)}</td>
+                  <td className="px-4 py-3">
+                    {user.role === "ADMIN" || user.allBranches ? (
+                      <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-bold text-brand-blue">All branches</span>
+                    ) : (
+                      <span className="block max-w-72 whitespace-normal text-sm text-slate-600">
+                        {branchAccessLabel(user, branches)}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <span className={`rounded-md px-2 py-1 text-xs font-bold ${user.isActive ? "bg-emerald-50 text-brand-green" : "bg-slate-100 text-slate-600"}`}>
                       {user.isActive ? "Active" : "Inactive"}
@@ -258,7 +333,7 @@ export function UserManager({ initialUsers }: { initialUsers: User[] }) {
               ))}
               {!users.length ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={5}>No users found.</td>
+                  <td className="px-4 py-6 text-slate-500" colSpan={6}>No users found.</td>
                 </tr>
               ) : null}
             </tbody>

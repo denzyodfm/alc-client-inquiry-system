@@ -1,44 +1,63 @@
 import type { Prisma } from "@prisma/client";
+import { visibleSyncedLoanWhere } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 
 export type InquiryPayload = {
   q?: string;
   fullName?: string;
+  address?: string;
   birthdate?: string;
   contactNumber?: string;
   clientId?: string;
   validIdNumber?: string;
 };
 
-export async function searchClientInquiry(payload: InquiryPayload) {
-  const visibleLoanFilter: Prisma.LoanWhereInput = {
-    balance: { gt: 0 },
-    loanNumber: { not: null },
-    sourceStatusCode: { not: null },
-    sourceStatusName: { not: null },
-    NOT: [
-      { loanNumber: "" },
-      { sourceStatusName: "ACTIVE" },
-      {
-        AND: [
-          { sourceStatusName: null },
-          { status: "ACTIVE" }
-        ]
+function searchTerms(value: string) {
+  return value
+    .trim()
+    .split(/[,\s]+/)
+    .filter(Boolean);
+}
+
+function fullNameWordSearch(value: string): Prisma.ClientWhereInput {
+  const terms = searchTerms(value);
+  return terms.length
+    ? { AND: terms.map((term) => ({ fullName: { contains: term } })) }
+    : { fullName: { contains: value.trim() } };
+}
+
+function clientWordSearch(value: string): Prisma.ClientWhereInput {
+  const terms = searchTerms(value);
+  return terms.length
+    ? {
+        AND: terms.map((term) => ({
+          OR: [
+            { fullName: { contains: term } },
+            { address: { contains: term } },
+            { contactNumber: { contains: term } },
+            { clientId: { contains: term } },
+            { validIdNumber: { contains: term } },
+            { loans: { some: { loanNumber: { contains: term } } } },
+            { loans: { some: { remoteId: { contains: term } } } }
+          ]
+        }))
       }
-    ]
-  };
+    : { fullName: { contains: value.trim() } };
+}
+
+export async function searchClientInquiry(payload: InquiryPayload) {
+  const visibleLoanFilter = visibleSyncedLoanWhere();
   const or = [];
   if (payload.q?.trim()) {
     const query = payload.q.trim();
-    or.push(
-      { fullName: { contains: query } },
-      { clientId: { contains: query } },
-      { loans: { some: { loanNumber: { contains: query } } } },
-      { loans: { some: { remoteId: { contains: query } } } }
-    );
+    or.push(clientWordSearch(query));
   }
   if (payload.fullName?.trim()) {
-    or.push({ fullName: { contains: payload.fullName.trim() } });
+    or.push(fullNameWordSearch(payload.fullName));
+  }
+  if (payload.address?.trim()) {
+    const terms = searchTerms(payload.address);
+    or.push({ AND: terms.map((term) => ({ address: { contains: term } })) });
   }
   if (payload.birthdate?.trim()) {
     or.push({ birthdate: new Date(`${payload.birthdate}T00:00:00.000Z`) });
@@ -92,6 +111,7 @@ export async function searchClientInquiry(payload: InquiryPayload) {
 
   const activeLoan = clients.flatMap((client) =>
     client.loans
+      .filter((loan) => Number(loan.balance) > 0 && loan.sourceStatusCode !== 10)
       .map((loan) => ({ client, loan }))
   )[0];
 

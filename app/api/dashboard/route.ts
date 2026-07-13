@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/api";
+import { inactiveStatus12Where } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -10,7 +11,7 @@ export async function GET() {
     prisma.branch.count(),
     prisma.branch.count({ where: { status: "ACTIVE" } }),
     prisma.client.count(),
-    prisma.loan.count({ where: { balance: { gt: 0 } } }),
+    prisma.loan.count({ where: { AND: [{ balance: { gt: 0 } }, inactiveStatus12Where()] } }),
     prisma.syncLog.findFirst({ orderBy: { startedAt: "desc" }, include: { branch: true } }),
     prisma.syncLog.count({ where: { status: "FAILED", startedAt: { gte: new Date(Date.now() - 86400000) } } })
   ]);

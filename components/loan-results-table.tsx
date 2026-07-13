@@ -1,12 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { BarChart3 } from "lucide-react";
 import { useState } from "react";
 import { dateOnly, money } from "@/lib/format";
+import { amountDueAsOfToday } from "@/lib/loan-amounts";
 import { LoanDetailWindow } from "@/components/loan-detail-window";
+import { PaymentBehaviorReport } from "@/components/payment-behavior-report";
+import { ClientLoanAnalysisReport } from "@/components/client-loan-analysis-report";
 
 type Schedule = {
   id: number;
+  remoteId?: string;
   amortNo: number;
   amortDate: string | null;
   principalBalance: string;
@@ -53,6 +58,7 @@ export type LoanResultRow = {
 
 type LoanResultsTableProps = {
   loans: LoanResultRow[];
+  clientLoansByClientId: Record<number, LoanResultRow[]>;
   firstRowNumber: number;
   totalLoans: number;
   safePage: number;
@@ -74,6 +80,7 @@ function loanStatusCode(loan: { sourceStatusCode: number | null }) {
 
 export function LoanResultsTable({
   loans,
+  clientLoansByClientId,
   firstRowNumber,
   totalLoans,
   safePage,
@@ -85,6 +92,8 @@ export function LoanResultsTable({
   pageLinks
 }: LoanResultsTableProps) {
   const [selectedLoan, setSelectedLoan] = useState<LoanResultRow | null>(null);
+  const [analysisLoan, setAnalysisLoan] = useState<LoanResultRow | null>(null);
+  const [analysisClient, setAnalysisClient] = useState<{ client: LoanResultRow["client"]; loans: LoanResultRow[] } | null>(null);
 
   return (
     <div className="panel overflow-hidden">
@@ -106,11 +115,13 @@ export function LoanResultsTable({
               <th className="px-4 py-3">Principal</th>
               <th className="px-4 py-3">Interest</th>
               <th className="px-4 py-3">Penalty</th>
+              <th className="px-4 py-3">Due Today</th>
               <th className="px-4 py-3">Total</th>
               <th className="px-4 py-3">Payments</th>
               <th className="px-4 py-3">Balance</th>
               <th className="px-4 py-3">Status ID</th>
               <th className="px-4 py-3">Status Label</th>
+              <th className="px-4 py-3">Analysis</th>
             </tr>
           </thead>
           <tbody>
@@ -121,11 +132,29 @@ export function LoanResultsTable({
               const total = principal + interest + penalty;
               const payments = Number(loan.paidAmount);
               const balance = Number(loan.balance);
+              const dueToday = amountDueAsOfToday(loan);
 
               return (
                 <tr key={loan.id} className="border-t border-slate-100">
                   <td className="px-4 py-3 font-semibold text-slate-500">{firstRowNumber + index}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-900">{loan.client.fullName}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex min-w-56 flex-wrap items-center gap-2">
+                      <span className="font-semibold text-slate-900">{loan.client.fullName}</span>
+                      <button
+                        type="button"
+                        className="btn-secondary h-8 px-3 text-xs"
+                        onClick={() =>
+                          setAnalysisClient({
+                            client: loan.client,
+                            loans: clientLoansByClientId[loan.client.id] ?? [loan]
+                          })
+                        }
+                      >
+                        <BarChart3 className="h-3.5 w-3.5" />
+                        Loan Analysis
+                      </button>
+                    </div>
+                  </td>
                   <td className="px-4 py-3">{loan.branch.branchName}</td>
                   <td className="px-4 py-3">
                     <button
@@ -140,16 +169,27 @@ export function LoanResultsTable({
                   <td className="px-4 py-3">{money(principal)}</td>
                   <td className="px-4 py-3">{money(interest)}</td>
                   <td className="px-4 py-3">{money(penalty)}</td>
+                  <td className="px-4 py-3 font-bold text-red-700">{money(dueToday)}</td>
                   <td className="px-4 py-3 font-semibold">{money(total)}</td>
                   <td className="px-4 py-3 text-brand-green">{money(payments)}</td>
                   <td className={`px-4 py-3 font-bold ${balance > 0 ? "text-red-700" : "text-brand-green"}`}>{money(balance)}</td>
                   <td className="px-4 py-3 font-bold text-slate-900">{loanStatusCode(loan)}</td>
                   <td className="px-4 py-3">{loanStatusText(loan)}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      className="btn-secondary h-8 px-3 text-xs"
+                      onClick={() => setAnalysisLoan(loan)}
+                    >
+                      <BarChart3 className="h-3.5 w-3.5" />
+                      Analyze
+                    </button>
+                  </td>
                 </tr>
               );
             })}
             {!loans.length ? (
-              <tr><td className="px-4 py-6 text-slate-500" colSpan={13}>No loan records available.</td></tr>
+              <tr><td className="px-4 py-6 text-slate-500" colSpan={15}>No loan records available.</td></tr>
             ) : null}
           </tbody>
         </table>
@@ -194,6 +234,15 @@ export function LoanResultsTable({
       </div>
 
       {selectedLoan ? <LoanDetailWindow loan={selectedLoan} onClose={() => setSelectedLoan(null)} /> : null}
+      {analysisLoan ? <PaymentBehaviorReport loan={analysisLoan} onClose={() => setAnalysisLoan(null)} /> : null}
+      {analysisClient ? (
+        <ClientLoanAnalysisReport
+          clientName={analysisClient.client.fullName}
+          customerNo={analysisClient.client.clientId}
+          loans={analysisClient.loans}
+          onClose={() => setAnalysisClient(null)}
+        />
+      ) : null}
     </div>
   );
 }

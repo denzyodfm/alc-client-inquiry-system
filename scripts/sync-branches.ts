@@ -1,7 +1,7 @@
-import { syncAllBranches } from "./sync-service";
+import { syncOnlineBranches } from "./sync-service";
 import { prisma } from "@/lib/prisma";
 
-syncAllBranches()
+syncOnlineBranches("Midnight sync")
   .then(async (result) => {
     console.log(JSON.stringify(result, null, 2));
     await prisma.$disconnect();

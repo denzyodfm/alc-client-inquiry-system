@@ -9,6 +9,7 @@ export type SessionUser = {
   name: string;
   email: string;
   role: UserRole;
+  allBranches?: boolean;
 };
 
 const COOKIE_NAME = "alc_session";
@@ -19,6 +20,10 @@ function getSecret() {
 
 function sign(payload: string) {
   return crypto.createHmac("sha256", getSecret()).update(payload).digest("base64url");
+}
+
+function shouldUseSecureSessionCookie() {
+  return process.env.SESSION_COOKIE_SECURE === "true";
 }
 
 export function createSessionToken(user: SessionUser) {
@@ -43,7 +48,7 @@ export async function setSession(user: SessionUser) {
   cookieStore.set(COOKIE_NAME, createSessionToken(user), {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: shouldUseSecureSessionCookie(),
     path: "/",
     maxAge: 60 * 60 * 10
   });
@@ -61,7 +66,7 @@ export async function getSessionUser() {
 
   const user = await prisma.user.findFirst({
     where: { id: session.id, isActive: true },
-    select: { id: true, name: true, email: true, role: true }
+    select: { id: true, name: true, email: true, role: true, allBranches: true }
   });
 
   return user;
@@ -80,4 +85,28 @@ export function canManage(role: UserRole) {
 
 export function canAudit(role: UserRole) {
   return role === "ADMIN" || role === "AUDITOR";
+}
+
+export function canApproveRemedial(role: UserRole) {
+  return role === "ADMIN" || role === "AREA_TEAM_LEADER" || role === "CREDIT_COMMITTEE";
+}
+
+export function canAssignRemedial(role: UserRole) {
+  return canApproveRemedial(role);
+}
+
+export async function getAccessibleBranchIds(user: SessionUser) {
+  if (user.role === "ADMIN" || user.allBranches) return null;
+
+  const access = await prisma.userBranchAccess.findMany({
+    where: { userId: user.id },
+    select: { branchId: true }
+  });
+
+  return access.map((row) => row.branchId);
+}
+
+export async function canAccessBranch(user: SessionUser, branchId: number) {
+  const branchIds = await getAccessibleBranchIds(user);
+  return branchIds === null || branchIds.includes(branchId);
 }

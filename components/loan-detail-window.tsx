@@ -2,10 +2,12 @@
 
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
+import { useState } from "react";
 import { dateOnly, money } from "@/lib/format";
 
 export type LoanDetailSchedule = {
   id: number;
+  remoteId?: string;
   amortNo: number;
   amortDate: string | null;
   principalBalance: string;
@@ -51,6 +53,9 @@ type LoanDetailWindowProps = {
   loan: LoanDetailLoan;
   onClose: () => void;
 };
+type DetailTab = "General Details View" | "Amortization Schedule" | "Payments View" | "Balance View" | "Cash Advances";
+
+const detailTabs: DetailTab[] = ["General Details View", "Amortization Schedule", "Payments View", "Balance View", "Cash Advances"];
 
 function percent(value: unknown) {
   const rate = Number(value ?? 0);
@@ -80,6 +85,10 @@ function schedulePaidTotal(schedule: LoanDetailSchedule) {
   return Number(schedule.paidPrincipal) + Number(schedule.paidInterest);
 }
 
+function remainingAmount(due: unknown, paid: unknown) {
+  return Math.max(0, Number(due ?? 0) - Number(paid ?? 0));
+}
+
 function scheduleRowBalance(schedule: LoanDetailSchedule) {
   return Math.max(0, Number(schedule.totalAmort) - schedulePaidTotal(schedule));
 }
@@ -104,6 +113,8 @@ function amortizationTotals(schedules: LoanDetailSchedule[]) {
       cashAdvance: totals.cashAdvance,
       totalAmort: totals.totalAmort + Number(schedule.totalAmort),
       balance: totals.balance + scheduleRowBalance(schedule),
+      principalBalance: totals.principalBalance + remainingAmount(schedule.principalAmort, schedule.paidPrincipal),
+      interestBalance: totals.interestBalance + remainingAmount(schedule.interestAmort, schedule.paidInterest),
       paidPrincipal: totals.paidPrincipal + Number(schedule.paidPrincipal),
       paidInterest: totals.paidInterest + Number(schedule.paidInterest),
       paidTotal: totals.paidTotal + schedulePaidTotal(schedule)
@@ -117,6 +128,8 @@ function amortizationTotals(schedules: LoanDetailSchedule[]) {
       cashAdvance: 0,
       totalAmort: 0,
       balance: 0,
+      principalBalance: 0,
+      interestBalance: 0,
       paidPrincipal: 0,
       paidInterest: 0,
       paidTotal: 0
@@ -125,11 +138,18 @@ function amortizationTotals(schedules: LoanDetailSchedule[]) {
 }
 
 export function LoanDetailWindow({ loan, onClose }: LoanDetailWindowProps) {
+  const [activeTab, setActiveTab] = useState<DetailTab>("Amortization Schedule");
   const branch = loan.branch ?? loan.client.branch;
   const totals = amortizationTotals(loan.amortizationSchedules);
   const loanTotal = Number(loan.principalAmount) + Number(loan.interestAmount) + Number(loan.penaltyAmount);
   const loanNumber = loan.loanNumber ?? loan.remoteId ?? String(loan.id);
   const totalBalance = displayBalance(loan);
+  const isClosed = loan.sourceStatusCode === 10;
+  const hasSchedules = loan.amortizationSchedules.length > 0;
+  const principalBalance = isClosed ? 0 : hasSchedules ? totals.principalBalance : Number(loan.principalAmount);
+  const interestBalance = isClosed ? 0 : hasSchedules ? totals.interestBalance : Number(loan.interestAmount);
+  const penaltyBalance = isClosed ? 0 : Number(loan.penaltyAmount);
+  const paymentRows = loan.amortizationSchedules.filter((schedule) => schedulePaidTotal(schedule) > 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-3">
@@ -164,9 +184,9 @@ export function LoanDetailWindow({ loan, onClose }: LoanDetailWindowProps) {
               <h3 className="mt-1 text-lg font-bold uppercase leading-none text-[#001eff]">{loan.client.fullName}</h3>
               <div className="mt-1 border-t border-slate-200 pt-1">
                 <div className="grid gap-2 text-center font-semibold md:grid-cols-6">
-                  <Balance label="Principal Balance" value={loan.principalAmount} />
-                  <Balance label="Interest Balance" value={loan.interestAmount} />
-                  <Balance label="Penalty Balance" value={loan.penaltyAmount} />
+                  <Balance label="Principal Balance" value={principalBalance} />
+                  <Balance label="Interest Balance" value={interestBalance} />
+                  <Balance label="Penalty Balance" value={penaltyBalance} />
                   <Balance label="PDI Balance" value={0} />
                   <Balance label="Other Charges Bal." value={0} />
                   <Balance label="Total Balance" value={totalBalance} valueClassName="text-xl text-green-600" />
@@ -180,12 +200,13 @@ export function LoanDetailWindow({ loan, onClose }: LoanDetailWindowProps) {
           </div>
 
           <div className="mt-2 flex flex-wrap gap-0.5">
-            {["General Details View", "Amortization Schedule", "Payments View", "Balance View", "Cash Advances"].map((tab, index) => (
+            {detailTabs.map((tab) => (
               <button
                 key={tab}
                 type="button"
+                onClick={() => setActiveTab(tab)}
                 className={`border border-slate-500 px-3 py-1 text-xs ${
-                  index === 1 ? "bg-white text-slate-950" : "bg-[#d9d9d9] text-slate-900"
+                  activeTab === tab ? "bg-white text-slate-950" : "bg-[#d9d9d9] text-slate-900"
                 }`}
               >
                 {tab}
@@ -194,49 +215,11 @@ export function LoanDetailWindow({ loan, onClose }: LoanDetailWindowProps) {
           </div>
 
           <div className="border border-slate-500 bg-white p-2">
-            <div className="max-h-[43vh] overflow-auto border border-slate-400">
-              <table className="w-full min-w-[760px] border-collapse text-right text-[11px]">
-                <thead className="sticky top-0 bg-[#d6d6d6] text-slate-950">
-                  <tr>
-                    <GridHead align="left">Amort Date</GridHead>
-                    <GridHead>Amort No.</GridHead>
-                    <GridHead>Principal</GridHead>
-                    <GridHead>Interest</GridHead>
-                    <GridHead>Penalty</GridHead>
-                    <GridHead>PDI</GridHead>
-                    <GridHead>Other Char...</GridHead>
-                    <GridHead>CA</GridHead>
-                    <GridHead>Total Amort</GridHead>
-                    <GridHead>Balance</GridHead>
-                    <GridHead align="left">Status</GridHead>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loan.amortizationSchedules.map((schedule, index) => (
-                    <tr key={schedule.id} className={index === 1 ? "bg-[#07357f] text-white" : "odd:bg-white even:bg-[#f7f7f7]"}>
-                      <GridCell align="left">{dateOnly(schedule.amortDate)}</GridCell>
-                      <GridCell>{schedule.amortNo}</GridCell>
-                      <GridCell>{plainMoney(schedule.principalAmort)}</GridCell>
-                      <GridCell>{plainMoney(schedule.interestAmort)}</GridCell>
-                      <GridCell>{plainMoney(0)}</GridCell>
-                      <GridCell>{plainMoney(0)}</GridCell>
-                      <GridCell>{plainMoney(0)}</GridCell>
-                      <GridCell>{plainMoney(0)}</GridCell>
-                      <GridCell>{plainMoney(schedule.totalAmort)}</GridCell>
-                      <GridCell>{plainMoney(scheduleRowBalance(schedule))}</GridCell>
-                      <GridCell align="left">{scheduleStatusText(schedule)}</GridCell>
-                    </tr>
-                  ))}
-                  {!loan.amortizationSchedules.length ? (
-                    <tr>
-                      <td className="border border-slate-300 px-2 py-4 text-center text-slate-500" colSpan={11}>
-                        No amortization schedule rows available.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
+            {activeTab === "Payments View" ? (
+              <PaymentsTable rows={paymentRows} />
+            ) : (
+              <AmortizationTable rows={loan.amortizationSchedules} />
+            )}
 
             <div className="mt-3 grid items-center gap-2 border border-slate-300 bg-[#e6e2e6] px-3 py-2 md:grid-cols-[110px_repeat(6,1fr)]">
               <span className="font-semibold text-slate-500">Total Payments</span>
@@ -263,6 +246,100 @@ export function LoanDetailWindow({ loan, onClose }: LoanDetailWindowProps) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function AmortizationTable({ rows }: { rows: LoanDetailSchedule[] }) {
+  return (
+    <div className="max-h-[43vh] overflow-auto border border-slate-400">
+      <table className="w-full min-w-[760px] border-collapse text-right text-[11px]">
+        <thead className="sticky top-0 bg-[#d6d6d6] text-slate-950">
+          <tr>
+            <GridHead align="left">Amort Date</GridHead>
+            <GridHead>Amort No.</GridHead>
+            <GridHead>Principal</GridHead>
+            <GridHead>Interest</GridHead>
+            <GridHead>Penalty</GridHead>
+            <GridHead>PDI</GridHead>
+            <GridHead>Other Char...</GridHead>
+            <GridHead>CA</GridHead>
+            <GridHead>Total Amort</GridHead>
+            <GridHead>Balance</GridHead>
+            <GridHead align="left">Status</GridHead>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((schedule, index) => (
+            <tr key={schedule.id} className={index === 1 ? "bg-[#07357f] text-white" : "odd:bg-white even:bg-[#f7f7f7]"}>
+              <GridCell align="left">{dateOnly(schedule.amortDate)}</GridCell>
+              <GridCell>{schedule.amortNo}</GridCell>
+              <GridCell>{plainMoney(schedule.principalAmort)}</GridCell>
+              <GridCell>{plainMoney(schedule.interestAmort)}</GridCell>
+              <GridCell>{plainMoney(0)}</GridCell>
+              <GridCell>{plainMoney(0)}</GridCell>
+              <GridCell>{plainMoney(0)}</GridCell>
+              <GridCell>{plainMoney(0)}</GridCell>
+              <GridCell>{plainMoney(schedule.totalAmort)}</GridCell>
+              <GridCell>{plainMoney(scheduleRowBalance(schedule))}</GridCell>
+              <GridCell align="left">{scheduleStatusText(schedule)}</GridCell>
+            </tr>
+          ))}
+          {!rows.length ? (
+            <tr>
+              <td className="border border-slate-300 px-2 py-4 text-center text-slate-500" colSpan={11}>
+                No amortization schedule rows available.
+              </td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PaymentsTable({ rows }: { rows: LoanDetailSchedule[] }) {
+  return (
+    <div className="max-h-[43vh] overflow-auto border border-slate-400">
+      <table className="w-full min-w-[760px] border-collapse text-right text-[11px]">
+        <thead className="sticky top-0 bg-[#d6d6d6] text-slate-950">
+          <tr>
+            <GridHead align="left">Pay Date</GridHead>
+            <GridHead>OR Number</GridHead>
+            <GridHead>Amort No.</GridHead>
+            <GridHead>Paid Principal</GridHead>
+            <GridHead>Paid Interest</GridHead>
+            <GridHead>Paid Penalty</GridHead>
+            <GridHead>Paid PDI</GridHead>
+            <GridHead>Paid Charges</GridHead>
+            <GridHead>Paid CA</GridHead>
+            <GridHead>Paid Total</GridHead>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((schedule, index) => (
+            <tr key={schedule.id} className={index === 1 ? "bg-[#07357f] text-white" : "odd:bg-white even:bg-[#f7f7f7]"}>
+              <GridCell align="left">{dateOnly(schedule.amortDate)}</GridCell>
+              <GridCell>{schedule.remoteId ?? schedule.id}</GridCell>
+              <GridCell>{schedule.amortNo}</GridCell>
+              <GridCell>{plainMoney(schedule.paidPrincipal)}</GridCell>
+              <GridCell>{plainMoney(schedule.paidInterest)}</GridCell>
+              <GridCell>{plainMoney(0)}</GridCell>
+              <GridCell>{plainMoney(0)}</GridCell>
+              <GridCell>{plainMoney(0)}</GridCell>
+              <GridCell>{plainMoney(0)}</GridCell>
+              <GridCell>{plainMoney(schedulePaidTotal(schedule))}</GridCell>
+            </tr>
+          ))}
+          {!rows.length ? (
+            <tr>
+              <td className="border border-slate-300 px-2 py-4 text-center text-slate-500" colSpan={10}>
+                No payment rows available for this loan.
+              </td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
     </div>
   );
 }

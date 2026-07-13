@@ -9,6 +9,7 @@ type Branch = {
   branchName: string;
   branchCode: string;
   publicIp: string | null;
+  dynamicIp: string | null;
   dbHost: string;
   dbName: string;
   dbUser: string;
@@ -210,7 +211,10 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
           ) : null}
           <input name="branchName" className="field" placeholder="Branch name" defaultValue={editingBranch?.branchName ?? ""} required />
           <input name="branchCode" className="field" placeholder="Branch code" defaultValue={editingBranch?.branchCode ?? ""} required />
-          <input name="publicIp" className="field" placeholder="Public IP" defaultValue={editingBranch?.publicIp ?? ""} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <input name="publicIp" className="field" placeholder="Public/static IP" defaultValue={editingBranch?.publicIp ?? ""} />
+            <input name="dynamicIp" className="field" placeholder="Dynamic IP fallback" defaultValue={editingBranch?.dynamicIp ?? ""} />
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <input name="dbHost" className="field" placeholder="DB host" defaultValue={editingBranch?.dbHost ?? ""} required />
             <input name="dbName" className="field" placeholder="DB name" defaultValue={editingBranch?.dbName ?? ""} required />
@@ -294,6 +298,7 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
               </div>
               <dl className="mt-3 grid gap-1.5 text-xs">
                 <div className="flex justify-between gap-4"><dt className="text-slate-500">Database</dt><dd className="font-semibold">{branch.dbName}</dd></div>
+                <div className="flex justify-between gap-4"><dt className="text-slate-500">Fallback IP</dt><dd className="break-all text-right font-semibold">{branch.dynamicIp || "-"}</dd></div>
                 <div className="flex justify-between gap-4"><dt className="text-slate-500">User</dt><dd className="font-semibold">{branch.dbUser}</dd></div>
                 <div className="flex justify-between gap-4"><dt className="text-slate-500">Connection</dt><dd className="font-semibold">{branch.connection?.status ?? "Not checked"}</dd></div>
                 <div className="flex justify-between gap-4"><dt className="text-slate-500">Last sync</dt><dd className="font-semibold">{dateTime(branch.lastSyncAt)}</dd></div>

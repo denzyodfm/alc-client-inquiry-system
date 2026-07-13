@@ -47,6 +47,7 @@ export async function POST(request: Request) {
         branchName: String(body.branchName).trim(),
         branchCode: String(body.branchCode).trim(),
         publicIp: String(body.publicIp ?? "").trim() || null,
+        dynamicIp: String(body.dynamicIp ?? "").trim() || null,
         dbHost: String(body.dbHost).trim(),
         dbName: String(body.dbName).trim(),
         dbUser: String(body.dbUser).trim(),

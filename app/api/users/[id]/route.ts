@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { Prisma } from "@prisma/client";
+import { Prisma, UserRole } from "@prisma/client";
 import { requireApiUser } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+
+function parseRole(value: unknown) {
+  const role = String(value || "INQUIRY_USER");
+  return Object.values(UserRole).includes(role as UserRole) ? (role as UserRole) : null;
+}
+
+function parseBranchIds(value: unknown) {
+  return Array.isArray(value)
+    ? Array.from(new Set(value.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0)))
+    : [];
+}
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const { user: currentUser, response } = await requireApiUser(["ADMIN"]);
@@ -15,6 +26,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const email = String(body.email ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");
   const confirmPassword = String(body.confirmPassword ?? "");
+  const role = parseRole(body.role);
+  const allBranches = Boolean(body.allBranches);
+  const branchIds = allBranches ? [] : parseBranchIds(body.branchIds);
 
   if (!name || !email) {
     return NextResponse.json({ error: "Name and email are required." }, { status: 400 });
@@ -30,18 +44,34 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (currentUser?.id === userId && body.isActive === false) {
     return NextResponse.json({ error: "You cannot deactivate your own account." }, { status: 400 });
   }
+  if (!role) {
+    return NextResponse.json({ error: "Invalid role selected." }, { status: 400 });
+  }
 
   try {
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        name,
-        email,
-        role: body.role,
-        isActive: body.isActive,
-        passwordHash: password ? await bcrypt.hash(password, 12) : undefined
-      },
-      select: { id: true, name: true, email: true, role: true, isActive: true }
+    const user = await prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: {
+          name,
+          email,
+          role,
+          allBranches,
+          isActive: body.isActive,
+          passwordHash: password ? await bcrypt.hash(password, 12) : undefined
+        },
+        select: { id: true, name: true, email: true, role: true, allBranches: true, isActive: true }
+      });
+
+      await tx.userBranchAccess.deleteMany({ where: { userId } });
+      if (!allBranches && branchIds.length) {
+        await tx.userBranchAccess.createMany({
+          data: branchIds.map((branchId) => ({ userId, branchId })),
+          skipDuplicates: true
+        });
+      }
+
+      return updated;
     });
     return NextResponse.json(user);
   } catch (error) {
