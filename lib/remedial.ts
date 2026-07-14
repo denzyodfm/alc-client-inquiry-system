@@ -35,6 +35,7 @@ export function pastDueLoanWhere(today = new Date()): Prisma.LoanWhereInput {
     AND: [
       inactiveStatus12Where(),
       {
+        sourceStatusCode: 2,
         balance: { gt: 0 },
         OR: [
           { maturityAt: { lt: today } },

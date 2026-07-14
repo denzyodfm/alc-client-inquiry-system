@@ -436,12 +436,15 @@ export function RemedialWorkspace({
         </div>
       </section>
 
-      <div className="panel overflow-hidden">
+      <div className="panel overflow-hidden print-area">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-sm">
-          <span className="font-semibold text-slate-700">
-            Showing {firstResult}-{lastResult} of {totalLoans} past-due loan(s)
-          </span>
-          <span className="text-slate-500">Page {safePage} of {totalPages}</span>
+          <div>
+            <p className="font-semibold text-slate-700">
+              Showing {firstResult}-{lastResult} of {totalLoans} past-due loan(s)
+            </p>
+            <p className="text-xs text-slate-500">Page {safePage} of {totalPages}</p>
+          </div>
+          <PrintReportButton />
         </div>
 
         <div className="overflow-x-auto">
@@ -459,13 +462,12 @@ export function RemedialWorkspace({
                 <th className="px-4 py-3">Paid</th>
                 <th className="px-4 py-3">Balance</th>
                 <th className="px-4 py-3">Officer / Visit</th>
-                <th className="px-4 py-3">Actions</th>
+                <th className="px-4 py-3 no-print">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loans.map((loan, index) => {
                 const approvedVisits = loan.assignment?.visits.filter((visit) => visit.status === "APPROVED") ?? [];
-                const assignedToCurrentUser = loan.assignment?.assignedTo.id === currentUserId;
                 const currentVisit = latestVisit(loan);
 
                 return (
@@ -477,7 +479,7 @@ export function RemedialWorkspace({
                       <p className="mt-1 max-w-72 text-xs text-slate-500">{loan.client.address ?? "-"}</p>
                     </td>
                     <td className="px-4 py-4">{loan.branch.branchName}</td>
-                    <td className="px-4 py-4">
+                    <td className="px-4 py-4 no-print">
                       <p className="font-bold text-brand-blue">{loan.loanNumber ?? loan.remoteId}</p>
                       <p className="text-xs text-slate-500">{loan.sourceStatusCode ?? "-"} - {loan.sourceStatusName ?? "Past due"}</p>
                     </td>
@@ -504,23 +506,10 @@ export function RemedialWorkspace({
                     </td>
                     <td className="px-4 py-4">
                       <div className="grid gap-3">
-                        {(assignedToCurrentUser || canAssign) && approvedVisits.length ? (
-                          <form className="grid min-w-80 gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3" onSubmit={(event) => submitVisitReport(event, approvedVisits[0].id)}>
-                            <p className="text-xs font-bold uppercase text-brand-green">Record visit result</p>
-                            <p className="text-sm font-semibold text-slate-900">{dateOnly(approvedVisits[0].scheduledDate)}</p>
-                            <textarea name="visitNotes" className="field min-h-16 text-sm" placeholder="Visit notes" />
-                            <textarea name="negotiationNotes" className="field min-h-16 text-sm" placeholder="Negotiation with client" />
-                            <div className="grid gap-2 sm:grid-cols-2">
-                              <input name="promisedAmount" className="field h-9 text-sm" type="number" min="0" step="0.01" placeholder="Promise amount" />
-                              <input name="paidAmount" className="field h-9 text-sm" type="number" min="0" step="0.01" placeholder="Paid amount" />
-                            </div>
-                            <input name="nextVisitDate" className="field h-9 text-sm" type="date" />
-                            <textarea name="nextVisitNotes" className="field min-h-16 text-sm" placeholder="Next visit notes for approval" />
-                            <button className="btn-primary h-9 text-xs" disabled={isPending}>
-                              <Send className="h-4 w-4" />
-                              Submit result
-                            </button>
-                          </form>
+                        {approvedVisits.length ? (
+                          <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-brand-green">
+                            Approved visit: {dateOnly(approvedVisits[0].scheduledDate)}
+                          </span>
                         ) : null}
 
                         {!canAssign && !approvedVisits.length ? (
@@ -540,7 +529,7 @@ export function RemedialWorkspace({
           </table>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 no-print">
           <div className="flex items-center gap-2">
             <Link className={`btn-secondary h-9 px-3 ${safePage <= 1 ? "pointer-events-none opacity-50" : ""}`} href={previousHref}>
               Previous

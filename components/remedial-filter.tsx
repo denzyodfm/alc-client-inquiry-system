@@ -47,13 +47,14 @@ export function RemedialFilter({
       mounted.current = true;
       return;
     }
+    if (query.trim() === searchText.trim()) return;
 
     const timeout = window.setTimeout(() => {
       router.replace(buildHref(undefined, query));
     }, 350);
 
     return () => window.clearTimeout(timeout);
-  }, [buildHref, query, router]);
+  }, [buildHref, query, router, searchText]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

@@ -139,6 +139,7 @@ export default async function RemedialPage({
     selectedBranchNumber === null ||
     accessibleBranchIds === null ||
     accessibleBranchIds.includes(selectedBranchNumber);
+  const effectiveBranchId = selectedBranchAllowed ? selectedBranchId : "ALL";
   const branchFilter: Prisma.LoanWhereInput =
     selectedBranchNumber && selectedBranchAllowed ? { branchId: selectedBranchNumber } : {};
   const visibilityFilter: Prisma.LoanWhereInput = await branchScopeWhere(user);
@@ -156,7 +157,7 @@ export default async function RemedialPage({
       skip: (currentPage - 1) * pageSize,
       take: pageSize,
       where,
-      orderBy: [{ balance: "desc" }, { maturityAt: "asc" }, { updatedAt: "desc" }],
+      orderBy: [{ client: { fullName: "asc" } }, { branch: { branchName: "asc" } }, { loanNumber: "asc" }, { updatedAt: "desc" }],
       include: {
         branch: true,
         client: true,
@@ -190,7 +191,7 @@ export default async function RemedialPage({
           }
         ]
       },
-      orderBy: [{ branch: { branchName: "asc" } }, { maturityAt: "asc" }, { updatedAt: "desc" }],
+      orderBy: [{ branch: { branchName: "asc" } }, { client: { fullName: "asc" } }, { loanNumber: "asc" }, { updatedAt: "desc" }],
       include: {
         branch: true,
         client: true,
@@ -239,7 +240,7 @@ export default async function RemedialPage({
     .filter((page) => page === 1 || page === totalPages || Math.abs(page - safePage) <= 2);
   const pageLinks = visiblePages.map((page, index) => ({
     page,
-    href: buildPageHref(page, selectedBranchId, searchText),
+    href: buildPageHref(page, effectiveBranchId, searchText),
     showGap: index > 0 && page - visiblePages[index - 1] > 1
   }));
   const remedialLoans = loans.map(toRemedialLoanRow);
@@ -263,7 +264,7 @@ export default async function RemedialPage({
         <Metric icon={CalendarDays} label="Pending approvals" value={pendingApprovalCount.toLocaleString("en-US")} detail={`Visible balance: ${money(totalBalance)}`} />
       </section>
 
-      <RemedialFilter branches={branches} selectedBranchId={selectedBranchAllowed ? selectedBranchId : "ALL"} searchText={searchText} />
+      <RemedialFilter branches={branches} selectedBranchId={effectiveBranchId} searchText={searchText} />
 
       <RemedialWorkspace
         loans={remedialLoans}
@@ -280,8 +281,8 @@ export default async function RemedialPage({
         totalPages={totalPages}
         firstResult={firstResult}
         lastResult={lastResult}
-        previousHref={buildPageHref(safePage - 1, selectedBranchId, searchText)}
-        nextHref={buildPageHref(safePage + 1, selectedBranchId, searchText)}
+        previousHref={buildPageHref(safePage - 1, effectiveBranchId, searchText)}
+        nextHref={buildPageHref(safePage + 1, effectiveBranchId, searchText)}
         pageLinks={pageLinks}
       />
     </div>
