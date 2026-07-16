@@ -13,6 +13,7 @@ export type AgingDetailRow = {
   clientAddress: string | null;
   branchName: string;
   loanNumber: string;
+  loanProduct: string | null;
   pastDueDate: string | null;
   daysPastDue: number;
   due: number;
@@ -65,6 +66,7 @@ export function AgingDetailReport({
                 <th className="px-4 py-3">Client</th>
                 <th className="px-4 py-3">Branch</th>
                 <th className="px-4 py-3">Loan</th>
+                <th className="px-4 py-3">Product</th>
                 <th className="px-4 py-3">Past Due Since</th>
                 <th className="px-4 py-3">Days</th>
                 <th className="px-4 py-3">Due Today</th>
@@ -93,6 +95,7 @@ export function AgingDetailReport({
                     </button>
                     <span className="print-only font-bold text-brand-blue">{row.loanNumber}</span>
                   </td>
+                  <td className="px-4 py-3">{row.loanProduct ?? "-"}</td>
                   <td className="px-4 py-3 font-semibold text-red-700">{dateOnly(row.pastDueDate)}</td>
                   <td className="px-4 py-3 font-bold text-red-700">{row.daysPastDue.toLocaleString("en-US")}</td>
                   <td className="px-4 py-3 font-bold text-red-700">{money(row.dueToday)}</td>
@@ -103,7 +106,7 @@ export function AgingDetailReport({
               ))}
               {!rows.length ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={10}>
+                  <td className="px-4 py-6 text-slate-500" colSpan={11}>
                     No aged past-due loans found.
                   </td>
                 </tr>

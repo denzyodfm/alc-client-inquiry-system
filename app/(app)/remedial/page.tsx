@@ -62,6 +62,7 @@ function toRemedialLoanRow(loan: RemedialLoanWithRelations): RemedialLoanRow {
   return {
     id: loan.id,
     loanNumber: loan.loanNumber,
+    loanProduct: loan.loanProduct,
     remoteId: loan.remoteId,
     releasedAt: loan.releasedAt?.toISOString() ?? null,
     maturityAt: loan.maturityAt?.toISOString() ?? null,
@@ -107,9 +108,10 @@ function toRemedialLoanRow(loan: RemedialLoanWithRelations): RemedialLoanRow {
   };
 }
 
-function buildPageHref(page: number, branchId: string, searchText: string) {
+function buildPageHref(page: number, branchId: string, searchText: string, product: string) {
   const params = new URLSearchParams();
   if (branchId !== "ALL") params.set("branchId", branchId);
+  if (product !== "ALL") params.set("product", product);
   if (searchText) params.set("q", searchText);
   if (page > 1) params.set("page", String(page));
   const query = params.toString();
@@ -119,11 +121,12 @@ function buildPageHref(page: number, branchId: string, searchText: string) {
 export default async function RemedialPage({
   searchParams
 }: {
-  searchParams?: Promise<{ branchId?: string; q?: string; page?: string }>;
+  searchParams?: Promise<{ branchId?: string; product?: string; q?: string; page?: string }>;
 }) {
   const user = await requireUser(REMEDIAL_ROLES);
   const params = await searchParams;
   const selectedBranchId = params?.branchId?.trim() || "ALL";
+  const selectedProduct = params?.product?.trim() || "ALL";
   const searchText = params?.q?.trim() || "";
   const currentPage = Math.max(1, Number(params?.page ?? 1) || 1);
   const pageSize = 50;
@@ -142,17 +145,19 @@ export default async function RemedialPage({
   const effectiveBranchId = selectedBranchAllowed ? selectedBranchId : "ALL";
   const branchFilter: Prisma.LoanWhereInput =
     selectedBranchNumber && selectedBranchAllowed ? { branchId: selectedBranchNumber } : {};
+  const productFilter: Prisma.LoanWhereInput = selectedProduct === "ALL" ? {} : { loanProduct: selectedProduct };
   const visibilityFilter: Prisma.LoanWhereInput = await branchScopeWhere(user);
   const where: Prisma.LoanWhereInput = {
     AND: [
       pastDueLoanWhere(),
       visibilityFilter,
       branchFilter,
+      productFilter,
       remedialLoanSearchWhere(searchText)
     ]
   };
 
-  const [loans, itineraryLoans, totalLoans, officers, assignedCount, pendingApprovalCount] = await Promise.all([
+  const [loans, itineraryLoans, totalLoans, officers, assignedCount, pendingApprovalCount, productOptions] = await Promise.all([
     prisma.loan.findMany({
       skip: (currentPage - 1) * pageSize,
       take: pageSize,
@@ -229,8 +234,17 @@ export default async function RemedialPage({
           loan: visibilityFilter
         }
       }
+    }),
+    prisma.loan.findMany({
+      distinct: ["loanProduct"],
+      where: {
+        AND: [pastDueLoanWhere(), visibilityFilter, branchFilter, { loanProduct: { not: null } }]
+      },
+      select: { loanProduct: true },
+      orderBy: { loanProduct: "asc" }
     })
   ]);
+  const products = productOptions.map((option) => option.loanProduct).filter((product): product is string => typeof product === "string" && Boolean(product.trim()));
 
   const safePage = Math.min(currentPage, Math.max(1, Math.ceil(totalLoans / pageSize)));
   const totalPages = Math.max(1, Math.ceil(totalLoans / pageSize));
@@ -240,9 +254,13 @@ export default async function RemedialPage({
     .filter((page) => page === 1 || page === totalPages || Math.abs(page - safePage) <= 2);
   const pageLinks = visiblePages.map((page, index) => ({
     page,
-    href: buildPageHref(page, effectiveBranchId, searchText),
+    href: buildPageHref(page, effectiveBranchId, searchText, selectedProduct),
     showGap: index > 0 && page - visiblePages[index - 1] > 1
   }));
+  const selectedBranch = effectiveBranchId === "ALL" ? null : branches.find((branch) => String(branch.id) === effectiveBranchId);
+  const reportBranchLabel = selectedBranch
+    ? `${selectedBranch.branchName} - ${selectedBranch.branchCode}`
+    : "All allowed branches";
   const remedialLoans = loans.map(toRemedialLoanRow);
   const remedialItineraryLoans = itineraryLoans.map(toRemedialLoanRow);
   const totalDueToday = remedialLoans.reduce((sum, loan) => sum + loan.due, 0);
@@ -264,7 +282,7 @@ export default async function RemedialPage({
         <Metric icon={CalendarDays} label="Pending approvals" value={pendingApprovalCount.toLocaleString("en-US")} detail={`Visible balance: ${money(totalBalance)}`} />
       </section>
 
-      <RemedialFilter branches={branches} selectedBranchId={effectiveBranchId} searchText={searchText} />
+      <RemedialFilter branches={branches} products={products} selectedBranchId={effectiveBranchId} selectedProduct={selectedProduct} searchText={searchText} />
 
       <RemedialWorkspace
         loans={remedialLoans}
@@ -281,9 +299,12 @@ export default async function RemedialPage({
         totalPages={totalPages}
         firstResult={firstResult}
         lastResult={lastResult}
-        previousHref={buildPageHref(safePage - 1, effectiveBranchId, searchText)}
-        nextHref={buildPageHref(safePage + 1, effectiveBranchId, searchText)}
+        previousHref={buildPageHref(safePage - 1, effectiveBranchId, searchText, selectedProduct)}
+        nextHref={buildPageHref(safePage + 1, effectiveBranchId, searchText, selectedProduct)}
         pageLinks={pageLinks}
+        reportBranchLabel={reportBranchLabel}
+        reportProductLabel={selectedProduct === "ALL" ? "All products" : selectedProduct}
+        reportSearchText={searchText}
       />
     </div>
   );

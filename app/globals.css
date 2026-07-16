@@ -40,6 +40,24 @@ button {
 }
 
 @media print {
+  @page {
+    size: A4 landscape;
+    margin: 7mm 7mm 9mm;
+
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 7pt;
+      color: #64748b;
+    }
+  }
+
+  html,
+  body {
+    width: 297mm;
+    min-height: 210mm;
+    background: white !important;
+  }
+
   body * {
     visibility: hidden;
   }
@@ -56,6 +74,99 @@ button {
     max-height: none !important;
     overflow: visible !important;
     box-shadow: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    color: #111827 !important;
+    font-size: 8pt !important;
+    line-height: 1.18 !important;
+  }
+
+  .print-area h1,
+  .print-area h2,
+  .print-area h3,
+  .print-area p {
+    margin-top: 0 !important;
+    margin-bottom: 2pt !important;
+  }
+
+  .print-area table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    font-size: 7pt !important;
+    line-height: 1.12 !important;
+  }
+
+  .print-area thead {
+    background: #f8fafc !important;
+  }
+
+  .print-area th,
+  .print-area td {
+    padding: 2.2pt 2.5pt !important;
+    border-color: #e5e7eb !important;
+    vertical-align: top !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+  }
+
+  .print-area th {
+    font-size: 6.6pt !important;
+    line-height: 1.05 !important;
+    font-weight: 700 !important;
+  }
+
+  .print-area .rounded-md,
+  .print-area .rounded-lg {
+    border-radius: 2pt !important;
+  }
+
+  .print-area .px-1,
+  .print-area .px-1\.5,
+  .print-area .px-2,
+  .print-area .px-3,
+  .print-area .px-4,
+  .print-area .px-5 {
+    padding-left: 2.5pt !important;
+    padding-right: 2.5pt !important;
+  }
+
+  .print-area .py-0\.5,
+  .print-area .py-1,
+  .print-area .py-2,
+  .print-area .py-3,
+  .print-area .py-4,
+  .print-area .py-6,
+  .print-area .py-8 {
+    padding-top: 2.2pt !important;
+    padding-bottom: 2.2pt !important;
+  }
+
+  .print-area .text-xl,
+  .print-area .text-lg {
+    font-size: 10pt !important;
+    line-height: 1.15 !important;
+  }
+
+  .print-area .text-sm,
+  .print-area .text-xs,
+  .print-area .text-\[11px\] {
+    font-size: 7pt !important;
+    line-height: 1.12 !important;
+  }
+
+  .print-area .max-w-7xl,
+  .print-area .min-w-\[1120px\],
+  .print-area .min-w-\[1180px\],
+  .print-area .min-w-\[1280px\] {
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  .print-area .overflow-auto,
+  .print-area .overflow-x-auto {
+    overflow: visible !important;
   }
 
   .no-print {
@@ -64,5 +175,14 @@ button {
 
   .print-only {
     display: inline !important;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }

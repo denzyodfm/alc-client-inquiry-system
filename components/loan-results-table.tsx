@@ -29,6 +29,7 @@ export type LoanResultRow = {
   id: number;
   remoteId: string;
   loanNumber: string | null;
+  loanProduct: string | null;
   principalAmount: string;
   interestRate: string;
   interestAmount: string;
@@ -111,6 +112,7 @@ export function LoanResultsTable({
               <th className="px-4 py-3">Client</th>
               <th className="px-4 py-3">Branch</th>
               <th className="px-4 py-3">Loan</th>
+              <th className="px-4 py-3">Product</th>
               <th className="px-4 py-3">Released</th>
               <th className="px-4 py-3">Principal</th>
               <th className="px-4 py-3">Interest</th>
@@ -165,6 +167,7 @@ export function LoanResultsTable({
                       {loan.loanNumber ?? loan.remoteId}
                     </button>
                   </td>
+                  <td className="px-4 py-3">{loan.loanProduct ?? "-"}</td>
                   <td className="px-4 py-3">{dateOnly(loan.releasedAt)}</td>
                   <td className="px-4 py-3">{money(principal)}</td>
                   <td className="px-4 py-3">{money(interest)}</td>
@@ -189,7 +192,7 @@ export function LoanResultsTable({
               );
             })}
             {!loans.length ? (
-              <tr><td className="px-4 py-6 text-slate-500" colSpan={15}>No loan records available.</td></tr>
+              <tr><td className="px-4 py-6 text-slate-500" colSpan={16}>No loan records available.</td></tr>
             ) : null}
           </tbody>
         </table>

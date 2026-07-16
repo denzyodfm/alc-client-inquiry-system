@@ -7,3 +7,5 @@ coverage
 *.log
 auth-cookie.txt
 tsconfig.tsbuildinfo
+backups/
+scripts/repair-loans-table.sql

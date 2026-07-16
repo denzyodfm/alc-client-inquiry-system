@@ -18,6 +18,7 @@ type BranchLoanRow = {
   id: string | number;
   client_remote_id: string | number;
   loan_number?: string | null;
+  loan_product?: string | null;
   co_maker_name?: string | null;
   co_maker_client_remote_id?: string | number | null;
   co_maker_contact_number?: string | null;
@@ -410,6 +411,33 @@ async function fetchBranchRows<T>(connection: ConnectionPool, table: BranchTable
     ["co_maker_address", "comaker_address", "co_maker_addr", "comaker_addr", "co_borrower_address"],
     "co_maker_address"
   );
+  const loanProductCandidates = [
+    "loan_product",
+    "product",
+    "product_name",
+    "prod_name",
+    "loan_type",
+    "loan_type_name",
+    "type_of_loan",
+    "loan_category",
+    "product_code",
+    "prod_code",
+    "loan_purpose"
+  ];
+  const loanProductColumn = firstExistingColumn(loanColumns, loanProductCandidates);
+  const productColumns = tableColumns["dbo.tb_loan_product"] ?? tableColumns.tb_loan_product;
+  const productCodeColumn = firstExistingColumn(productColumns, ["id_code", "product_code", "prod_code", "code"]);
+  const productNameColumn = firstExistingColumn(productColumns, ["description", "product_name", "prod_name", "name"]);
+  const canJoinProductLookup = Boolean(loanProductColumn && productCodeColumn && productNameColumn);
+  const rawLoanProductExpression = loanProductColumn
+    ? `NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(255), loan.${bracketColumn(loanProductColumn)}))), '')`
+    : "CAST(NULL AS NVARCHAR(255))";
+  const loanProductExpression = canJoinProductLookup
+    ? `COALESCE(NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(255), loan_product.${bracketColumn(productNameColumn!)}))), ''), ${rawLoanProductExpression}) AS loan_product`
+    : `${rawLoanProductExpression} AS loan_product`;
+  const loanProductJoin = canJoinProductLookup
+    ? `LEFT JOIN dbo.tb_loan_product loan_product ON CONVERT(NVARCHAR(255), loan_product.${bracketColumn(productCodeColumn!)}) = CONVERT(NVARCHAR(255), loan.${bracketColumn(loanProductColumn!)})`
+    : "";
 
   const queries: Record<BranchTable, string> = {
     tb_loan_cif: `
@@ -436,6 +464,7 @@ async function fetchBranchRows<T>(connection: ConnectionPool, table: BranchTable
         loan.loan_no AS id,
         loan.cis_no AS client_remote_id,
         loan.loan_no AS loan_number,
+        ${loanProductExpression},
         ${coMakerNameExpression},
         ${coMakerClientExpression},
         ${coMakerContactExpression},
@@ -459,6 +488,7 @@ async function fetchBranchRows<T>(connection: ConnectionPool, table: BranchTable
         COALESCE(loan.date_created, loan.due_date) AS updated_at
       FROM dbo.tb_loan_data loan
       LEFT JOIN dbo.tb_loan_status loan_status ON loan_status.id_code = COALESCE(NULLIF(loan.p_loan_status, 0), loan.loan_status)
+      ${loanProductJoin}
       OUTER APPLY (
         SELECT SUM(COALESCE(paid_principal, 0) + COALESCE(paid_interest, 0)) AS paid_amount
         FROM dbo.tb_payment_history
@@ -786,6 +816,7 @@ export async function syncBranch(branch: Branch): Promise<BranchSyncResult> {
           clientId: client.id,
           remoteId: String(row.id),
           loanNumber: row.loan_number ?? null,
+          loanProduct: row.loan_product ?? null,
           principalAmount,
           interestRate,
           interestAmount,
@@ -803,6 +834,7 @@ export async function syncBranch(branch: Branch): Promise<BranchSyncResult> {
         update: {
           clientId: client.id,
           loanNumber: row.loan_number ?? null,
+          loanProduct: row.loan_product ?? null,
           principalAmount,
           interestRate,
           interestAmount,

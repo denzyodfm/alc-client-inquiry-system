@@ -19,6 +19,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Tag,
   UserRoundCheck,
   Users,
   X
@@ -43,6 +44,7 @@ const icons = {
   MapPinned,
   Search,
   Settings,
+  Tag,
   UserRoundCheck,
   Users
 };

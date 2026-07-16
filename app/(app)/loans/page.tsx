@@ -34,6 +34,7 @@ function toLoanRow(loan: LoanWithRelations): LoanResultRow {
     id: loan.id,
     remoteId: loan.remoteId,
     loanNumber: loan.loanNumber,
+    loanProduct: loan.loanProduct,
     principalAmount: loan.principalAmount.toString(),
     interestRate: loan.interestRate.toString(),
     interestAmount: loan.interestAmount.toString(),
@@ -79,13 +80,14 @@ function toLoanRow(loan: LoanWithRelations): LoanResultRow {
 export default async function LoansPage({
   searchParams
 }: {
-  searchParams?: Promise<{ status?: string; branchId?: string; q?: string; page?: string }>;
+  searchParams?: Promise<{ status?: string; branchId?: string; product?: string; q?: string; page?: string }>;
 }) {
   const user = await requireUser(["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER"]);
   const params = await searchParams;
   const requestedStatus = params?.status?.trim() || "ALL";
   const selectedStatus = requestedStatus.toUpperCase() === "ACTIVE" ? "ALL" : requestedStatus;
   const requestedBranchId = params?.branchId?.trim() || "ALL";
+  const selectedProduct = params?.product?.trim() || "ALL";
   const searchText = params?.q?.trim() || "";
   const currentPage = Math.max(1, Number(params?.page ?? 1) || 1);
   const pageSize = 100;
@@ -123,6 +125,7 @@ export default async function LoansPage({
     ...hiddenActiveStatusFilter,
     AND: [inactiveStatus12Where(), hasLoanDetailsFilter, accountOfficerBranchFilter],
     ...(selectedStatus === "ALL" ? {} : { sourceStatusName: selectedStatus }),
+    ...(selectedProduct === "ALL" ? {} : { loanProduct: selectedProduct }),
     ...(selectedBranchId === "ALL" ? {} : { branchId: Number(selectedBranchId) }),
     ...(searchText
       ? {
@@ -136,7 +139,7 @@ export default async function LoansPage({
       : {})
   };
 
-  const [loans, totalLoans, branches, statusOptions] = await Promise.all([
+  const [loans, totalLoans, branches, statusOptions, productOptions] = await Promise.all([
     prisma.loan.findMany({
       skip: (currentPage - 1) * pageSize,
       take: pageSize,
@@ -166,6 +169,16 @@ export default async function LoansPage({
       },
       select: { sourceStatusName: true },
       orderBy: { sourceStatusName: "asc" }
+    }),
+    prisma.loan.findMany({
+      distinct: ["loanProduct"],
+      where: {
+        ...hiddenActiveStatusFilter,
+        AND: [inactiveStatus12Where(), hasLoanDetailsFilter, accountOfficerBranchFilter],
+        loanProduct: { not: null }
+      },
+      select: { loanProduct: true },
+      orderBy: { loanProduct: "asc" }
     })
   ]);
 
@@ -177,6 +190,7 @@ export default async function LoansPage({
     const nextParams = new URLSearchParams();
     if (selectedBranchId !== "ALL") nextParams.set("branchId", selectedBranchId);
     if (selectedStatus !== "ALL") nextParams.set("status", selectedStatus);
+    if (selectedProduct !== "ALL") nextParams.set("product", selectedProduct);
     if (searchText) nextParams.set("q", searchText);
     if (page > 1) nextParams.set("page", String(page));
     const query = nextParams.toString();
@@ -193,6 +207,9 @@ export default async function LoansPage({
   const statuses = statusOptions
     .map((option) => option.sourceStatusName)
     .filter((status): status is string => typeof status === "string" && status.toUpperCase() !== "ACTIVE");
+  const products = productOptions
+    .map((option) => option.loanProduct)
+    .filter((product): product is string => typeof product === "string" && Boolean(product.trim()));
   const loanRows: LoanResultRow[] = loans.map(toLoanRow);
   const visibleClientIds = Array.from(new Set(loans.map((loan) => loan.clientId)));
   const clientAnalysisLoans = visibleClientIds.length
@@ -229,8 +246,10 @@ export default async function LoansPage({
       <LoanResultsFilter
         branches={branches}
         statuses={statuses}
+        products={products}
         selectedBranchId={selectedBranchId}
         selectedStatus={selectedStatus}
+        selectedProduct={selectedProduct}
         searchText={searchText}
       />
 

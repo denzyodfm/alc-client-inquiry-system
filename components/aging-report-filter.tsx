@@ -14,10 +14,14 @@ type BranchOption = {
 export function AgingReportFilter({
   branches,
   selectedBranchId,
+  products,
+  selectedProduct,
   searchText
 }: {
   branches: BranchOption[];
   selectedBranchId: string;
+  products: string[];
+  selectedProduct: string;
   searchText: string;
 }) {
   const router = useRouter();
@@ -30,6 +34,7 @@ export function AgingReportFilter({
     (formData?: FormData, nextQuery = query) => {
       const params = new URLSearchParams(searchParams.toString());
       const branchId = String(formData?.get("branchId") ?? selectedBranchId);
+      const product = String(formData?.get("product") ?? selectedProduct);
       const normalizedQuery = nextQuery.trim();
 
       params.delete("page");
@@ -37,12 +42,13 @@ export function AgingReportFilter({
       params.delete("detailBranchId");
       params.delete("detail");
       branchId === "ALL" ? params.delete("branchId") : params.set("branchId", branchId);
+      product === "ALL" ? params.delete("product") : params.set("product", product);
       normalizedQuery ? params.set("q", normalizedQuery) : params.delete("q");
 
       const next = params.toString();
       return next ? `${pathname}?${next}` : pathname;
     },
-    [pathname, query, searchParams, selectedBranchId]
+    [pathname, query, searchParams, selectedBranchId, selectedProduct]
   );
 
   useEffect(() => {
@@ -66,7 +72,7 @@ export function AgingReportFilter({
   }
 
   return (
-    <form onSubmit={submit} className="panel grid gap-3 p-4 md:grid-cols-[1fr_2fr_auto_auto]">
+    <form onSubmit={submit} className="panel grid gap-3 p-4 md:grid-cols-[1fr_1fr_2fr_auto_auto]">
       <label className="block">
         <span className="mb-2 block text-sm font-semibold text-slate-700">Branch</span>
         <select name="branchId" className="field" defaultValue={selectedBranchId}>
@@ -74,6 +80,17 @@ export function AgingReportFilter({
           {branches.map((branch) => (
             <option key={branch.id} value={branch.id}>
               {branch.branchName} - {branch.branchCode}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block">
+        <span className="mb-2 block text-sm font-semibold text-slate-700">Loan product</span>
+        <select name="product" className="field" defaultValue={selectedProduct}>
+          <option value="ALL">All products</option>
+          {products.map((product) => (
+            <option key={product} value={product}>
+              {product}
             </option>
           ))}
         </select>

@@ -13,16 +13,20 @@ type BranchOption = {
 type LoanResultsFilterProps = {
   branches: BranchOption[];
   statuses: string[];
+  products: string[];
   selectedBranchId: string;
   selectedStatus: string;
+  selectedProduct: string;
   searchText: string;
 };
 
 export function LoanResultsFilter({
   branches,
   statuses,
+  products,
   selectedBranchId,
   selectedStatus,
+  selectedProduct,
   searchText
 }: LoanResultsFilterProps) {
   const router = useRouter();
@@ -36,17 +40,19 @@ export function LoanResultsFilter({
       const params = new URLSearchParams(searchParams.toString());
       const branchId = String(formData?.get("branchId") ?? selectedBranchId);
       const status = String(formData?.get("status") ?? selectedStatus);
+      const product = String(formData?.get("product") ?? selectedProduct);
       const normalizedQuery = nextQuery.trim();
 
       params.delete("page");
       branchId === "ALL" ? params.delete("branchId") : params.set("branchId", branchId);
       status === "ALL" ? params.delete("status") : params.set("status", status);
+      product === "ALL" ? params.delete("product") : params.set("product", product);
       normalizedQuery ? params.set("q", normalizedQuery) : params.delete("q");
 
       const next = params.toString();
       return next ? `${pathname}?${next}` : pathname;
     },
-    [pathname, query, searchParams, selectedBranchId, selectedStatus]
+    [pathname, query, searchParams, selectedBranchId, selectedProduct, selectedStatus]
   );
 
   useEffect(() => {
@@ -68,7 +74,7 @@ export function LoanResultsFilter({
   };
 
   return (
-    <form onSubmit={submit} className="panel grid gap-3 p-4 md:grid-cols-[1fr_1fr_1.4fr_auto_auto]">
+    <form onSubmit={submit} className="panel grid gap-3 p-4 md:grid-cols-[1fr_1fr_1fr_1.4fr_auto_auto]">
       <label className="block">
         <span className="mb-2 block text-sm font-semibold text-slate-700">Branch</span>
         <select name="branchId" className="field" defaultValue={selectedBranchId}>
@@ -87,6 +93,17 @@ export function LoanResultsFilter({
           {statuses.map((status) => (
             <option key={status} value={status}>
               {status}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block">
+        <span className="mb-2 block text-sm font-semibold text-slate-700">Loan product</span>
+        <select name="product" className="field" defaultValue={selectedProduct}>
+          <option value="ALL">All products</option>
+          {products.map((product) => (
+            <option key={product} value={product}>
+              {product}
             </option>
           ))}
         </select>

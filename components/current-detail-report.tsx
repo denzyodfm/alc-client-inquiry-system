@@ -12,6 +12,7 @@ export type CurrentDetailRow = {
   clientId: string | null;
   branchName: string;
   loanNumber: string;
+  loanProduct: string | null;
   releasedAt: string | null;
   maturityAt: string | null;
   dueToday: number;
@@ -63,6 +64,7 @@ export function CurrentDetailReport({
                 <th className="px-4 py-3">Client</th>
                 <th className="px-4 py-3">Branch</th>
                 <th className="px-4 py-3">Loan</th>
+                <th className="px-4 py-3">Product</th>
                 <th className="px-4 py-3">Released</th>
                 <th className="px-4 py-3">Maturity</th>
                 <th className="px-4 py-3">Due Today</th>
@@ -85,6 +87,7 @@ export function CurrentDetailReport({
                     </button>
                     <span className="print-only font-bold text-brand-blue">{row.loanNumber}</span>
                   </td>
+                  <td className="px-4 py-3">{row.loanProduct ?? "-"}</td>
                   <td className="px-4 py-3">{dateOnly(row.releasedAt)}</td>
                   <td className="px-4 py-3">{dateOnly(row.maturityAt)}</td>
                   <td className="px-4 py-3 font-bold text-red-700">{money(row.dueToday)}</td>
@@ -94,7 +97,7 @@ export function CurrentDetailReport({
               ))}
               {!rows.length ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={9}>
+                  <td className="px-4 py-6 text-slate-500" colSpan={10}>
                     No current loans found.
                   </td>
                 </tr>

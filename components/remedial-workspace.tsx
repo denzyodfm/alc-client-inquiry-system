@@ -24,6 +24,7 @@ export type RemedialVisitRow = {
 export type RemedialLoanRow = {
   id: number;
   loanNumber: string | null;
+  loanProduct: string | null;
   remoteId: string;
   releasedAt: string | null;
   maturityAt: string | null;
@@ -77,6 +78,9 @@ type RemedialWorkspaceProps = {
   previousHref: string;
   nextHref: string;
   pageLinks: PageLink[];
+  reportBranchLabel: string;
+  reportProductLabel: string;
+  reportSearchText: string;
 };
 
 function statusLabel(status: string) {
@@ -110,7 +114,10 @@ export function RemedialWorkspace({
   lastResult,
   previousHref,
   nextHref,
-  pageLinks
+  pageLinks,
+  reportBranchLabel,
+  reportProductLabel,
+  reportSearchText
 }: RemedialWorkspaceProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -122,6 +129,11 @@ export function RemedialWorkspace({
   const [assignmentSearch, setAssignmentSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const reportDate = new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit"
+  }).format(new Date());
   const itineraryRows = itineraryLoans
     .flatMap((loan) =>
       (loan.assignment?.visits ?? [])
@@ -437,32 +449,60 @@ export function RemedialWorkspace({
       </section>
 
       <div className="panel overflow-hidden print-area">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-sm">
-          <div>
-            <p className="font-semibold text-slate-700">
-              Showing {firstResult}-{lastResult} of {totalLoans} past-due loan(s)
-            </p>
-            <p className="text-xs text-slate-500">Page {safePage} of {totalPages}</p>
+        <div className="border-b border-slate-100 px-4 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-lg font-bold uppercase tracking-wide text-slate-950">Agusan Lending Corporation</p>
+              <p className="mt-1 text-sm font-semibold uppercase tracking-wide text-brand-green">Remedial Pastdue Report</p>
+              <p className="mt-2 text-sm text-slate-600">
+                Filter: {reportBranchLabel}
+                {reportProductLabel ? ` | Product: ${reportProductLabel}` : ""}
+                {reportSearchText ? ` | Search: ${reportSearchText}` : ""}
+              </p>
+              <p className="text-sm text-slate-600">Date: {reportDate}</p>
+            </div>
+            <div className="text-right text-sm">
+              <p className="font-semibold text-slate-700">
+                Showing {firstResult}-{lastResult} of {totalLoans} past-due loan(s)
+              </p>
+              <p className="text-xs text-slate-500 no-print">Result page {safePage} of {totalPages}</p>
+              <PrintReportButton />
+            </div>
           </div>
-          <PrintReportButton />
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1480px] text-left text-sm">
+          <table className="w-full min-w-[1180px] table-fixed text-left text-xs">
+            <colgroup>
+              <col className="w-10" />
+              <col className="w-72" />
+              <col className="w-20" />
+              <col className="w-28" />
+              <col className="w-24" />
+              <col className="w-24" />
+              <col className="w-24" />
+              <col className="w-16" />
+              <col className="w-24" />
+              <col className="w-24" />
+              <col className="w-24" />
+              <col className="w-32" />
+              <col className="w-28 no-print" />
+            </colgroup>
             <thead className="bg-slate-50 text-slate-500">
               <tr>
-                <th className="px-4 py-3">No.</th>
-                <th className="px-4 py-3">Client</th>
-                <th className="px-4 py-3">Branch</th>
-                <th className="px-4 py-3">Loan</th>
-                <th className="px-4 py-3">Maturity</th>
-                <th className="px-4 py-3">Past Due Since</th>
-                <th className="px-4 py-3">Days Past Due</th>
-                <th className="px-4 py-3">Due Today</th>
-                <th className="px-4 py-3">Paid</th>
-                <th className="px-4 py-3">Balance</th>
-                <th className="px-4 py-3">Officer / Visit</th>
-                <th className="px-4 py-3 no-print">Actions</th>
+                <th className="px-2 py-2">No.</th>
+                <th className="px-2 py-2">Client</th>
+                <th className="px-2 py-2">Branch</th>
+                <th className="px-2 py-2">Loan</th>
+                <th className="px-2 py-2">Product</th>
+                <th className="px-2 py-2">Maturity</th>
+                <th className="px-2 py-2">Past Due</th>
+                <th className="px-2 py-2">Days</th>
+                <th className="px-2 py-2 text-right">Due Today</th>
+                <th className="px-2 py-2 text-right">Paid</th>
+                <th className="px-2 py-2 text-right">Balance</th>
+                <th className="px-2 py-2">Officer / Visit</th>
+                <th className="px-2 py-2 no-print">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -472,48 +512,48 @@ export function RemedialWorkspace({
 
                 return (
                   <tr key={loan.id} className="border-t border-slate-100 align-top">
-                    <td className="px-4 py-4 font-semibold text-slate-500">{firstRowNumber + index}</td>
-                    <td className="px-4 py-4">
-                      <p className="font-bold text-slate-950">{loan.client.fullName}</p>
+                    <td className="px-2 py-2 font-semibold text-slate-500">{firstRowNumber + index}</td>
+                    <td className="px-2 py-2">
+                      <p className="truncate font-bold text-slate-950" title={loan.client.fullName}>{loan.client.fullName}</p>
                       <p className="text-xs text-slate-500">{loan.client.clientId ?? "No client no."} · {loan.client.contactNumber ?? "No contact"}</p>
-                      <p className="mt-1 max-w-72 text-xs text-slate-500">{loan.client.address ?? "-"}</p>
+                      <p className="mt-0.5 truncate text-[11px] text-slate-500" title={loan.client.address ?? "-"}>{loan.client.address ?? "-"}</p>
                     </td>
-                    <td className="px-4 py-4">{loan.branch.branchName}</td>
-                    <td className="px-4 py-4 no-print">
+                    <td className="px-2 py-2">{loan.branch.branchName}</td>
+                    <td className="px-2 py-2">
                       <p className="font-bold text-brand-blue">{loan.loanNumber ?? loan.remoteId}</p>
                       <p className="text-xs text-slate-500">{loan.sourceStatusCode ?? "-"} - {loan.sourceStatusName ?? "Past due"}</p>
                     </td>
-                    <td className="px-4 py-4">{dateOnly(loan.maturityAt)}</td>
-                    <td className="px-4 py-4 font-semibold text-red-700">{dateOnly(loan.pastDueDate)}</td>
-                    <td className="px-4 py-4 font-bold text-red-700">{loan.daysPastDue.toLocaleString("en-US")}</td>
-                    <td className="px-4 py-4 font-semibold">{money(loan.due)}</td>
-                    <td className="px-4 py-4 text-brand-green">{money(loan.paid)}</td>
-                    <td className="px-4 py-4 font-bold text-red-700">{money(loan.balance)}</td>
-                    <td className="px-4 py-4">
+                    <td className="px-2 py-2">{loan.loanProduct ?? "-"}</td>
+                    <td className="px-2 py-2">{dateOnly(loan.maturityAt)}</td>
+                    <td className="px-2 py-2 font-semibold text-red-700">{dateOnly(loan.pastDueDate)}</td>
+                    <td className="px-2 py-2 font-bold text-red-700">{loan.daysPastDue.toLocaleString("en-US")}</td>
+                    <td className="px-2 py-2 text-right font-semibold">{money(loan.due)}</td>
+                    <td className="px-2 py-2 text-right text-brand-green">{money(loan.paid)}</td>
+                    <td className="px-2 py-2 text-right font-bold text-red-700">{money(loan.balance)}</td>
+                    <td className="px-2 py-2">
                       {loan.assignment ? (
                         <div>
-                          <p className="font-bold text-slate-950">{loan.assignment.assignedTo.name}</p>
-                          <p className="text-xs text-slate-500">{loan.assignment.assignedTo.email}</p>
+                          <p className="truncate font-bold text-slate-950" title={loan.assignment.assignedTo.name}>{loan.assignment.assignedTo.name}</p>
                           {currentVisit ? (
-                            <span className="mt-2 inline-flex rounded-md bg-blue-50 px-2 py-1 text-xs font-bold text-brand-blue">
+                            <span className="mt-1 inline-flex rounded-md bg-blue-50 px-1.5 py-0.5 text-[11px] font-bold text-brand-blue">
                               {statusLabel(currentVisit.status)} · {dateOnly(currentVisit.scheduledDate)}
                             </span>
                           ) : null}
                         </div>
                       ) : (
-                        <span className="rounded-md bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700">Unassigned</span>
+                        <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-bold text-amber-700">Unassigned</span>
                       )}
                     </td>
-                    <td className="px-4 py-4">
-                      <div className="grid gap-3">
+                    <td className="px-2 py-2 no-print">
+                      <div className="grid gap-2">
                         {approvedVisits.length ? (
-                          <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-brand-green">
-                            Approved visit: {dateOnly(approvedVisits[0].scheduledDate)}
+                          <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[11px] font-bold text-brand-green">
+                            Approved: {dateOnly(approvedVisits[0].scheduledDate)}
                           </span>
                         ) : null}
 
                         {!canAssign && !approvedVisits.length ? (
-                          <p className="text-sm text-slate-500">Waiting for approved visit schedule.</p>
+                          <p className="text-[11px] text-slate-500">Waiting approval.</p>
                         ) : null}
                       </div>
                     </td>
@@ -522,7 +562,7 @@ export function RemedialWorkspace({
               })}
               {!loans.length ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={12}>No past-due remedial loans found for your access.</td>
+                  <td className="px-4 py-6 text-slate-500" colSpan={13}>No past-due remedial loans found for your access.</td>
                 </tr>
               ) : null}
             </tbody>

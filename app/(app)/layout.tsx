@@ -5,7 +5,7 @@ import { AppShell } from "@/components/app-shell";
 type NavConfig = {
   href: string;
   label: string;
-  icon: "Gauge" | "Building2" | "Search" | "BrainCircuit" | "ClipboardCheck" | "ClipboardList" | "FileClock" | "Hourglass" | "UserRoundCheck" | "MapPinned" | "History" | "Users" | "Settings";
+  icon: "Gauge" | "Building2" | "Search" | "BrainCircuit" | "ClipboardCheck" | "ClipboardList" | "FileClock" | "Hourglass" | "UserRoundCheck" | "MapPinned" | "Tag" | "History" | "Users" | "Settings";
   roles: string[];
 };
 
@@ -20,6 +20,7 @@ const nav: NavConfig[] = [
   { href: "/aging", label: "Aging Report", icon: "Hourglass", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
   { href: "/co-makers", label: "Co Makers", icon: "UserRoundCheck", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR"] },
   { href: "/remedial", label: "Remedial", icon: "MapPinned", roles: ["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
+  { href: "/account-tagging", label: "Account Tagging", icon: "Tag", roles: ["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
   { href: "/sync-logs", label: "Sync Logs", icon: "History", roles: ["ADMIN", "AUDITOR"] },
   { href: "/users", label: "Users", icon: "Users", roles: ["ADMIN"] },
   { href: "/settings", label: "Settings", icon: "Settings", roles: ["ADMIN"] }

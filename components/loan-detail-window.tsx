@@ -25,6 +25,7 @@ export type LoanDetailLoan = {
   id: number;
   remoteId?: string;
   loanNumber: string | null;
+  loanProduct?: string | null;
   principalAmount: string;
   interestRate: string;
   interestAmount: string;
@@ -170,7 +171,7 @@ export function LoanDetailWindow({ loan, onClose }: LoanDetailWindowProps) {
                 <Info label="Interest Rate" value={percent(loan.interestRate)} valueClassName="text-fuchsia-700" />
                 <Info label="Loan Amt (Accumulated)" value={plainMoney(loanTotal)} valueClassName="text-orange-600" />
                 <Info label="Loan Number" value={loanNumber} valueClassName="font-bold" />
-                <Info label="Loan Type" value={branch?.branchName ?? "-"} />
+                <Info label="Loan Product" value={loan.loanProduct ?? "-"} />
                 <Info label="Principal" value={plainMoney(loan.principalAmount)} />
                 <Info label="Last Transaction" value={dateOnly(loan.maturityAt ?? loan.releasedAt)} />
                 <Info label="Granted-Due Dates" value={`${dateOnly(loan.releasedAt)}-${dateOnly(loan.maturityAt)}`} />

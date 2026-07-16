@@ -29,6 +29,7 @@ type AgingRow = {
   branchName: string;
   branchCode: string;
   loanNumber: string;
+  loanProduct: string | null;
   maturityAt: string | null;
   pastDueDate: string | null;
   daysPastDue: number;
@@ -106,6 +107,7 @@ function toLoanDetail(loan: AgingLoan): LoanDetailLoan {
     id: loan.id,
     remoteId: loan.remoteId,
     loanNumber: loan.loanNumber,
+    loanProduct: loan.loanProduct,
     principalAmount: loan.principalAmount.toString(),
     interestRate: loan.interestRate.toString(),
     interestAmount: loan.interestAmount.toString(),
@@ -164,6 +166,7 @@ function toAgingRow(loan: AgingLoan): AgingRow {
     branchName: loan.branch.branchName,
     branchCode: loan.branch.branchCode,
     loanNumber: loan.loanNumber ?? loan.remoteId,
+    loanProduct: loan.loanProduct,
     maturityAt: loan.maturityAt?.toISOString() ?? null,
     pastDueDate: aging.pastDueDate,
     daysPastDue: aging.daysPastDue,
@@ -179,6 +182,7 @@ function toAgingRow(loan: AgingLoan): AgingRow {
 function buildAgingHref({
   page,
   branchId,
+  product,
   searchText,
   bucket,
   detailBranchId,
@@ -186,6 +190,7 @@ function buildAgingHref({
 }: {
   page?: number;
   branchId: string;
+  product: string;
   searchText: string;
   bucket?: string;
   detailBranchId?: number;
@@ -193,6 +198,7 @@ function buildAgingHref({
 }) {
   const params = new URLSearchParams();
   if (branchId !== "ALL") params.set("branchId", branchId);
+  if (product !== "ALL") params.set("product", product);
   if (searchText) params.set("q", searchText);
   if (bucket) params.set("bucket", bucket);
   if (detailBranchId) params.set("detailBranchId", String(detailBranchId));
@@ -205,11 +211,12 @@ function buildAgingHref({
 export default async function AgingReportPage({
   searchParams
 }: {
-  searchParams?: Promise<{ branchId?: string; q?: string; page?: string; bucket?: string; detailBranchId?: string; detail?: string }>;
+  searchParams?: Promise<{ branchId?: string; product?: string; q?: string; page?: string; bucket?: string; detailBranchId?: string; detail?: string }>;
 }) {
   const user = await requireUser(["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
   const params = await searchParams;
   const requestedBranchId = params?.branchId?.trim() || "ALL";
+  const selectedProduct = params?.product?.trim() || "ALL";
   const searchText = params?.q?.trim() || "";
   const selectedBucket = buckets.some((bucket) => bucket.label === params?.bucket) ? params?.bucket ?? "" : "";
   const showMatchingDetails = params?.detail === "matches";
@@ -224,11 +231,12 @@ export default async function AgingReportPage({
     accessibleBranchIds.includes(requestedBranchNumber);
   const selectedBranchId = selectedBranchAllowed ? requestedBranchId : "ALL";
   const branchFilter: Prisma.LoanWhereInput = selectedBranchId === "ALL" ? {} : { branchId: Number(selectedBranchId) };
+  const productFilter: Prisma.LoanWhereInput = selectedProduct === "ALL" ? {} : { loanProduct: selectedProduct };
   const where: Prisma.LoanWhereInput = {
-    AND: [pastDueLoanWhere(), branchAccessFilter, branchFilter, agingSearchWhere(searchText)]
+    AND: [pastDueLoanWhere(), branchAccessFilter, branchFilter, productFilter, agingSearchWhere(searchText)]
   };
 
-  const [allLoans, branches] = await Promise.all([
+  const [allLoans, branches, productOptions] = await Promise.all([
     prisma.loan.findMany({
       where,
       orderBy: [{ balance: "desc" }, { maturityAt: "asc" }, { updatedAt: "desc" }],
@@ -244,8 +252,15 @@ export default async function AgingReportPage({
       where: accessibleBranchIds === null ? {} : { id: { in: accessibleBranchIds } },
       orderBy: { branchName: "asc" },
       select: { id: true, branchName: true, branchCode: true }
+    }),
+    prisma.loan.findMany({
+      distinct: ["loanProduct"],
+      where: { AND: [pastDueLoanWhere(), branchAccessFilter, { loanProduct: { not: null } }] },
+      select: { loanProduct: true },
+      orderBy: { loanProduct: "asc" }
     })
   ]);
+  const products = productOptions.map((option) => option.loanProduct).filter((product): product is string => typeof product === "string" && Boolean(product.trim()));
 
   const allRows = allLoans.map(toAgingRow);
   const activeDetailBranch =
@@ -257,7 +272,7 @@ export default async function AgingReportPage({
       count: bucketRows.length,
       dueToday: bucketRows.reduce((sum, row) => sum + row.dueToday, 0),
       balance: bucketRows.reduce((sum, row) => sum + row.balance, 0),
-      href: buildAgingHref({ branchId: selectedBranchId, searchText, bucket: bucket.label })
+      href: buildAgingHref({ branchId: selectedBranchId, product: selectedProduct, searchText, bucket: bucket.label })
     };
   });
   const branchSummaries = branches
@@ -271,7 +286,7 @@ export default async function AgingReportPage({
           count: bucketRows.length,
           dueToday: bucketRows.reduce((sum, row) => sum + row.dueToday, 0),
           balance: bucketRows.reduce((sum, row) => sum + row.balance, 0),
-          href: buildAgingHref({ branchId: selectedBranchId, searchText, bucket: bucket.label, detailBranchId: branch.id })
+          href: buildAgingHref({ branchId: selectedBranchId, product: selectedProduct, searchText, bucket: bucket.label, detailBranchId: branch.id })
         };
       });
 
@@ -295,7 +310,7 @@ export default async function AgingReportPage({
   const detailTotal = detailRows.length;
   const detailBalance = detailRows.reduce((sum, row) => sum + row.balance, 0);
   const detailDueToday = detailRows.reduce((sum, row) => sum + row.dueToday, 0);
-  const closeDetailHref = buildAgingHref({ branchId: selectedBranchId, searchText });
+  const closeDetailHref = buildAgingHref({ branchId: selectedBranchId, product: selectedProduct, searchText });
   const matchingDetailTitle = searchText ? `Matching past-due accounts for "${searchText}"` : "All matching past-due accounts";
 
   return (
@@ -309,7 +324,7 @@ export default async function AgingReportPage({
         </p>
       </div>
 
-      <AgingReportFilter branches={branches} selectedBranchId={selectedBranchId} searchText={searchText} />
+      <AgingReportFilter branches={branches} products={products} selectedBranchId={selectedBranchId} selectedProduct={selectedProduct} searchText={searchText} />
 
       <section className="grid gap-3 md:grid-cols-3">
         <Metric
@@ -318,7 +333,7 @@ export default async function AgingReportPage({
           value={totalLoans.toLocaleString("en-US")}
           detail="Click to view matching accounts"
           tone="red"
-          href={buildAgingHref({ branchId: selectedBranchId, searchText, detail: "matches" })}
+          href={buildAgingHref({ branchId: selectedBranchId, product: selectedProduct, searchText, detail: "matches" })}
         />
         <Metric icon={Layers3} label="Due as of today" value={money(totalDueToday)} detail={`Total balance: ${money(totalBalance)}`} tone={totalDueToday ? "red" : "blue"} />
         <Metric icon={Hourglass} label="Aging buckets" value={String(buckets.length)} detail="Grouped by days past due" />

@@ -39,6 +39,7 @@ function toLoanDetail(loan: LoanWithRelations): LoanDetailLoan {
     id: loan.id,
     remoteId: loan.remoteId,
     loanNumber: loan.loanNumber,
+    loanProduct: loan.loanProduct,
     principalAmount: loan.principalAmount.toString(),
     interestRate: loan.interestRate.toString(),
     interestAmount: loan.interestAmount.toString(),
@@ -93,6 +94,7 @@ function toCurrentRow(loan: LoanWithRelations): CurrentDetailRow & { branchId: n
     branchId: loan.branchId,
     branchName: loan.branch.branchName,
     loanNumber: loan.loanNumber ?? loan.remoteId,
+    loanProduct: loan.loanProduct,
     releasedAt: loan.releasedAt?.toISOString() ?? null,
     maturityAt: loan.maturityAt?.toISOString() ?? null,
     dueToday: amountDueAsOfToday(loan),
@@ -102,9 +104,10 @@ function toCurrentRow(loan: LoanWithRelations): CurrentDetailRow & { branchId: n
   };
 }
 
-function buildCurrentHref(selectedBranchId: string, searchText: string, detailBranchId?: number | "ALL") {
+function buildCurrentHref(selectedBranchId: string, searchText: string, selectedProduct: string, detailBranchId?: number | "ALL") {
   const params = new URLSearchParams();
   if (selectedBranchId !== "ALL") params.set("branchId", selectedBranchId);
+  if (selectedProduct !== "ALL") params.set("product", selectedProduct);
   if (searchText) params.set("q", searchText);
   if (detailBranchId) params.set("detailBranchId", String(detailBranchId));
   const query = params.toString();
@@ -114,11 +117,12 @@ function buildCurrentHref(selectedBranchId: string, searchText: string, detailBr
 export default async function CurrentLoansPage({
   searchParams
 }: {
-  searchParams?: Promise<{ branchId?: string; q?: string; detailBranchId?: string }>;
+  searchParams?: Promise<{ branchId?: string; product?: string; q?: string; detailBranchId?: string }>;
 }) {
   const user = await requireUser(["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER"]);
   const params = await searchParams;
   const requestedBranchId = params?.branchId?.trim() || "ALL";
+  const selectedProduct = params?.product?.trim() || "ALL";
   const searchText = params?.q?.trim() || "";
   const detailBranchParam = params?.detailBranchId?.trim() || "";
   const accountOfficerBranchIds = user.role === "ACCOUNT_OFFICER" ? await getAccessibleBranchIds(user) : null;
@@ -146,6 +150,7 @@ export default async function CurrentLoansPage({
   const where: Prisma.LoanWhereInput = {
     AND: [inactiveStatus12Where(), hasLoanDetailsFilter, currentLoanFilter, accountOfficerBranchFilter],
     ...(selectedBranchId === "ALL" ? {} : { branchId: Number(selectedBranchId) }),
+    ...(selectedProduct === "ALL" ? {} : { loanProduct: selectedProduct }),
     ...(searchText
       ? {
           OR: [
@@ -158,7 +163,7 @@ export default async function CurrentLoansPage({
       : {})
   };
 
-  const [loans, branches] = await Promise.all([
+  const [loans, branches, productOptions] = await Promise.all([
     prisma.loan.findMany({
       where,
       orderBy: [{ releasedAt: "desc" }, { updatedAt: "desc" }],
@@ -174,8 +179,18 @@ export default async function CurrentLoansPage({
       where: accountOfficerBranchIds === null ? {} : { id: { in: accountOfficerBranchIds } },
       select: { id: true, branchName: true, branchCode: true },
       orderBy: { branchName: "asc" }
+    }),
+    prisma.loan.findMany({
+      distinct: ["loanProduct"],
+      where: {
+        AND: [inactiveStatus12Where(), hasLoanDetailsFilter, currentLoanFilter, accountOfficerBranchFilter],
+        loanProduct: { not: null }
+      },
+      select: { loanProduct: true },
+      orderBy: { loanProduct: "asc" }
     })
   ]);
+  const products = productOptions.map((option) => option.loanProduct).filter((product): product is string => typeof product === "string" && Boolean(product.trim()));
 
   const rows = loans.map(toCurrentRow);
   const totalLoans = rows.length;
@@ -192,7 +207,7 @@ export default async function CurrentLoansPage({
         count: branchRows.length,
         dueToday: branchRows.reduce((sum, row) => sum + row.dueToday, 0),
         balance: branchRows.reduce((sum, row) => sum + row.balance, 0),
-        href: buildCurrentHref(selectedBranchId, searchText, branch.id)
+        href: buildCurrentHref(selectedBranchId, searchText, selectedProduct, branch.id)
       };
     })
     .filter((branch) => branch.count > 0);
@@ -204,7 +219,7 @@ export default async function CurrentLoansPage({
         : [];
   const detailDueToday = detailRows.reduce((sum, row) => sum + row.dueToday, 0);
   const detailBalance = detailRows.reduce((sum, row) => sum + row.balance, 0);
-  const closeDetailHref = buildCurrentHref(selectedBranchId, searchText);
+  const closeDetailHref = buildCurrentHref(selectedBranchId, searchText, selectedProduct);
 
   return (
     <div className="space-y-6">
@@ -217,7 +232,7 @@ export default async function CurrentLoansPage({
         </p>
       </div>
 
-      <CurrentLoansFilter branches={branches} selectedBranchId={selectedBranchId} searchText={searchText} />
+      <CurrentLoansFilter branches={branches} products={products} selectedBranchId={selectedBranchId} selectedProduct={selectedProduct} searchText={searchText} />
 
       <section className="grid gap-3 md:grid-cols-3">
         <Metric icon={ClipboardCheck} label="Current loans" value={totalLoans.toLocaleString("en-US")} />
@@ -231,7 +246,7 @@ export default async function CurrentLoansPage({
           <h3 className="mt-1 text-xl font-bold text-slate-950">All visible branches</h3>
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <Link className="rounded-lg border border-slate-200 bg-white p-4 transition hover:border-brand-blue hover:shadow-sm" href={buildCurrentHref(selectedBranchId, searchText, "ALL")}>
+          <Link className="rounded-lg border border-slate-200 bg-white p-4 transition hover:border-brand-blue hover:shadow-sm" href={buildCurrentHref(selectedBranchId, searchText, selectedProduct, "ALL")}>
             <p className="text-xs font-bold uppercase text-slate-500">All current loans</p>
             <p className="mt-2 text-xl font-bold text-slate-950">{totalLoans.toLocaleString("en-US")}</p>
             <p className="mt-1 text-sm font-semibold text-red-700">Due today: {money(totalDueToday)}</p>

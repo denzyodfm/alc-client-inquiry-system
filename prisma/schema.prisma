@@ -150,6 +150,7 @@ model Loan {
   clientId        Int        @map("client_id")
   remoteId        String     @map("remote_id") @db.VarChar(80)
   loanNumber      String?    @map("loan_number") @db.VarChar(100)
+  loanProduct     String?    @map("loan_product") @db.VarChar(120)
   principalAmount Decimal    @default(0) @map("principal_amount") @db.Decimal(14, 2)
   interestRate    Decimal    @default(0) @map("interest_rate") @db.Decimal(8, 4)
   interestAmount  Decimal    @default(0) @map("interest_amount") @db.Decimal(14, 2)
@@ -175,6 +176,7 @@ model Loan {
   @@unique([branchId, remoteId])
   @@index([balance])
   @@index([loanNumber])
+  @@index([loanProduct])
   @@map("loans")
 }
 
