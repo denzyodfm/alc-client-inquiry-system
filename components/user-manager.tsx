@@ -220,6 +220,7 @@ export function UserManager({ initialUsers, branches }: { initialUsers: User[]; 
             <option value="ACCOUNT_OFFICER">Account Officer</option>
             <option value="AREA_TEAM_LEADER">Area Team Leader</option>
             <option value="CREDIT_COMMITTEE">Credit Committee</option>
+            <option value="HO_CASHIER">HO Cashier</option>
           </select>
           <div className="rounded-lg border border-slate-200 p-3">
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">

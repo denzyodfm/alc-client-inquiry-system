@@ -108,6 +108,34 @@ Cron command for midnight sync:
 0 0 * * * cd /path/to/alc-client-inquiry-system && npm run sync:branches >> logs/sync.log 2>&1
 ```
 
+## VPS Backups
+
+The app includes a backup script that creates:
+
+- a compressed MySQL dump from `DATABASE_URL`
+- a compressed app archive excluding `node_modules`, `.next`, logs, and existing backups
+
+Run manually on the VPS:
+
+```bash
+cd /home/agusanlending/ALC-client-inquiry-system
+bash scripts/backup.sh
+```
+
+Install the daily cron job:
+
+```bash
+crontab -e
+```
+
+Paste this line, adjusting the path if needed:
+
+```bash
+30 1 * * * cd /home/agusanlending/ALC-client-inquiry-system && mkdir -p backups && APP_DIR=/home/agusanlending/ALC-client-inquiry-system RETENTION_DAYS=14 bash scripts/backup.sh >> backups/backup.log 2>&1
+```
+
+Backups are stored in `backups/YYYYMMDD-HHMMSS/`. The default retention is 14 days.
+
 ## Expected Remote Branch Tables
 
 The sync service reads these branch tables with read-only credentials:

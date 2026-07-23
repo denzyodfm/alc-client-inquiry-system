@@ -14,6 +14,7 @@ enum UserRole {
   ACCOUNT_OFFICER
   AREA_TEAM_LEADER
   CREDIT_COMMITTEE
+  HO_CASHIER
 }
 
 enum BranchStatus {
@@ -63,6 +64,7 @@ model User {
   remedialVisitsCreated RemedialVisit[] @relation("RemedialVisitCreatedBy")
   remedialVisitsApproved RemedialVisit[] @relation("RemedialVisitApprovedBy")
   clientLogs   ClientLog[] @relation("ClientLogEncodedBy")
+  localPaymentPostings LocalPaymentPosting[] @relation("LocalPaymentPostedBy")
 
   @@map("users")
 }
@@ -85,6 +87,7 @@ model Branch {
   loans               Loan[]
   coMakers            CoMaker[]
   payments            Payment[]
+  localPaymentPostings LocalPaymentPosting[]
   amortizationSchedules AmortizationSchedule[]
   syncLogs            SyncLog[]
   userAccess          UserBranchAccess[]
@@ -110,6 +113,7 @@ model Client {
   branch          Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
   loans           Loan[]
   payments        Payment[]
+  localPaymentPostings LocalPaymentPosting[]
   amortizationSchedules AmortizationSchedule[]
   logs            ClientLog[]
 
@@ -151,6 +155,7 @@ model Loan {
   remoteId        String     @map("remote_id") @db.VarChar(80)
   loanNumber      String?    @map("loan_number") @db.VarChar(100)
   loanProduct     String?    @map("loan_product") @db.VarChar(120)
+  branchAo        String?    @map("branch_ao") @db.VarChar(160)
   principalAmount Decimal    @default(0) @map("principal_amount") @db.Decimal(14, 2)
   interestRate    Decimal    @default(0) @map("interest_rate") @db.Decimal(8, 4)
   interestAmount  Decimal    @default(0) @map("interest_amount") @db.Decimal(14, 2)
@@ -169,6 +174,7 @@ model Loan {
   branch          Branch     @relation(fields: [branchId], references: [id], onDelete: Cascade)
   client          Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
   payments        Payment[]
+  localPaymentPostings LocalPaymentPosting[]
   amortizationSchedules AmortizationSchedule[]
   coMakers        CoMaker[]
   remedialAssignment RemedialAssignment?
@@ -200,6 +206,7 @@ model RemedialAssignment {
   assignedToId Int      @map("assigned_to_id")
   assignedById Int?     @map("assigned_by_id")
   status       RemedialAssignmentStatus @default(ACTIVE)
+  zone         String?  @db.VarChar(120)
   assignmentNotes String? @map("assignment_notes") @db.Text
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -313,6 +320,42 @@ model Payment {
   @@unique([branchId, remoteId])
   @@index([paidAt])
   @@map("payments")
+}
+
+model LocalPaymentPosting {
+  id                    Int      @id @default(autoincrement())
+  branchId              Int      @map("branch_id")
+  clientId              Int      @map("client_id")
+  loanId                Int      @map("loan_id")
+  postedById            Int      @map("posted_by_id")
+  mode                  String   @db.VarChar(20)
+  prNumber              String?  @map("pr_number") @db.VarChar(80)
+  orNumber              String?  @map("or_number") @db.VarChar(80)
+  paymentType           String   @default("0-Cash") @map("payment_type") @db.VarChar(80)
+  chequeNo              String?  @map("cheque_no") @db.VarChar(120)
+  glCode                String?  @map("gl_code") @db.VarChar(120)
+  memoType              String?  @map("memo_type") @db.VarChar(120)
+  paymentDate           DateTime @map("payment_date") @db.Date
+  principalAmount       Decimal  @default(0) @map("principal_amount") @db.Decimal(14, 2)
+  interestAmount        Decimal  @default(0) @map("interest_amount") @db.Decimal(14, 2)
+  penaltyAmount         Decimal  @default(0) @map("penalty_amount") @db.Decimal(14, 2)
+  pdiAmount             Decimal  @default(0) @map("pdi_amount") @db.Decimal(14, 2)
+  otherChargesAmount    Decimal  @default(0) @map("other_charges_amount") @db.Decimal(14, 2)
+  totalAmount           Decimal  @default(0) @map("total_amount") @db.Decimal(14, 2)
+  accountOfficerChanged Boolean  @default(false) @map("account_officer_changed")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+  branch                Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  client                Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  loan                  Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  postedBy              User     @relation("LocalPaymentPostedBy", fields: [postedById], references: [id], onDelete: Restrict)
+
+  @@index([branchId])
+  @@index([clientId])
+  @@index([loanId])
+  @@index([postedById])
+  @@index([paymentDate])
+  @@map("local_payment_postings")
 }
 
 model SyncLog {

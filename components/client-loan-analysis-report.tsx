@@ -3,6 +3,7 @@
 import { AlertTriangle, BarChart3, CheckCircle2, Clock, FileText, ShieldCheck, X } from "lucide-react";
 import { dateOnly, money } from "@/lib/format";
 import type { LoanDetailLoan, LoanDetailSchedule } from "@/components/loan-detail-window";
+import { LoanDetailLink } from "@/components/loan-detail-link";
 
 type ClientLoanAnalysisReportProps = {
   clientName: string;
@@ -275,7 +276,9 @@ export function ClientLoanAnalysisReport({ clientName, customerNo, loans, onClos
 
                     return (
                       <tr key={loan.id} className="border-t border-slate-100">
-                        <td className="px-4 py-3 font-bold text-brand-blue">{loan.loanNumber ?? loan.remoteId ?? loan.id}</td>
+                        <td className="px-4 py-3">
+                          <LoanDetailLink loan={loan} label={String(loan.loanNumber ?? loan.remoteId ?? loan.id)} />
+                        </td>
                         <td className="px-4 py-3">{branch?.branchName ?? "-"}</td>
                         <td className="px-4 py-3">{dateOnly(loan.releasedAt)}</td>
                         <td className="px-4 py-3">{loan.sourceStatusCode ?? "-"} - {loan.sourceStatusName ?? loan.status}</td>

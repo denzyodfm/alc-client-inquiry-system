@@ -11,15 +11,17 @@ type BranchOption = {
   branchCode: string;
 };
 
-export function RemedialFilter({
+export function PaymentReportFilter({
   branches,
   selectedBranchId,
+  selectedMonth,
   products,
   selectedProduct,
   searchText
 }: {
   branches: BranchOption[];
   selectedBranchId: string;
+  selectedMonth: string;
   products: string[];
   selectedProduct: string;
   searchText: string;
@@ -34,18 +36,20 @@ export function RemedialFilter({
     (formData?: FormData, nextQuery = query) => {
       const params = new URLSearchParams(searchParams.toString());
       const branchId = String(formData?.get("branchId") ?? selectedBranchId);
+      const month = String(formData?.get("month") ?? selectedMonth);
       const product = String(formData?.get("product") ?? selectedProduct);
       const normalizedQuery = nextQuery.trim();
 
       params.delete("page");
       branchId === "ALL" ? params.delete("branchId") : params.set("branchId", branchId);
+      month ? params.set("month", month) : params.delete("month");
       product === "ALL" ? params.delete("product") : params.set("product", product);
       normalizedQuery ? params.set("q", normalizedQuery) : params.delete("q");
 
       const next = params.toString();
       return next ? `${pathname}?${next}` : pathname;
     },
-    [pathname, query, searchParams, selectedBranchId, selectedProduct]
+    [pathname, query, searchParams, selectedBranchId, selectedMonth, selectedProduct]
   );
 
   useEffect(() => {
@@ -53,6 +57,7 @@ export function RemedialFilter({
       mounted.current = true;
       return;
     }
+
     if (query.trim() === searchText.trim()) return;
 
     const timeout = window.setTimeout(() => {
@@ -68,7 +73,7 @@ export function RemedialFilter({
   }
 
   return (
-    <form onSubmit={submit} className="panel grid gap-3 p-4 md:grid-cols-[1fr_1fr_2fr_auto_auto]">
+    <form onSubmit={submit} className="panel grid gap-3 p-4 md:grid-cols-[1fr_1fr_1fr_2fr_auto_auto]">
       <label className="block">
         <span className="mb-2 block text-sm font-semibold text-slate-700">Branch</span>
         <select name="branchId" className="field" defaultValue={selectedBranchId}>
@@ -79,6 +84,10 @@ export function RemedialFilter({
             </option>
           ))}
         </select>
+      </label>
+      <label className="block">
+        <span className="mb-2 block text-sm font-semibold text-slate-700">Payment month</span>
+        <input name="month" className="field" type="month" defaultValue={selectedMonth} required />
       </label>
       <label className="block">
         <span className="mb-2 block text-sm font-semibold text-slate-700">Loan product</span>
@@ -92,20 +101,20 @@ export function RemedialFilter({
         </select>
       </label>
       <label className="block">
-        <span className="mb-2 block text-sm font-semibold text-slate-700">Search remedial loan</span>
+        <span className="mb-2 block text-sm font-semibold text-slate-700">Search payments</span>
         <input
           name="q"
           className="field"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Client, address, contact, client no., or loan no."
+          placeholder="Client, contact, loan no., branch, or payment ref."
         />
       </label>
       <button className="btn-primary self-end" type="submit">
         <Search className="h-4 w-4" />
         Search
       </button>
-      <Link className="btn-secondary self-end" href="/remedial">
+      <Link className="btn-secondary self-end" href={`/payments?month=${selectedMonth}`}>
         Clear
       </Link>
     </form>

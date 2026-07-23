@@ -57,6 +57,47 @@ export function pastDueLoanWhere(today = new Date()): Prisma.LoanWhereInput {
   };
 }
 
+export function delayedLoanWhere(today = new Date()): Prisma.LoanWhereInput {
+  const cutoff = new Date(today);
+  cutoff.setMonth(cutoff.getMonth() - 4);
+  cutoff.setHours(0, 0, 0, 0);
+
+  return {
+    AND: [
+      inactiveStatus12Where(),
+      {
+        balance: { gt: 0 },
+        NOT: [{ sourceStatusCode: 10 }],
+        payments: {
+          none: {
+            paidAt: { gte: cutoff }
+          }
+        },
+        OR: [
+          { releasedAt: { lt: cutoff } },
+          { maturityAt: { lt: cutoff } },
+          {
+            payments: {
+              some: {
+                paidAt: { lt: cutoff }
+              }
+            }
+          }
+        ]
+      }
+    ]
+  };
+}
+
+export function remedialEligibleLoanWhere(today = new Date()): Prisma.LoanWhereInput {
+  return {
+    OR: [
+      pastDueLoanWhere(today),
+      delayedLoanWhere(today)
+    ]
+  };
+}
+
 export async function branchScopeWhere(user: SessionUser): Promise<Prisma.LoanWhereInput> {
   const branchIds = await getAccessibleBranchIds(user);
   if (branchIds === null) return {};

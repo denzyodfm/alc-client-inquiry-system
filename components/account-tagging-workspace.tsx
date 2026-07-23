@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { CheckSquare, Search, Tag, Users } from "lucide-react";
+import { CheckSquare, FileSpreadsheet, Search, Tag, Users } from "lucide-react";
+import { LoanDetailLink } from "@/components/loan-detail-link";
+import type { LoanDetailLoan } from "@/components/loan-detail-window";
 import { PrintReportButton } from "@/components/print-report-button";
 import { money, dateOnly } from "@/lib/format";
 
@@ -29,11 +31,25 @@ export type AccountTaggingLoanRow = {
   branchCode: string;
   loanNumber: string;
   loanProduct: string | null;
+  branchAo: string | null;
   maturityAt: string | null;
   sourceStatusName: string | null;
   sourceStatusCode: number | null;
+  originalPrincipal: number;
+  originalInterest: number;
+  originalPdi: number;
+  originalPenalty: number;
+  principalBalance: number;
+  interestBalance: number;
+  pdiBalance: number;
+  penaltyBalance: number;
+  totalPayments: number;
+  waivedAmount: number;
   balance: number;
+  assignedOfficerId: number | null;
   assignedOfficer: string | null;
+  zone: string | null;
+  loanDetail: LoanDetailLoan;
 };
 
 type PageLink = {
@@ -46,11 +62,27 @@ type AccountTaggingWorkspaceProps = {
   branches: BranchOption[];
   officers: OfficerOption[];
   products: string[];
+  statuses: string[];
   loans: AccountTaggingLoanRow[];
   selectedBranchId: string;
   selectedProduct: string;
+  selectedStatus: string;
   address: string;
+  address2: string;
   customerName: string;
+  portfolioTotals: {
+    originalPrincipal: number;
+    originalInterest: number;
+    originalPdi: number;
+    originalPenalty: number;
+    principal: number;
+    interest: number;
+    pdi: number;
+    penalty: number;
+    payments: number;
+    waived: number;
+    balance: number;
+  };
   totalLoans: number;
   safePage: number;
   totalPages: number;
@@ -61,6 +93,10 @@ type AccountTaggingWorkspaceProps = {
   nextHref: string;
   lastHref: string;
   pageLinks: PageLink[];
+  printAllResults: boolean;
+  printableHref: string;
+  excelHref: string;
+  paginatedHref: string;
   canAssign: boolean;
   reportDate: string;
 };
@@ -69,11 +105,15 @@ export function AccountTaggingWorkspace({
   branches,
   officers,
   products,
+  statuses,
   loans,
   selectedBranchId,
   selectedProduct,
+  selectedStatus,
   address,
+  address2,
   customerName,
+  portfolioTotals,
   totalLoans,
   safePage,
   totalPages,
@@ -84,6 +124,10 @@ export function AccountTaggingWorkspace({
   nextHref,
   lastHref,
   pageLinks,
+  printAllResults,
+  printableHref,
+  excelHref,
+  paginatedHref,
   canAssign,
   reportDate
 }: AccountTaggingWorkspaceProps) {
@@ -91,33 +135,59 @@ export function AccountTaggingWorkspace({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [addressQuery, setAddressQuery] = useState(address);
+  const [address2Query, setAddress2Query] = useState(address2);
   const [customerQuery, setCustomerQuery] = useState(customerName);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const mounted = useRef(false);
-  const hasFilters = Boolean(selectedBranchId !== "ALL" || selectedProduct !== "ALL" || address.trim() || customerName.trim());
+  const topScrollRef = useRef<HTMLDivElement | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const syncingScroll = useRef(false);
+  const hasFilters = Boolean(selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || address.trim() || address2.trim() || customerName.trim());
   const selectedBranch = branches.find((branch) => String(branch.id) === selectedBranchId);
   const branchLabel = selectedBranch ? `${selectedBranch.branchName} (${selectedBranch.branchCode})` : "All branches";
+  const tableMinWidth = 1700;
+  const visibleTotals = useMemo(
+    () =>
+      loans.reduce(
+        (totals, loan) => ({
+          principal: totals.principal + loan.principalBalance,
+          interest: totals.interest + loan.interestBalance,
+          pdi: totals.pdi + loan.pdiBalance,
+          penalty: totals.penalty + loan.penaltyBalance,
+          payments: totals.payments + loan.totalPayments,
+          waived: totals.waived + loan.waivedAmount,
+          balance: totals.balance + loan.balance
+        }),
+        { principal: 0, interest: 0, pdi: 0, penalty: 0, payments: 0, waived: 0, balance: 0 }
+      ),
+    [loans]
+  );
 
   const buildHref = useCallback(
-    (formData?: FormData, nextAddress = addressQuery, nextCustomer = customerQuery) => {
+    (formData?: FormData, nextAddress = addressQuery, nextAddress2 = address2Query, nextCustomer = customerQuery) => {
       const params = new URLSearchParams(searchParams.toString());
       const branchId = String(formData?.get("branchId") ?? selectedBranchId);
       const product = String(formData?.get("product") ?? selectedProduct);
+      const status = String(formData?.get("status") ?? selectedStatus);
       const normalizedAddress = nextAddress.trim();
+      const normalizedAddress2 = nextAddress2.trim();
       const normalizedCustomer = nextCustomer.trim();
 
       params.delete("page");
+      params.delete("print");
       branchId === "ALL" ? params.delete("branchId") : params.set("branchId", branchId);
       product === "ALL" ? params.delete("product") : params.set("product", product);
+      status === "ALL" ? params.delete("status") : params.set("status", status);
       normalizedAddress ? params.set("address", normalizedAddress) : params.delete("address");
+      normalizedAddress2 ? params.set("address2", normalizedAddress2) : params.delete("address2");
       normalizedCustomer ? params.set("customer", normalizedCustomer) : params.delete("customer");
 
       const query = params.toString();
       return query ? `${pathname}?${query}` : pathname;
     },
-    [addressQuery, customerQuery, pathname, searchParams, selectedBranchId, selectedProduct]
+    [address2Query, addressQuery, customerQuery, pathname, searchParams, selectedBranchId, selectedProduct, selectedStatus]
   );
 
   useEffect(() => {
@@ -127,11 +197,11 @@ export function AccountTaggingWorkspace({
     }
 
     const timeout = window.setTimeout(() => {
-      router.replace(buildHref(undefined, addressQuery, customerQuery));
+      router.replace(buildHref(undefined, addressQuery, address2Query, customerQuery));
     }, 400);
 
     return () => window.clearTimeout(timeout);
-  }, [addressQuery, buildHref, customerQuery, router]);
+  }, [address2Query, addressQuery, buildHref, customerQuery, router]);
 
   const assignmentSummary = useMemo(() => {
     if (!totalLoans) return "No matching loans to tag.";
@@ -147,9 +217,16 @@ export function AccountTaggingWorkspace({
   function assignMatching(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const action = submitter?.value === "assignZone" ? "assignZone" : "assignOfficer";
     const assignedToId = Number(form.get("assignedToId"));
-    if (!assignedToId) {
+    const zone = String(form.get("zone") ?? "").trim();
+    if (action === "assignOfficer" && !assignedToId) {
       setError("Select an Account Officer first.");
+      return;
+    }
+    if (action === "assignZone" && !zone) {
+      setError("Enter the Zone before assigning matching accounts.");
       return;
     }
     if (!hasFilters) {
@@ -164,11 +241,15 @@ export function AccountTaggingWorkspace({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          action,
           assignedToId,
+          zone,
           branchId: selectedBranchId,
           product: selectedProduct,
           address,
-          customerName
+          address2,
+          customerName,
+          loanStatus: selectedStatus
         })
       });
       const data = await response.json().catch(() => null);
@@ -176,14 +257,70 @@ export function AccountTaggingWorkspace({
         setError(data?.error ?? "Unable to assign matching accounts.");
         return;
       }
-      setMessage(`${data.count.toLocaleString("en-US")} loan${data.count === 1 ? "" : "s"} tagged to Account Officer.`);
+      setMessage(
+        `${data.count.toLocaleString("en-US")} loan${data.count === 1 ? "" : "s"} ${
+          action === "assignZone" ? "updated with Zone" : "tagged to Account Officer"
+        }.`
+      );
       router.refresh();
+    });
+  }
+
+  function updateLoanTagging(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const loanId = Number(form.get("loanId"));
+    const assignedToId = Number(form.get("assignedToId"));
+    const zone = String(form.get("zone") ?? "").trim();
+
+    if (!assignedToId) {
+      setError("Select an Account Officer before updating the row.");
+      return;
+    }
+
+    setError(null);
+    setMessage(null);
+    startTransition(async () => {
+      const response = await fetch("/api/account-tagging/assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "updateLoan",
+          loanId,
+          assignedToId,
+          zone
+        })
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        setError(data?.error ?? "Unable to update this loan tagging.");
+        return;
+      }
+      setMessage("Loan tagging updated.");
+      router.refresh();
+    });
+  }
+
+  function syncHorizontalScroll(source: "top" | "table") {
+    if (syncingScroll.current) return;
+    const top = topScrollRef.current;
+    const table = tableScrollRef.current;
+    if (!top || !table) return;
+
+    syncingScroll.current = true;
+    if (source === "top") {
+      table.scrollLeft = top.scrollLeft;
+    } else {
+      top.scrollLeft = table.scrollLeft;
+    }
+    window.requestAnimationFrame(() => {
+      syncingScroll.current = false;
     });
   }
 
   return (
     <div className="space-y-4">
-      <form onSubmit={submitSearch} className="panel grid gap-3 p-4 no-print lg:grid-cols-[1fr_1fr_1.4fr_1.4fr_auto_auto]">
+      <form onSubmit={submitSearch} className="panel grid gap-3 p-4 no-print lg:grid-cols-[1fr_1fr_1fr_1.2fr_1.2fr_auto_auto]">
         <label className="block">
           <span className="mb-2 block text-sm font-semibold text-slate-700">Branch</span>
           <select name="branchId" className="field" defaultValue={selectedBranchId}>
@@ -205,43 +342,78 @@ export function AccountTaggingWorkspace({
           </select>
         </label>
         <label className="block">
-          <span className="mb-2 block text-sm font-semibold text-slate-700">Address</span>
-          <input className="field" value={addressQuery} onChange={(event) => setAddressQuery(event.target.value)} placeholder="Search by address or area" />
+          <span className="mb-2 block text-sm font-semibold text-slate-700">Loan status</span>
+          <select name="status" className="field" defaultValue={selectedStatus}>
+            <option value="ALL">All statuses</option>
+            {statuses.map((status) => (
+              <option key={status} value={status}>{status}</option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-2 block text-sm font-semibold text-slate-700">Address area</span>
+          <input className="field" value={addressQuery} onChange={(event) => setAddressQuery(event.target.value)} placeholder="Example: San Francisco" />
+        </label>
+        <label className="block">
+          <span className="mb-2 block text-sm font-semibold text-slate-700">Address detail</span>
+          <input className="field" value={address2Query} onChange={(event) => setAddress2Query(event.target.value)} placeholder="Example: Brgy 1" />
         </label>
         <label className="block">
           <span className="mb-2 block text-sm font-semibold text-slate-700">Customer name</span>
           <input className="field" value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder="Search by customer name" />
         </label>
-        <button className="btn-primary self-end" type="submit">
+        <button className="btn-primary w-full self-end lg:w-auto" type="submit">
           <Search className="h-4 w-4" />
           Search
         </button>
-        <Link className="btn-secondary self-end" href="/account-tagging">
+        <Link className="btn-secondary w-full self-end lg:w-auto" href="/account-tagging">
           Clear
         </Link>
       </form>
 
+      <section className="grid gap-3 no-print md:grid-cols-4 xl:grid-cols-7">
+        <PortfolioMetric label="Principal balance" value={portfolioTotals.principal} detail={`Original ${money(portfolioTotals.originalPrincipal)}`} />
+        <PortfolioMetric label="Interest balance" value={portfolioTotals.interest} detail={`Original ${money(portfolioTotals.originalInterest)}`} />
+        <PortfolioMetric label="PDI balance" value={portfolioTotals.pdi} detail={`Original ${money(portfolioTotals.originalPdi)}`} />
+        <PortfolioMetric label="Penalty balance" value={portfolioTotals.penalty} detail={`Original ${money(portfolioTotals.originalPenalty)}`} />
+        <PortfolioMetric label="Total payments" value={portfolioTotals.payments} tone="green" />
+        <PortfolioMetric label="Waived / deducted" value={portfolioTotals.waived} />
+        <PortfolioMetric label="Balance portfolio" value={portfolioTotals.balance} tone="red" />
+      </section>
+
       {canAssign ? (
-        <form onSubmit={assignMatching} className="panel grid gap-3 p-4 no-print lg:grid-cols-[1fr_1.6fr_auto]">
+        <form onSubmit={assignMatching} className="panel grid gap-4 p-4 no-print lg:grid-cols-[minmax(180px,0.8fr)_minmax(260px,1.2fr)_minmax(240px,1fr)]">
           <div>
             <p className="text-sm font-bold text-slate-950">Bulk assignment</p>
             <p className="mt-1 text-xs font-semibold text-slate-500">{assignmentSummary}</p>
           </div>
-          <label className="block">
-            <span className="mb-2 block text-sm font-semibold text-slate-700">Account Officer</span>
-            <select name="assignedToId" className="field" disabled={!officers.length || isPending}>
-              <option value="">Select Account Officer</option>
-              {officers.map((officer) => (
-                <option key={officer.id} value={officer.id}>
-                  {officer.name} - {officer.email}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button className="btn-primary self-end" disabled={isPending || !officers.length || !totalLoans || !hasFilters}>
-            <Tag className="h-4 w-4" />
-            {isPending ? "Assigning..." : "Assign matching"}
-          </button>
+          <div className="grid gap-2">
+            <label className="block">
+              <span className="mb-2 block text-sm font-semibold text-slate-700">Account Officer</span>
+              <select name="assignedToId" className="field" disabled={!officers.length || isPending}>
+                <option value="">Select Account Officer</option>
+                {officers.map((officer) => (
+                  <option key={officer.id} value={officer.id}>
+                    {officer.name} - {officer.email}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="btn-primary w-full" name="action" value="assignOfficer" disabled={isPending || !officers.length || !totalLoans || !hasFilters}>
+              <Tag className="h-4 w-4" />
+              {isPending ? "Assigning..." : "Assign matching AO"}
+            </button>
+          </div>
+          <div className="grid gap-2">
+            <label className="block">
+              <span className="mb-2 block text-sm font-semibold text-slate-700">Zone</span>
+              <input name="zone" className="field" placeholder="Enter zone for matching loans" disabled={isPending || !totalLoans || !hasFilters} />
+            </label>
+            <button className="btn-secondary w-full" name="action" value="assignZone" disabled={isPending || !totalLoans || !hasFilters}>
+              <Tag className="h-4 w-4" />
+              {isPending ? "Updating..." : "Assign matching Zone"}
+            </button>
+          </div>
           {message ? <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-brand-green lg:col-span-3">{message}</p> : null}
           {error ? <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 lg:col-span-3">{error}</p> : null}
         </form>
@@ -256,19 +428,27 @@ export function AccountTaggingWorkspace({
               <div className="mt-2 grid gap-1 text-xs text-slate-700">
                 <p><span className="font-semibold">Branch:</span> {branchLabel}</p>
                 <p><span className="font-semibold">Loan product:</span> {selectedProduct === "ALL" ? "All" : selectedProduct}</p>
-                <p><span className="font-semibold">Address filter:</span> {address || "All"}</p>
+                <p><span className="font-semibold">Loan status:</span> {selectedStatus === "ALL" ? "All" : selectedStatus}</p>
+                <p><span className="font-semibold">Address area:</span> {address || "All"}</p>
+                <p><span className="font-semibold">Address detail:</span> {address2 || "All"}</p>
                 <p><span className="font-semibold">Customer filter:</span> {customerName || "All"}</p>
+                <p>
+                  <span className="font-semibold">Portfolio:</span>{" "}
+                  Principal balance {money(portfolioTotals.principal)} | Interest balance {money(portfolioTotals.interest)} | PDI balance {money(portfolioTotals.pdi)} | Penalty balance {money(portfolioTotals.penalty)} | Payments {money(portfolioTotals.payments)} | Waived/Deducted {money(portfolioTotals.waived)} | Balance {money(portfolioTotals.balance)}
+                </p>
                 <p><span className="font-semibold">Date:</span> {dateOnly(reportDate)}</p>
               </div>
             </div>
             <p className="text-sm font-bold text-slate-950">
               {totalLoans
-                ? `Showing ${firstResult.toLocaleString("en-US")}-${lastResult.toLocaleString("en-US")} of ${totalLoans.toLocaleString("en-US")} loan(s)`
+                ? printAllResults
+                  ? `Showing all ${totalLoans.toLocaleString("en-US")} matching loan(s)`
+                  : `Showing ${firstResult.toLocaleString("en-US")}-${lastResult.toLocaleString("en-US")} of ${totalLoans.toLocaleString("en-US")} loan(s)`
                 : "Showing 0 loan(s)"}
             </p>
             <p className="text-xs font-semibold text-slate-500">
-              Page {safePage.toLocaleString("en-US")} of {totalPages.toLocaleString("en-US")}
-              <span className="print-only"> - current printed page only</span>
+              {printAllResults ? "Printable full result list" : `Page ${safePage.toLocaleString("en-US")} of ${totalPages.toLocaleString("en-US")}`}
+              {!printAllResults ? <span className="print-only"> - current printed page only</span> : null}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -276,58 +456,158 @@ export function AccountTaggingWorkspace({
               <Users className="h-4 w-4 text-brand-blue" />
               Account tagging queue
             </div>
-            <PrintReportButton />
+            {printAllResults ? (
+              <>
+                <Link className="btn-secondary h-9 px-3 no-print" href={paginatedHref}>
+                  Back to paginated list
+                </Link>
+                <Link className={`btn-secondary h-9 px-3 no-print ${!totalLoans ? "pointer-events-none opacity-50" : ""}`} href={excelHref}>
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Download Excel report
+                </Link>
+                <PrintReportButton label="Print full result list" />
+              </>
+            ) : (
+              <>
+                <Link className={`btn-secondary h-9 px-3 no-print ${!totalLoans ? "pointer-events-none opacity-50" : ""}`} href={excelHref}>
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Download Excel report
+                </Link>
+                <Link className={`btn-primary h-9 px-3 no-print ${!totalLoans ? "pointer-events-none opacity-50" : ""}`} href={printableHref}>
+                  Print full result list
+                </Link>
+              </>
+            )}
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-[1120px] w-full table-fixed text-left text-xs">
+        <div
+          ref={topScrollRef}
+          className="sticky top-20 z-10 overflow-x-auto border-b border-slate-100 bg-white no-print"
+          onScroll={() => syncHorizontalScroll("top")}
+          aria-label="Account tagging horizontal scroll"
+        >
+          <div style={{ width: `${tableMinWidth}px`, height: 12 }} />
+        </div>
+        <div ref={tableScrollRef} className="overflow-x-auto" onScroll={() => syncHorizontalScroll("table")}>
+          {canAssign
+            ? loans.map((loan) => (
+                <form key={loan.id} id={`tagging-row-${loan.id}`} onSubmit={updateLoanTagging} className="hidden">
+                  <input type="hidden" name="loanId" value={loan.id} />
+                </form>
+              ))
+            : null}
+          <table className="w-full table-fixed text-left text-[11px]" style={{ minWidth: `${tableMinWidth}px` }}>
             <colgroup>
-              <col className="w-12" />
-              <col className="w-[230px]" />
-              <col className="w-[290px]" />
-              <col className="w-24" />
-              <col className="w-28" />
-              <col className="w-32" />
-              <col className="w-28" />
-              <col className="w-28" />
-              <col className="w-32" />
-              <col className="w-40" />
+              <col className="w-10" />
+              <col className="w-[176px]" />
+              <col className="w-[212px]" />
+              <col className="w-[108px]" />
+              <col className="w-[126px]" />
+              <col className="w-[82px]" />
+              <col className="w-[96px]" />
+              <col className="w-[96px]" />
+              <col className="w-[74px]" />
+              <col className="w-[96px]" />
+              <col className="w-[96px]" />
+              <col className="w-[76px]" />
+              <col className="w-[96px]" />
+              <col className="w-[116px]" />
+              <col className="w-[128px]" />
+              <col className="w-[212px]" />
             </colgroup>
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-3">No.</th>
-                <th className="px-3 py-3">Client</th>
-                <th className="px-3 py-3">Address</th>
-                <th className="px-3 py-3">Branch</th>
-                <th className="px-3 py-3">Loan</th>
-                <th className="px-3 py-3">Product</th>
-                <th className="px-3 py-3">Maturity</th>
-                <th className="px-3 py-3 text-right">Balance</th>
-                <th className="px-3 py-3">Status</th>
-                <th className="px-3 py-3">Account Officer</th>
+                <th className="px-2 py-2">No.</th>
+                <th className="px-2 py-2">Client</th>
+                <th className="px-2 py-2">Address</th>
+                <th className="px-2 py-2">Branch / Loan</th>
+                <th className="px-2 py-2">Product / Branch AO</th>
+                <th className="px-2 py-2">Maturity</th>
+                <th className="px-2 py-2 text-right">Principal</th>
+                <th className="px-2 py-2 text-right">Interest</th>
+                <th className="px-2 py-2 text-right">PDI</th>
+                <th className="px-2 py-2 text-right">Penalty</th>
+                <th className="px-2 py-2 text-right">Payments</th>
+                <th className="px-2 py-2 text-right">Waived</th>
+                <th className="px-2 py-2 text-right">Balance</th>
+                <th className="px-2 py-2">Status</th>
+                <th className="px-2 py-2">Zone</th>
+                <th className="px-2 py-2">Assigned AO</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loans.map((loan, index) => (
                 <tr key={loan.id} className="align-top">
-                  <td className="px-3 py-3 font-semibold text-slate-600">{firstResult + index}</td>
-                  <td className="px-3 py-3">
+                  <td className="px-2 py-2 font-semibold text-slate-600">{firstResult + index}</td>
+                  <td className="px-2 py-2">
                     <p className="font-bold text-slate-950">{loan.clientName}</p>
                     <p className="mt-1 text-[11px] text-slate-500">{[loan.clientId, loan.contactNumber].filter(Boolean).join(" - ") || "-"}</p>
                   </td>
-                  <td className="px-3 py-3 text-slate-700">{loan.address || "-"}</td>
-                  <td className="px-3 py-3 font-semibold text-slate-700">{loan.branchName}</td>
-                  <td className="px-3 py-3 font-bold text-brand-blue">{loan.loanNumber}</td>
-                  <td className="px-3 py-3">{loan.loanProduct ?? "-"}</td>
-                  <td className="px-3 py-3">{dateOnly(loan.maturityAt)}</td>
-                  <td className="px-3 py-3 text-right font-bold text-red-700">{money(loan.balance)}</td>
-                  <td className="px-3 py-3">
+                  <td className="px-2 py-2 text-slate-700">{loan.address || "-"}</td>
+                  <td className="px-2 py-2">
+                    <p className="font-semibold text-slate-700">{loan.branchName}</p>
+                    <span className="mt-1 block no-print">
+                      <LoanDetailLink loan={loan.loanDetail} label={loan.loanNumber} />
+                    </span>
+                    <span className="print-only font-bold text-brand-blue">{loan.loanNumber}</span>
+                  </td>
+                  <td className="px-2 py-2">
+                    <p>{loan.loanProduct ?? "-"}</p>
+                    <p className="mt-1 font-semibold text-slate-700">{loan.branchAo || "-"}</p>
+                  </td>
+                  <td className="px-2 py-2">{dateOnly(loan.maturityAt)}</td>
+                  <AmountCell balance={loan.principalBalance} original={loan.originalPrincipal} />
+                  <AmountCell balance={loan.interestBalance} original={loan.originalInterest} />
+                  <AmountCell balance={loan.pdiBalance} original={loan.originalPdi} />
+                  <AmountCell balance={loan.penaltyBalance} original={loan.originalPenalty} />
+                  <td className="px-2 py-2 text-right font-semibold text-brand-green">{money(loan.totalPayments)}</td>
+                  <td className="px-2 py-2 text-right font-semibold">{money(loan.waivedAmount)}</td>
+                  <td className="px-2 py-2 text-right font-bold text-red-700">{money(loan.balance)}</td>
+                  <td className="px-2 py-2">
                     <span className="rounded-md bg-slate-100 px-2 py-1 font-bold text-slate-700">
                       {loan.sourceStatusCode ?? "-"} {loan.sourceStatusName ? `- ${loan.sourceStatusName}` : ""}
                     </span>
                   </td>
-                  <td className="px-3 py-3">
-                    {loan.assignedOfficer ? (
+                  <td className="px-2 py-2">
+                    {canAssign ? (
+                      <>
+                        <input
+                          className="field h-9 text-xs no-print"
+                          form={`tagging-row-${loan.id}`}
+                          name="zone"
+                          defaultValue={loan.zone ?? ""}
+                          placeholder="Zone"
+                        />
+                        <span className="print-only font-semibold text-slate-700">{loan.zone || "-"}</span>
+                      </>
+                    ) : (
+                      <span className="font-semibold text-slate-700">{loan.zone || "-"}</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2">
+                    {canAssign ? (
+                      <>
+                      <div className="flex gap-2 no-print">
+                        <select
+                          className="field h-9 min-w-0 flex-1 text-xs"
+                          form={`tagging-row-${loan.id}`}
+                          name="assignedToId"
+                          defaultValue={loan.assignedOfficerId ?? ""}
+                        >
+                          <option value="">Select AO</option>
+                          {officers.map((officer) => (
+                            <option key={officer.id} value={officer.id}>
+                              {officer.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button className="btn-secondary h-9 px-3" form={`tagging-row-${loan.id}`} disabled={isPending}>
+                          Update
+                        </button>
+                      </div>
+                      <span className="print-only font-semibold text-slate-700">{loan.assignedOfficer || "Unassigned"}</span>
+                      </>
+                    ) : loan.assignedOfficer ? (
                       <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 font-bold text-brand-green">
                         <CheckSquare className="h-3.5 w-3.5" />
                         {loan.assignedOfficer}
@@ -340,14 +620,32 @@ export function AccountTaggingWorkspace({
               ))}
               {!loans.length ? (
                 <tr>
-                  <td className="px-4 py-8 text-sm font-semibold text-slate-500" colSpan={10}>
+                  <td className="px-4 py-8 text-sm font-semibold text-slate-500" colSpan={16}>
                     {hasFilters ? "No matching loans found." : "Use branch, address, or customer filters to load accounts for tagging."}
                   </td>
                 </tr>
               ) : null}
             </tbody>
+            {loans.length ? (
+              <tfoot className="border-t-2 border-slate-200 bg-slate-50 text-[11px]">
+                <tr className="align-top">
+                  <td className="px-2 py-2 font-bold uppercase tracking-wide text-slate-600" colSpan={6}>
+                    {printAllResults ? "Grand total" : "Page total"}
+                  </td>
+                  <TotalAmountCell value={visibleTotals.principal} tone="red" />
+                  <TotalAmountCell value={visibleTotals.interest} tone="red" />
+                  <TotalAmountCell value={visibleTotals.pdi} tone="red" />
+                  <TotalAmountCell value={visibleTotals.penalty} tone="red" />
+                  <TotalAmountCell value={visibleTotals.payments} tone="green" />
+                  <TotalAmountCell value={visibleTotals.waived} />
+                  <TotalAmountCell value={visibleTotals.balance} tone="red" />
+                  <td className="px-2 py-2" colSpan={3} />
+                </tr>
+              </tfoot>
+            ) : null}
           </table>
         </div>
+        {!printAllResults ? (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 no-print">
           <div className="flex items-center gap-2">
             <Link className={`btn-secondary h-9 px-3 ${safePage <= 1 ? "pointer-events-none opacity-50" : ""}`} href={firstHref}>
@@ -381,7 +679,49 @@ export function AccountTaggingWorkspace({
             </Link>
           </div>
         </div>
+        ) : null}
       </section>
     </div>
+  );
+}
+
+function PortfolioMetric({
+  label,
+  value,
+  detail,
+  tone = "default"
+}: {
+  label: string;
+  value: number;
+  detail?: string;
+  tone?: "default" | "red" | "green";
+}) {
+  const valueClass = tone === "red" ? "text-red-700" : tone === "green" ? "text-brand-green" : "text-slate-950";
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className={`mt-1 text-lg font-bold ${valueClass}`}>{money(value)}</p>
+      {detail ? <p className="mt-1 text-xs font-semibold text-slate-500">{detail}</p> : null}
+    </div>
+  );
+}
+
+function AmountCell({ balance, original }: { balance: number; original: number }) {
+  return (
+    <td className="px-2 py-2 text-right">
+      <p className="font-bold text-red-700">{money(balance)}</p>
+      <p className="mt-0.5 text-[11px] font-semibold text-slate-500">Orig {money(original)}</p>
+    </td>
+  );
+}
+
+function TotalAmountCell({ value, tone = "default" }: { value: number; tone?: "default" | "red" | "green" }) {
+  const valueClass = tone === "red" ? "text-red-700" : tone === "green" ? "text-brand-green" : "text-slate-950";
+
+  return (
+    <td className={`px-2 py-2 text-right font-extrabold ${valueClass}`}>
+      {money(value)}
+    </td>
   );
 }

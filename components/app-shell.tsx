@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   Building2,
+  Banknote,
   BrainCircuit,
   ClipboardCheck,
   ClipboardList,
@@ -16,6 +17,7 @@ import {
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
+  ReceiptText,
   Search,
   Settings,
   ShieldCheck,
@@ -33,6 +35,7 @@ type NavItem = {
 };
 
 const icons = {
+  Banknote,
   Building2,
   BrainCircuit,
   ClipboardCheck,
@@ -42,6 +45,7 @@ const icons = {
   History,
   Hourglass,
   MapPinned,
+  ReceiptText,
   Search,
   Settings,
   Tag,
@@ -67,7 +71,7 @@ export function AppShell({
   const [desktopSidebarHidden, setDesktopSidebarHidden] = useState(false);
 
   return (
-    <div className="min-h-screen lg:flex">
+    <div className="min-h-screen overflow-x-hidden lg:flex">
       {mobileMenuOpen ? (
         <button
           type="button"
@@ -78,7 +82,7 @@ export function AppShell({
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-72 border-r border-slate-200 bg-white transition-transform ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col border-r border-slate-200 bg-white transition-transform ${
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         } ${desktopSidebarHidden ? "lg:-translate-x-full" : "lg:translate-x-0"}`}
       >
@@ -96,7 +100,7 @@ export function AppShell({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <nav className="space-y-1 overflow-y-auto p-4">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4">
           {nav.map((item) => {
             const Icon = icons[item.icon];
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -118,8 +122,8 @@ export function AppShell({
         </nav>
       </aside>
 
-      <main className={`flex-1 transition-[padding] ${desktopSidebarHidden ? "lg:pl-0" : "lg:pl-72"}`}>
-        <header className="sticky top-0 z-20 flex min-h-20 items-center justify-between gap-3 border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur sm:px-5 lg:px-8">
+      <main className={`min-w-0 flex-1 transition-[padding] ${desktopSidebarHidden ? "lg:pl-0" : "lg:pl-72"}`}>
+        <header className="sticky top-0 z-20 flex min-h-20 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur sm:px-5 lg:flex-nowrap lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <button type="button" className="btn-secondary h-10 w-10 shrink-0 px-0 lg:hidden" aria-label="Open menu" onClick={() => setMobileMenuOpen(true)}>
               <Menu className="h-5 w-5" />
@@ -138,14 +142,14 @@ export function AppShell({
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Privilege: {roleLabel(user.role)}</p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
             <span className="hidden rounded-md bg-emerald-50 px-3 py-2 text-xs font-bold text-brand-green sm:inline-flex">
               {roleLabel(user.role)}
             </span>
             <LogoutButton />
           </div>
         </header>
-        <div className="px-4 py-6 sm:px-5 lg:px-8">{children}</div>
+        <div className="min-w-0 px-3 py-5 sm:px-5 sm:py-6 lg:px-8">{children}</div>
       </main>
     </div>
   );

@@ -5,7 +5,7 @@ import { AppShell } from "@/components/app-shell";
 type NavConfig = {
   href: string;
   label: string;
-  icon: "Gauge" | "Building2" | "Search" | "BrainCircuit" | "ClipboardCheck" | "ClipboardList" | "FileClock" | "Hourglass" | "UserRoundCheck" | "MapPinned" | "Tag" | "History" | "Users" | "Settings";
+  icon: "Gauge" | "Building2" | "Banknote" | "Search" | "BrainCircuit" | "ClipboardCheck" | "ClipboardList" | "FileClock" | "Hourglass" | "ReceiptText" | "UserRoundCheck" | "MapPinned" | "Tag" | "History" | "Users" | "Settings";
   roles: string[];
 };
 
@@ -18,6 +18,8 @@ const nav: NavConfig[] = [
   { href: "/current", label: "Current", icon: "ClipboardCheck", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER"] },
   { href: "/loans", label: "Loan Results", icon: "ClipboardList", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER"] },
   { href: "/aging", label: "Aging Report", icon: "Hourglass", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
+  { href: "/payments", label: "Payment Reports", icon: "ReceiptText", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
+  { href: "/payment-posting", label: "Payment Posting", icon: "Banknote", roles: ["ADMIN", "HO_CASHIER"] },
   { href: "/co-makers", label: "Co Makers", icon: "UserRoundCheck", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR"] },
   { href: "/remedial", label: "Remedial", icon: "MapPinned", roles: ["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
   { href: "/account-tagging", label: "Account Tagging", icon: "Tag", roles: ["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },

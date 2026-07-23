@@ -1,12 +1,13 @@
 import type { Prisma } from "@prisma/client";
 import { AlertTriangle, CalendarDays, ClipboardList } from "lucide-react";
 import { requireUser, canApproveRemedial, canAssignRemedial, getAccessibleBranchIds } from "@/lib/auth";
-import { branchScopeWhere, pastDueLoanWhere, remedialLoanSearchWhere, remedialOfficerOptions, REMEDIAL_ROLES } from "@/lib/remedial";
+import { branchScopeWhere, remedialEligibleLoanWhere, remedialLoanSearchWhere, remedialOfficerOptions, REMEDIAL_ROLES } from "@/lib/remedial";
 import { prisma } from "@/lib/prisma";
 import { amountDueAsOfToday, numberValue, scheduleIsPaid, schedulePaidTotal } from "@/lib/loan-amounts";
 import { money } from "@/lib/format";
 import { RemedialFilter } from "@/components/remedial-filter";
 import { RemedialWorkspace, type RemedialLoanRow } from "@/components/remedial-workspace";
+import type { LoanDetailLoan } from "@/components/loan-detail-window";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ type RemedialLoanWithRelations = Prisma.LoanGetPayload<{
     branch: true;
     client: true;
     amortizationSchedules: true;
+    payments: true;
     remedialAssignment: {
       include: {
         assignedTo: { select: { id: true; name: true; email: true } };
@@ -44,15 +46,77 @@ function daysBetween(start: Date, end: Date) {
 
 function pastDueInfo(loan: RemedialLoanWithRelations) {
   const today = new Date();
+  const delayedCutoff = new Date(today);
+  delayedCutoff.setMonth(delayedCutoff.getMonth() - 4);
+  delayedCutoff.setHours(0, 0, 0, 0);
   const overdueSchedule = loan.amortizationSchedules
     .filter((schedule) => schedule.amortDate && schedule.amortDate <= today && !scheduleIsPaid(schedule))
     .sort((a, b) => (a.amortDate?.getTime() ?? 0) - (b.amortDate?.getTime() ?? 0))[0];
 
-  const pastDueDate = overdueSchedule?.amortDate ?? (loan.maturityAt && loan.maturityAt < today ? loan.maturityAt : null);
+  const latestPaymentDate = loan.payments
+    .map((payment) => payment.paidAt)
+    .filter((paidAt): paidAt is Date => Boolean(paidAt))
+    .sort((a, b) => b.getTime() - a.getTime())[0];
+  const delayedSince =
+    latestPaymentDate && latestPaymentDate < delayedCutoff
+      ? latestPaymentDate
+      : !latestPaymentDate && loan.releasedAt && loan.releasedAt < delayedCutoff
+        ? loan.releasedAt
+        : null;
+  const pastDueDate = overdueSchedule?.amortDate ?? (loan.maturityAt && loan.maturityAt < today ? loan.maturityAt : null) ?? delayedSince;
 
   return {
     pastDueDate: pastDueDate?.toISOString() ?? null,
     daysPastDue: pastDueDate ? daysBetween(pastDueDate, today) : 0
+  };
+}
+
+function toLoanDetail(loan: RemedialLoanWithRelations): LoanDetailLoan {
+  return {
+    id: loan.id,
+    remoteId: loan.remoteId,
+    loanNumber: loan.loanNumber,
+    loanProduct: loan.loanProduct,
+    principalAmount: loan.principalAmount.toString(),
+    interestRate: loan.interestRate.toString(),
+    interestAmount: loan.interestAmount.toString(),
+    penaltyAmount: loan.penaltyAmount.toString(),
+    terms: loan.terms,
+    paidAmount: loan.paidAmount.toString(),
+    balance: loan.balance.toString(),
+    status: loan.status,
+    sourceStatusCode: loan.sourceStatusCode,
+    sourceStatusName: loan.sourceStatusName,
+    releasedAt: loan.releasedAt?.toISOString() ?? null,
+    maturityAt: loan.maturityAt?.toISOString() ?? null,
+    client: {
+      fullName: loan.client.fullName,
+      clientId: loan.client.clientId,
+      contactNumber: loan.client.contactNumber,
+      branch: {
+        branchName: loan.branch.branchName,
+        branchCode: loan.branch.branchCode
+      }
+    },
+    branch: {
+      branchName: loan.branch.branchName,
+      branchCode: loan.branch.branchCode
+    },
+    amortizationSchedules: loan.amortizationSchedules.map((schedule) => ({
+      id: schedule.id,
+      remoteId: schedule.remoteId,
+      amortNo: schedule.amortNo,
+      amortDate: schedule.amortDate?.toISOString() ?? null,
+      principalBalance: schedule.principalBalance.toString(),
+      interestBalance: schedule.interestBalance.toString(),
+      principalAmort: schedule.principalAmort.toString(),
+      interestAmort: schedule.interestAmort.toString(),
+      totalAmort: schedule.totalAmort.toString(),
+      paidPrincipal: schedule.paidPrincipal.toString(),
+      paidInterest: schedule.paidInterest.toString(),
+      paidTotal: schedule.paidTotal.toString(),
+      paidStatus: schedule.paidStatus
+    }))
   };
 }
 
@@ -104,7 +168,8 @@ function toRemedialLoanRow(loan: RemedialLoanWithRelations): RemedialLoanRow {
             createdByName: visit.createdBy?.name ?? null
           }))
         }
-      : null
+      : null,
+    loanDetail: toLoanDetail(loan)
   };
 }
 
@@ -149,7 +214,7 @@ export default async function RemedialPage({
   const visibilityFilter: Prisma.LoanWhereInput = await branchScopeWhere(user);
   const where: Prisma.LoanWhereInput = {
     AND: [
-      pastDueLoanWhere(),
+      remedialEligibleLoanWhere(),
       visibilityFilter,
       branchFilter,
       productFilter,
@@ -168,6 +233,10 @@ export default async function RemedialPage({
         client: true,
         amortizationSchedules: {
           orderBy: [{ amortNo: "asc" }, { amortDate: "asc" }]
+        },
+        payments: {
+          orderBy: [{ paidAt: "desc" }, { id: "desc" }],
+          take: 1
         },
         remedialAssignment: {
           include: {
@@ -202,6 +271,10 @@ export default async function RemedialPage({
         client: true,
         amortizationSchedules: {
           orderBy: [{ amortNo: "asc" }, { amortDate: "asc" }]
+        },
+        payments: {
+          orderBy: [{ paidAt: "desc" }, { id: "desc" }],
+          take: 1
         },
         remedialAssignment: {
           include: {
@@ -238,7 +311,7 @@ export default async function RemedialPage({
     prisma.loan.findMany({
       distinct: ["loanProduct"],
       where: {
-        AND: [pastDueLoanWhere(), visibilityFilter, branchFilter, { loanProduct: { not: null } }]
+        AND: [remedialEligibleLoanWhere(), visibilityFilter, branchFilter, { loanProduct: { not: null } }]
       },
       select: { loanProduct: true },
       orderBy: { loanProduct: "asc" }
@@ -272,12 +345,12 @@ export default async function RemedialPage({
         <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Collections and recovery</p>
         <h2 className="mt-2 text-3xl font-bold text-slate-950">Remedial</h2>
         <p className="mt-2 text-sm text-slate-600">
-          You are in the Remedial layout. This workspace shows past-due accounts for your allowed branch access and prepares approved visit itineraries for follow-up.
+          You are in the Remedial layout. This workspace shows past-due and delayed accounts for your allowed branch access and prepares approved visit itineraries for follow-up.
         </p>
       </div>
 
       <section className="grid gap-3 md:grid-cols-3">
-        <Metric icon={AlertTriangle} label="Past-due loans" value={totalLoans.toLocaleString("en-US")} tone="red" />
+        <Metric icon={AlertTriangle} label="Remedial loans" value={totalLoans.toLocaleString("en-US")} tone="red" />
         <Metric icon={ClipboardList} label="Due as of today" value={money(totalDueToday)} detail={`Total balance: ${money(totalBalance)}`} tone={totalDueToday ? "red" : "blue"} />
         <Metric icon={CalendarDays} label="Pending approvals" value={pendingApprovalCount.toLocaleString("en-US")} detail={`Visible balance: ${money(totalBalance)}`} />
       </section>

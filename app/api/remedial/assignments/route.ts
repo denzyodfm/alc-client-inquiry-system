@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { canAccessBranch, canAssignRemedial } from "@/lib/auth";
 import { requireApiUser } from "@/lib/api";
-import { pastDueLoanWhere, REMEDIAL_ROLES } from "@/lib/remedial";
+import { remedialEligibleLoanWhere, REMEDIAL_ROLES } from "@/lib/remedial";
 import { prisma } from "@/lib/prisma";
 
 function parseDate(value: unknown) {
@@ -54,8 +54,10 @@ export async function POST(request: Request) {
 
   const loans = await prisma.loan.findMany({
     where: {
-      id: { in: loanIds },
-      ...pastDueLoanWhere()
+      AND: [
+        { id: { in: loanIds } },
+        remedialEligibleLoanWhere()
+      ]
     },
     select: {
       id: true,
@@ -68,7 +70,7 @@ export async function POST(request: Request) {
       }
     }
   });
-  if (loans.length !== loanIds.length) return NextResponse.json({ error: "One or more selected past-due loans were not found." }, { status: 404 });
+  if (loans.length !== loanIds.length) return NextResponse.json({ error: "One or more selected remedial loans were not found." }, { status: 404 });
   for (const loan of loans) {
     if (!(await canAccessBranch(user, loan.branchId))) {
       return NextResponse.json({ error: "You do not have access to one or more selected branches." }, { status: 403 });

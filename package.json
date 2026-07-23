@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "dev:3002": "next dev -p 3002",
+    "dev:3002": "node scripts/dev-watchdog.mjs",
     "dev:stable": "node scripts/dev-watchdog.mjs",
     "build": "next build",
     "start": "next start",

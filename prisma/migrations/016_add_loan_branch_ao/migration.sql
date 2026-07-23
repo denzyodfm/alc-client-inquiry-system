@@ -1,0 +1,2 @@
+ALTER TABLE `loans`
+  ADD COLUMN `branch_ao` VARCHAR(160) NULL;

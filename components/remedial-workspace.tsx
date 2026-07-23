@@ -4,6 +4,8 @@ import Link from "next/link";
 import { CalendarCheck, CheckCircle2, ClipboardList, MapPinned, Send, XCircle } from "lucide-react";
 import { FormEvent, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { LoanDetailLink } from "@/components/loan-detail-link";
+import type { LoanDetailLoan } from "@/components/loan-detail-window";
 import { PrintReportButton } from "@/components/print-report-button";
 import { dateOnly, money } from "@/lib/format";
 
@@ -37,6 +39,7 @@ export type RemedialLoanRow = {
   sourceStatusName: string | null;
   branch: { id: number; branchName: string; branchCode: string };
   client: { fullName: string; clientId: string | null; contactNumber: string | null; address: string | null };
+  loanDetail: LoanDetailLoan;
   assignment: {
     id: number;
     status: string;
@@ -219,7 +222,7 @@ export function RemedialWorkspace({
     const form = new FormData(event.currentTarget);
     const loanIds = form.getAll("loanIds").map((value) => Number(value)).filter((value) => Number.isInteger(value));
     if (!loanIds.length) {
-      setError("Select at least one past-due loan to assign.");
+      setError("Select at least one past-due or delayed loan to assign.");
       return;
     }
 
@@ -250,7 +253,7 @@ export function RemedialWorkspace({
     const form = new FormData(event.currentTarget);
     const loanIds = form.getAll("loanIds").map((value) => Number(value)).filter((value) => Number.isInteger(value));
     if (!loanIds.length) {
-      setError("Select at least one past-due loan for the follow-up schedule.");
+      setError("Select at least one past-due or delayed loan for the follow-up schedule.");
       return;
     }
 
@@ -318,7 +321,7 @@ export function RemedialWorkspace({
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Remedial Layout</p>
-            <h3 className="mt-1 text-xl font-bold text-slate-950">Past-due accounts for follow-up</h3>
+            <h3 className="mt-1 text-xl font-bold text-slate-950">Past-due and delayed accounts for follow-up</h3>
           </div>
           {canCreateOwnSchedule ? (
             <button type="button" className="btn-primary h-10 px-4" onClick={() => setShowScheduleModal(true)}>
@@ -398,7 +401,10 @@ export function RemedialWorkspace({
             <div key={visit.id} className="rounded-lg border border-slate-200 p-3">
               <p className="text-xs font-bold uppercase text-brand-green">{dateOnly(visit.scheduledDate)}</p>
               <p className="mt-1 font-bold text-slate-950">{loan.client.fullName}</p>
-              <p className="text-sm text-slate-500">{loan.branch.branchName} · {loan.loanNumber ?? loan.remoteId}</p>
+              <p className="text-sm text-slate-500">
+                {loan.branch.branchName} ·{" "}
+                <LoanDetailLink loan={loan.loanDetail} label={loan.loanNumber ?? loan.remoteId} className="font-bold text-brand-blue hover:underline" />
+              </p>
               <p className="mt-2 text-sm text-slate-600">{visit.scheduleNotes || "Approved field visit."}</p>
             </div>
           ))}
@@ -416,7 +422,10 @@ export function RemedialWorkspace({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-bold text-slate-950">{loan.client.fullName}</p>
-                    <p className="text-sm text-slate-500">{loan.branch.branchName} - {loan.loanNumber ?? loan.remoteId}</p>
+                    <p className="text-sm text-slate-500">
+                      {loan.branch.branchName} -{" "}
+                      <LoanDetailLink loan={loan.loanDetail} label={loan.loanNumber ?? loan.remoteId} className="font-bold text-brand-blue hover:underline" />
+                    </p>
                     <p className="mt-1 text-xs text-slate-500">Follow-up: {dateOnly(visit.scheduledDate)}</p>
                   </div>
                   <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-bold text-brand-blue">{statusLabel(visit.status)}</span>
@@ -453,7 +462,7 @@ export function RemedialWorkspace({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-lg font-bold uppercase tracking-wide text-slate-950">Agusan Lending Corporation</p>
-              <p className="mt-1 text-sm font-semibold uppercase tracking-wide text-brand-green">Remedial Pastdue Report</p>
+              <p className="mt-1 text-sm font-semibold uppercase tracking-wide text-brand-green">Remedial Past-due and Delayed Report</p>
               <p className="mt-2 text-sm text-slate-600">
                 Filter: {reportBranchLabel}
                 {reportProductLabel ? ` | Product: ${reportProductLabel}` : ""}
@@ -463,7 +472,7 @@ export function RemedialWorkspace({
             </div>
             <div className="text-right text-sm">
               <p className="font-semibold text-slate-700">
-                Showing {firstResult}-{lastResult} of {totalLoans} past-due loan(s)
+                Showing {firstResult}-{lastResult} of {totalLoans} remedial loan(s)
               </p>
               <p className="text-xs text-slate-500 no-print">Result page {safePage} of {totalPages}</p>
               <PrintReportButton />
@@ -520,7 +529,10 @@ export function RemedialWorkspace({
                     </td>
                     <td className="px-2 py-2">{loan.branch.branchName}</td>
                     <td className="px-2 py-2">
-                      <p className="font-bold text-brand-blue">{loan.loanNumber ?? loan.remoteId}</p>
+                      <p className="no-print">
+                        <LoanDetailLink loan={loan.loanDetail} label={loan.loanNumber ?? loan.remoteId} />
+                      </p>
+                      <p className="print-only font-bold text-brand-blue">{loan.loanNumber ?? loan.remoteId}</p>
                       <p className="text-xs text-slate-500">{loan.sourceStatusCode ?? "-"} - {loan.sourceStatusName ?? "Past due"}</p>
                     </td>
                     <td className="px-2 py-2">{loan.loanProduct ?? "-"}</td>
@@ -562,7 +574,7 @@ export function RemedialWorkspace({
               })}
               {!loans.length ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={13}>No past-due remedial loans found for your access.</td>
+                  <td className="px-4 py-6 text-slate-500" colSpan={13}>No past-due or delayed remedial loans found for your access.</td>
                 </tr>
               ) : null}
             </tbody>
@@ -641,7 +653,10 @@ export function RemedialWorkspace({
                         <p className="mt-1 max-w-80 text-xs text-slate-500">{loan.client.address ?? "-"}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="font-bold text-brand-blue">{loan.loanNumber ?? loan.remoteId}</p>
+                        <p className="no-print">
+                          <LoanDetailLink loan={loan.loanDetail} label={loan.loanNumber ?? loan.remoteId} />
+                        </p>
+                        <p className="print-only font-bold text-brand-blue">{loan.loanNumber ?? loan.remoteId}</p>
                         <p className="text-xs text-slate-500">{loan.sourceStatusCode ?? "-"} - {loan.sourceStatusName ?? "Past due"}</p>
                       </td>
                       <td className="px-4 py-3">
@@ -753,7 +768,9 @@ export function RemedialWorkspace({
                       <input name="loanIds" type="checkbox" value={loan.id} className="mt-1 h-4 w-4 rounded border-slate-300" />
                       <span>
                         <span className="block font-bold text-slate-950">{loan.client.fullName}</span>
-                        <span className="text-xs text-brand-blue">{loan.loanNumber ?? loan.remoteId}</span>
+                        <span className="text-xs">
+                          <LoanDetailLink loan={loan.loanDetail} label={loan.loanNumber ?? loan.remoteId} className="font-bold text-brand-blue hover:underline" />
+                        </span>
                         <span className="mt-1 block max-w-xl text-xs text-slate-500">{loan.client.address ?? "No address"}</span>
                       </span>
                       <span>{loan.branch.branchName}</span>
@@ -765,7 +782,7 @@ export function RemedialWorkspace({
                   ))}
                   {!filteredUnassignedLoans.length ? (
                     <p className="px-3 py-6 text-sm text-slate-500">
-                      {assignmentSearch ? "No available loans match the assignment filter." : "No unassigned past-due loans available for assignment."}
+                      {assignmentSearch ? "No available loans match the assignment filter." : "No unassigned past-due or delayed loans available for assignment."}
                     </p>
                   ) : null}
                 </div>
@@ -798,7 +815,7 @@ export function RemedialWorkspace({
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Follow-up Schedule</p>
-                <h3 className="text-xl font-bold text-slate-950">Select past-due loans to visit</h3>
+                <h3 className="text-xl font-bold text-slate-950">Select past-due or delayed loans to visit</h3>
               </div>
               <button type="button" className="btn-secondary h-9 px-3" onClick={() => setShowScheduleModal(false)}>
                 <XCircle className="h-4 w-4" />
@@ -833,7 +850,9 @@ export function RemedialWorkspace({
                       <input name="loanIds" type="checkbox" value={loan.id} className="mt-1 h-4 w-4 rounded border-slate-300" />
                       <span>
                         <span className="block font-bold text-slate-950">{loan.client.fullName}</span>
-                        <span className="text-xs text-brand-blue">{loan.loanNumber ?? loan.remoteId}</span>
+                        <span className="text-xs">
+                          <LoanDetailLink loan={loan.loanDetail} label={loan.loanNumber ?? loan.remoteId} className="font-bold text-brand-blue hover:underline" />
+                        </span>
                       </span>
                       <span>{loan.branch.branchName}</span>
                       <span className="font-bold text-red-700">{money(loan.balance)}</span>
@@ -842,7 +861,7 @@ export function RemedialWorkspace({
                       <span>{dateOnly(loan.maturityAt)}</span>
                     </label>
                   ))}
-                  {!assignedLoans.length ? <p className="px-3 py-6 text-sm text-slate-500">No assigned past-due loans available for scheduling.</p> : null}
+                  {!assignedLoans.length ? <p className="px-3 py-6 text-sm text-slate-500">No assigned past-due or delayed loans available for scheduling.</p> : null}
                 </div>
               </div>
 
@@ -880,7 +899,10 @@ export function RemedialWorkspace({
                     <div className="grid gap-4 lg:grid-cols-[1.3fr_0.8fr_0.8fr_auto]">
                       <div>
                         <p className="font-bold text-slate-950">{loan.client.fullName}</p>
-                        <p className="text-sm text-slate-500">{loan.branch.branchName} - {loan.loanNumber ?? loan.remoteId}</p>
+                        <p className="text-sm text-slate-500">
+                          {loan.branch.branchName} -{" "}
+                          <LoanDetailLink loan={loan.loanDetail} label={loan.loanNumber ?? loan.remoteId} className="font-bold text-brand-blue hover:underline" />
+                        </p>
                         <p className="mt-2 text-sm text-slate-600">{visit.scheduleNotes || "No schedule notes entered."}</p>
                       </div>
                       <div>

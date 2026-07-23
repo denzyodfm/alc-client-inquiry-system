@@ -19,6 +19,7 @@ type BranchLoanRow = {
   client_remote_id: string | number;
   loan_number?: string | null;
   loan_product?: string | null;
+  branch_ao?: string | null;
   co_maker_name?: string | null;
   co_maker_client_remote_id?: string | number | null;
   co_maker_contact_number?: string | null;
@@ -411,6 +412,25 @@ async function fetchBranchRows<T>(connection: ConnectionPool, table: BranchTable
     ["co_maker_address", "comaker_address", "co_maker_addr", "comaker_addr", "co_borrower_address"],
     "co_maker_address"
   );
+  const branchAoExpression = nullableLoanColumnExpression(
+    loanColumns,
+    [
+      "branch_ao",
+      "branch_account_officer",
+      "ao",
+      "ao_name",
+      "account_officer",
+      "acct_officer",
+      "accountofficer",
+      "loan_officer",
+      "officer",
+      "collector",
+      "collector_name",
+      "assigned_ao",
+      "assigned_to"
+    ],
+    "branch_ao"
+  );
   const loanProductCandidates = [
     "loan_product",
     "product",
@@ -465,6 +485,7 @@ async function fetchBranchRows<T>(connection: ConnectionPool, table: BranchTable
         loan.cis_no AS client_remote_id,
         loan.loan_no AS loan_number,
         ${loanProductExpression},
+        ${branchAoExpression},
         ${coMakerNameExpression},
         ${coMakerClientExpression},
         ${coMakerContactExpression},
@@ -817,6 +838,7 @@ export async function syncBranch(branch: Branch): Promise<BranchSyncResult> {
           remoteId: String(row.id),
           loanNumber: row.loan_number ?? null,
           loanProduct: row.loan_product ?? null,
+          branchAo: row.branch_ao ?? null,
           principalAmount,
           interestRate,
           interestAmount,
@@ -835,6 +857,7 @@ export async function syncBranch(branch: Branch): Promise<BranchSyncResult> {
           clientId: client.id,
           loanNumber: row.loan_number ?? null,
           loanProduct: row.loan_product ?? null,
+          branchAo: row.branch_ao ?? null,
           principalAmount,
           interestRate,
           interestAmount,

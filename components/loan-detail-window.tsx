@@ -236,12 +236,12 @@ export function LoanDetailWindow({ loan, onClose }: LoanDetailWindowProps) {
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-300 pt-2">
             <div className="flex flex-wrap gap-1">
               {["Statement of Account", "Amortization Schedule", "Repayments", "Balance View"].map((label) => (
-                <button key={label} type="button" className="border border-slate-500 bg-[#e5e5e5] px-8 py-1.5 text-xs">
+                <button key={label} type="button" className="border border-slate-500 bg-[#e5e5e5] px-3 py-1.5 text-xs sm:px-8">
                   {label}
                 </button>
               ))}
             </div>
-            <button type="button" className="border border-slate-500 bg-[#e5e5e5] px-10 py-1.5 text-xs" onClick={onClose}>
+            <button type="button" className="border border-slate-500 bg-[#e5e5e5] px-6 py-1.5 text-xs sm:px-10" onClick={onClose}>
               Close
             </button>
           </div>
@@ -355,8 +355,8 @@ function Info({
   valueClassName?: string;
 }) {
   return (
-    <div className="grid grid-cols-[118px_1fr] gap-1">
-      <span className="text-right text-slate-500">{label} :</span>
+    <div className="grid gap-1 sm:grid-cols-[118px_1fr]">
+      <span className="text-left text-slate-500 sm:text-right">{label} :</span>
       <span className={`font-semibold ${valueClassName}`}>{value || "\u00a0"}</span>
     </div>
   );
