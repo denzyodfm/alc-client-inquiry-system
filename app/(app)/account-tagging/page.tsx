@@ -131,6 +131,7 @@ function toAccountTaggingRow(loan: AccountTaggingLoan): AccountTaggingLoanRow {
     assignedOfficerId: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.assignedTo.id : null,
     assignedOfficer: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.assignedTo.name : null,
     zone: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.zone : null,
+    division: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.division : null,
     loanDetail: toLoanDetail(loan)
   };
 }
@@ -138,7 +139,7 @@ function toAccountTaggingRow(loan: AccountTaggingLoan): AccountTaggingLoanRow {
 export default async function AccountTaggingPage({
   searchParams
 }: {
-  searchParams?: Promise<{ branchId?: string; product?: string; address?: string; address2?: string; customer?: string; status?: string; page?: string; print?: string }>;
+  searchParams?: Promise<{ branchId?: string; product?: string; address?: string; address2?: string; customer?: string; status?: string; resultSearch?: string; page?: string; print?: string }>;
 }) {
   const user = await requireUser(["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
   const params = await searchParams;
@@ -148,6 +149,7 @@ export default async function AccountTaggingPage({
   const address2 = params?.address2?.trim() || "";
   const customerName = params?.customer?.trim() || "";
   const selectedStatus = params?.status?.trim() || "ALL";
+  const resultSearch = params?.resultSearch?.trim() || "";
   const currentPage = Math.max(1, Number(params?.page ?? 1) || 1);
   const pageSize = 100;
   const accessibleBranchIds = await getAccessibleBranchIds(user);
@@ -159,7 +161,7 @@ export default async function AccountTaggingPage({
     accessibleBranchIds === null ||
     accessibleBranchIds.includes(requestedBranchNumber);
   const selectedBranchId = selectedBranchAllowed ? requestedBranchId : "ALL";
-  const hasFilters = selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName);
+  const hasFilters = selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName) || Boolean(resultSearch);
   const printAllResults = params?.print === "all" && hasFilters;
   const where: Prisma.LoanWhereInput = {
     AND: [
@@ -170,7 +172,8 @@ export default async function AccountTaggingPage({
         address,
         address2,
         customerName,
-        loanStatus: selectedStatus
+        loanStatus: selectedStatus,
+        resultSearch
       })
     ]
   };
@@ -297,8 +300,8 @@ export default async function AccountTaggingPage({
       balance: 0
     }
   );
-  const pageHref = (page: number) => accountTaggingHref({ page, branchId: selectedBranchId, product: selectedProduct, address, address2, customerName, loanStatus: selectedStatus });
-  const printBaseHref = accountTaggingHref({ branchId: selectedBranchId, product: selectedProduct, address, address2, customerName, loanStatus: selectedStatus });
+  const pageHref = (page: number) => accountTaggingHref({ page, branchId: selectedBranchId, product: selectedProduct, address, address2, customerName, loanStatus: selectedStatus, resultSearch });
+  const printBaseHref = accountTaggingHref({ branchId: selectedBranchId, product: selectedProduct, address, address2, customerName, loanStatus: selectedStatus, resultSearch });
   const printableHref = `${printBaseHref}${
     printBaseHref.includes("?") ? "&" : "?"
   }print=all`;
@@ -309,6 +312,7 @@ export default async function AccountTaggingPage({
   if (address2) exportParams.set("address2", address2);
   if (customerName) exportParams.set("customer", customerName);
   if (selectedStatus !== "ALL") exportParams.set("status", selectedStatus);
+  if (resultSearch) exportParams.set("resultSearch", resultSearch);
   const excelHref = `/api/account-tagging/export${exportParams.toString() ? `?${exportParams.toString()}` : ""}`;
   const visiblePages = Array.from({ length: totalPages }, (_, index) => index + 1)
     .filter((page) => page === 1 || page === totalPages || Math.abs(page - safePage) <= 2);
@@ -340,6 +344,7 @@ export default async function AccountTaggingPage({
         address={address}
         address2={address2}
         customerName={customerName}
+        resultSearch={resultSearch}
         portfolioTotals={{
           originalPrincipal: portfolioTotals.originalPrincipal,
           originalInterest: portfolioTotals.originalInterest,

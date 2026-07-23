@@ -86,6 +86,7 @@ export async function GET(request: Request) {
   const address2 = searchParams.get("address2")?.trim() || "";
   const customerName = searchParams.get("customer")?.trim() || "";
   const selectedStatus = searchParams.get("status")?.trim() || "ALL";
+  const resultSearch = searchParams.get("resultSearch")?.trim() || "";
   const accessibleBranchIds = await getAccessibleBranchIds(user);
   const branchAccessFilter: Prisma.LoanWhereInput =
     accessibleBranchIds === null ? {} : accessibleBranchIds.length ? { branchId: { in: accessibleBranchIds } } : { branchId: -1 };
@@ -104,7 +105,8 @@ export async function GET(request: Request) {
         address,
         address2,
         customerName,
-        loanStatus: selectedStatus
+        loanStatus: selectedStatus,
+        resultSearch
       })
     ]
   };
@@ -153,6 +155,8 @@ export async function GET(request: Request) {
   const rows = loans
     .map((loan, index) => {
       const assignedOfficer = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.assignedTo.name : "Unassigned";
+      const zone = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.zone ?? "-" : "-";
+      const division = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.division ?? "-" : "-";
       const amounts = loanAmountBreakdown(loan);
       return `<tr>
         <td>${index + 1}</td>
@@ -178,7 +182,8 @@ export async function GET(request: Request) {
         <td style="mso-number-format:'#,##0.00';">${amounts.waivedAmount.toFixed(2)}</td>
         <td style="mso-number-format:'#,##0.00';">${amounts.balance.toFixed(2)}</td>
         <td>${cell(statusLabel(loan.sourceStatusCode, loan.sourceStatusName))}</td>
-        <td>${cell(loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.zone ?? "-" : "-")}</td>
+        <td>${cell(zone)}</td>
+        <td>${cell(division)}</td>
         <td>${cell(assignedOfficer)}</td>
       </tr>`;
     })
@@ -206,6 +211,7 @@ export async function GET(request: Request) {
       <tr><td><strong>Address area</strong></td><td>${cell(address || "All")}</td></tr>
       <tr><td><strong>Address detail</strong></td><td>${cell(address2 || "All")}</td></tr>
       <tr><td><strong>Customer filter</strong></td><td>${cell(customerName || "All")}</td></tr>
+      <tr><td><strong>Result search</strong></td><td>${cell(resultSearch || "All")}</td></tr>
       <tr><td><strong>Generated</strong></td><td>${cell(dateOnly(generatedAt))}</td></tr>
       <tr><td><strong>Total loans</strong></td><td>${loans.length.toLocaleString("en-US")}</td></tr>
       <tr><td><strong>Principal balance portfolio</strong></td><td>${portfolioTotals.principal.toFixed(2)}</td></tr>
@@ -244,6 +250,7 @@ export async function GET(request: Request) {
           <th>Balance</th>
           <th>Status</th>
           <th>Zone</th>
+          <th>Division</th>
           <th>Assigned AO</th>
         </tr>
       </thead>

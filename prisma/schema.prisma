@@ -207,6 +207,7 @@ model RemedialAssignment {
   assignedById Int?     @map("assigned_by_id")
   status       RemedialAssignmentStatus @default(ACTIVE)
   zone         String?  @db.VarChar(120)
+  division     String?  @db.VarChar(120)
   assignmentNotes String? @map("assignment_notes") @db.Text
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")

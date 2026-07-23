@@ -7,12 +7,12 @@ import { prisma } from "@/lib/prisma";
 const ASSIGNMENT_ROLES = ["ADMIN", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] as const;
 const MAX_BULK_ASSIGNMENT = 5000;
 
-type AssignmentAction = "assignOfficer" | "assignZone" | "updateLoan";
+type AssignmentAction = "assignMatching" | "updateLoan";
 
 function assignmentAction(value: unknown): AssignmentAction {
   const action = String(value ?? "").trim();
-  if (action === "assignZone" || action === "updateLoan") return action;
-  return "assignOfficer";
+  if (action === "updateLoan") return action;
+  return "assignMatching";
 }
 
 async function validateOfficer(assignedToId: number, branchIds: number[]) {
@@ -42,28 +42,41 @@ export async function POST(request: Request) {
   const action = assignmentAction(body.action);
   const assignedToId = Number(body.assignedToId);
   const zone = String(body.zone ?? "").trim();
+  const division = String(body.division ?? "").trim();
 
   if (action === "updateLoan") {
     const loanId = Number(body.loanId);
     if (!Number.isInteger(loanId) || loanId <= 0) {
       return NextResponse.json({ error: "Loan is required." }, { status: 400 });
     }
-    if (!Number.isInteger(assignedToId) || assignedToId <= 0) {
-      return NextResponse.json({ error: "Account Officer is required." }, { status: 400 });
+    const hasAssignedOfficer = Number.isInteger(assignedToId) && assignedToId > 0;
+    if (!hasAssignedOfficer && !zone && !division) {
+      return NextResponse.json({ error: "Choose an Account Officer, Zone, or Division to update." }, { status: 400 });
     }
 
     const loan = await prisma.loan.findUnique({
       where: { id: loanId },
-      select: { id: true, branchId: true }
+      select: {
+        id: true,
+        branchId: true,
+        remedialAssignment: { select: { assignedToId: true } }
+      }
     });
     if (!loan) return NextResponse.json({ error: "Loan not found." }, { status: 404 });
     if (!(await canAccessBranch(user, loan.branchId))) {
       return NextResponse.json({ error: "You do not have access to this loan branch." }, { status: 403 });
     }
 
-    const officer = await validateOfficer(assignedToId, [loan.branchId]);
-    if (!officer) {
-      return NextResponse.json({ error: "Selected Account Officer has no access to this loan branch." }, { status: 400 });
+    const nextAssignedToId = hasAssignedOfficer ? assignedToId : loan.remedialAssignment?.assignedToId;
+    if (!nextAssignedToId) {
+      return NextResponse.json({ error: "Select an Account Officer before updating Zone or Division on an unassigned loan." }, { status: 400 });
+    }
+
+    if (hasAssignedOfficer) {
+      const officer = await validateOfficer(assignedToId, [loan.branchId]);
+      if (!officer) {
+        return NextResponse.json({ error: "Selected Account Officer has no access to this loan branch." }, { status: 400 });
+      }
     }
 
     await prisma.remedialAssignment.upsert({
@@ -71,15 +84,17 @@ export async function POST(request: Request) {
       create: {
         loanId: loan.id,
         branchId: loan.branchId,
-        assignedToId,
+        assignedToId: nextAssignedToId,
         assignedById: user.id,
-        zone: zone || null,
+        ...(zone ? { zone } : {}),
+        ...(division ? { division } : {}),
         assignmentNotes: "Corrected from Account Tagging."
       },
       update: {
-        assignedToId,
+        ...(hasAssignedOfficer ? { assignedToId } : {}),
         assignedById: user.id,
-        zone: zone || null,
+        ...(zone ? { zone } : {}),
+        ...(division ? { division } : {}),
         status: "ACTIVE",
         assignmentNotes: "Corrected from Account Tagging."
       }
@@ -94,13 +109,12 @@ export async function POST(request: Request) {
   const address2 = String(body.address2 ?? "").trim();
   const customerName = String(body.customerName ?? "").trim();
   const loanStatus = String(body.loanStatus ?? "ALL").trim() || "ALL";
-  const hasFilters = branchId !== "ALL" || product !== "ALL" || loanStatus !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName);
+  const resultSearch = String(body.resultSearch ?? "").trim();
+  const hasFilters = branchId !== "ALL" || product !== "ALL" || loanStatus !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName) || Boolean(resultSearch);
 
-  if (action === "assignOfficer" && (!Number.isInteger(assignedToId) || assignedToId <= 0)) {
-    return NextResponse.json({ error: "Account Officer is required." }, { status: 400 });
-  }
-  if (action === "assignZone" && !zone) {
-    return NextResponse.json({ error: "Zone is required before assigning matching accounts." }, { status: 400 });
+  const hasAssignedOfficer = Number.isInteger(assignedToId) && assignedToId > 0;
+  if (!hasAssignedOfficer && !zone && !division) {
+    return NextResponse.json({ error: "Choose an Account Officer, Zone, or Division before assigning matching accounts." }, { status: 400 });
   }
   if (!hasFilters) {
     return NextResponse.json({ error: "Please filter by branch, address, or customer before assigning." }, { status: 400 });
@@ -121,7 +135,8 @@ export async function POST(request: Request) {
         address,
         address2,
         customerName,
-        loanStatus
+        loanStatus,
+        resultSearch
       })
     ]
   };
@@ -150,7 +165,7 @@ export async function POST(request: Request) {
   }
 
   const loanBranchIds = Array.from(new Set(loans.map((loan) => loan.branchId)));
-  if (action === "assignOfficer") {
+  if (hasAssignedOfficer) {
     const officer = await validateOfficer(assignedToId, loanBranchIds);
     if (!officer) {
       return NextResponse.json({ error: "Selected Account Officer has no access to the matching loan branches." }, { status: 400 });
@@ -166,7 +181,7 @@ export async function POST(request: Request) {
     const saved = [];
 
     for (const loan of loans) {
-      const nextAssignedToId = action === "assignOfficer" ? assignedToId : loan.remedialAssignment?.assignedToId;
+      const nextAssignedToId = hasAssignedOfficer ? assignedToId : loan.remedialAssignment?.assignedToId;
       if (!nextAssignedToId) continue;
 
       saved.push(
@@ -177,13 +192,15 @@ export async function POST(request: Request) {
             branchId: loan.branchId,
             assignedToId: nextAssignedToId,
             assignedById: user.id,
-            zone: action === "assignZone" ? zone : null,
+            ...(zone ? { zone } : {}),
+            ...(division ? { division } : {}),
             assignmentNotes: "Tagged from Account Tagging."
           },
           update: {
-            ...(action === "assignOfficer" ? { assignedToId } : {}),
+            ...(hasAssignedOfficer ? { assignedToId } : {}),
             assignedById: user.id,
-            ...(action === "assignZone" ? { zone } : {}),
+            ...(zone ? { zone } : {}),
+            ...(division ? { division } : {}),
             status: "ACTIVE",
             assignmentNotes: "Tagged from Account Tagging."
           }
@@ -195,7 +212,7 @@ export async function POST(request: Request) {
   });
 
   if (!assignments.length) {
-    return NextResponse.json({ error: "No currently tagged loans found. Assign an Account Officer first, then assign the Zone." }, { status: 400 });
+    return NextResponse.json({ error: "No currently tagged loans found. Select an Account Officer when assigning Zone or Division to unassigned loans." }, { status: 400 });
   }
 
   return NextResponse.json({ ok: true, count: assignments.length });

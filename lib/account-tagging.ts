@@ -8,6 +8,7 @@ export type AccountTaggingFilters = {
   address2?: string;
   customerName?: string;
   loanStatus?: string;
+  resultSearch?: string;
 };
 
 export function accountTaggingTerms(value?: string) {
@@ -17,10 +18,40 @@ export function accountTaggingTerms(value?: string) {
     .filter(Boolean);
 }
 
+function normalizedSearchPhrase(value?: string) {
+  return String(value ?? "").trim().replace(/\s+/g, " ");
+}
+
+function addressDetailWhere(value?: string): Prisma.LoanWhereInput[] {
+  const detail = normalizedSearchPhrase(value);
+  if (!detail) return [];
+
+  const barangay = detail.match(/^(?:barangay|brgy)\.?\s*0*(\d+)\s*$/i);
+  if (!barangay) {
+    return [{ client: { address: { contains: detail } } }];
+  }
+
+  const barangayNumber = String(Number(barangay[1]));
+  const prefixes = ["barangay", "Barangay", "BARANGAY", "brgy", "Brgy", "BRGY", "brgy.", "Brgy.", "BRGY."];
+  const suffixes = [" ", ",", ".", "-", "/", ")"];
+  const variants = Array.from(
+    new Set(prefixes.flatMap((prefix) => suffixes.map((suffix) => `${prefix} ${barangayNumber}${suffix}`)))
+  );
+
+  return [
+    {
+      OR: variants.map((term) => ({
+        client: { address: { contains: term } }
+      }))
+    }
+  ];
+}
+
 export function accountTaggingSearchWhere(filters: AccountTaggingFilters): Prisma.LoanWhereInput {
   const addressTerms = accountTaggingTerms(filters.address);
-  const address2Terms = accountTaggingTerms(filters.address2);
+  const address2Where = addressDetailWhere(filters.address2);
   const customerTerms = accountTaggingTerms(filters.customerName);
+  const resultTerms = accountTaggingTerms(filters.resultSearch);
   const branchId = filters.branchId === "ALL" ? "" : String(filters.branchId ?? "").trim();
   const product = filters.product === "ALL" ? "" : String(filters.product ?? "").trim();
   const loanStatus = filters.loanStatus === "ALL" ? "" : String(filters.loanStatus ?? "").trim();
@@ -42,8 +73,27 @@ export function accountTaggingSearchWhere(filters: AccountTaggingFilters): Prism
       product ? { loanProduct: product } : {},
       loanStatus ? { sourceStatusName: loanStatus } : {},
       ...addressTerms.map((term) => ({ client: { address: { contains: term } } })),
-      ...address2Terms.map((term) => ({ client: { address: { contains: term } } })),
-      ...customerTerms.map((term) => ({ client: { fullName: { contains: term } } }))
+      ...address2Where,
+      ...customerTerms.map((term) => ({ client: { fullName: { contains: term } } })),
+      ...resultTerms.map((term) => ({
+        OR: [
+          { loanNumber: { contains: term } },
+          { remoteId: { contains: term } },
+          { loanProduct: { contains: term } },
+          { branchAo: { contains: term } },
+          { sourceStatusName: { contains: term } },
+          { client: { fullName: { contains: term } } },
+          { client: { clientId: { contains: term } } },
+          { client: { contactNumber: { contains: term } } },
+          { client: { address: { contains: term } } },
+          { branch: { branchName: { contains: term } } },
+          { branch: { branchCode: { contains: term } } },
+          { remedialAssignment: { is: { zone: { contains: term } } } },
+          { remedialAssignment: { is: { division: { contains: term } } } },
+          { remedialAssignment: { is: { assignedTo: { name: { contains: term } } } } },
+          { remedialAssignment: { is: { assignedTo: { email: { contains: term } } } } }
+        ]
+      }))
     ]
   };
 }
@@ -55,7 +105,8 @@ export function accountTaggingHref({
   address,
   address2,
   customerName,
-  loanStatus
+  loanStatus,
+  resultSearch
 }: AccountTaggingFilters & { page?: number }) {
   const params = new URLSearchParams();
   if (branchId && branchId !== "ALL") params.set("branchId", branchId);
@@ -64,6 +115,7 @@ export function accountTaggingHref({
   if (address2?.trim()) params.set("address2", address2.trim());
   if (customerName?.trim()) params.set("customer", customerName.trim());
   if (loanStatus?.trim() && loanStatus !== "ALL") params.set("status", loanStatus.trim());
+  if (resultSearch?.trim()) params.set("resultSearch", resultSearch.trim());
   if (page && page > 1) params.set("page", String(page));
   const query = params.toString();
   return query ? `/account-tagging?${query}` : "/account-tagging";

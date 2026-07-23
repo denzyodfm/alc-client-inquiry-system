@@ -49,6 +49,7 @@ export type AccountTaggingLoanRow = {
   assignedOfficerId: number | null;
   assignedOfficer: string | null;
   zone: string | null;
+  division: string | null;
   loanDetail: LoanDetailLoan;
 };
 
@@ -70,6 +71,7 @@ type AccountTaggingWorkspaceProps = {
   address: string;
   address2: string;
   customerName: string;
+  resultSearch: string;
   portfolioTotals: {
     originalPrincipal: number;
     originalInterest: number;
@@ -113,6 +115,7 @@ export function AccountTaggingWorkspace({
   address,
   address2,
   customerName,
+  resultSearch,
   portfolioTotals,
   totalLoans,
   safePage,
@@ -137,6 +140,7 @@ export function AccountTaggingWorkspace({
   const [addressQuery, setAddressQuery] = useState(address);
   const [address2Query, setAddress2Query] = useState(address2);
   const [customerQuery, setCustomerQuery] = useState(customerName);
+  const [resultSearchQuery, setResultSearchQuery] = useState(resultSearch);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -144,10 +148,10 @@ export function AccountTaggingWorkspace({
   const topScrollRef = useRef<HTMLDivElement | null>(null);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const syncingScroll = useRef(false);
-  const hasFilters = Boolean(selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || address.trim() || address2.trim() || customerName.trim());
+  const hasFilters = Boolean(selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || address.trim() || address2.trim() || customerName.trim() || resultSearch.trim());
   const selectedBranch = branches.find((branch) => String(branch.id) === selectedBranchId);
   const branchLabel = selectedBranch ? `${selectedBranch.branchName} (${selectedBranch.branchCode})` : "All branches";
-  const tableMinWidth = 1700;
+  const tableMinWidth = 1760;
   const visibleTotals = useMemo(
     () =>
       loans.reduce(
@@ -166,7 +170,7 @@ export function AccountTaggingWorkspace({
   );
 
   const buildHref = useCallback(
-    (formData?: FormData, nextAddress = addressQuery, nextAddress2 = address2Query, nextCustomer = customerQuery) => {
+    (formData?: FormData, nextAddress = addressQuery, nextAddress2 = address2Query, nextCustomer = customerQuery, nextResultSearch = resultSearchQuery) => {
       const params = new URLSearchParams(searchParams.toString());
       const branchId = String(formData?.get("branchId") ?? selectedBranchId);
       const product = String(formData?.get("product") ?? selectedProduct);
@@ -174,6 +178,7 @@ export function AccountTaggingWorkspace({
       const normalizedAddress = nextAddress.trim();
       const normalizedAddress2 = nextAddress2.trim();
       const normalizedCustomer = nextCustomer.trim();
+      const normalizedResultSearch = nextResultSearch.trim();
 
       params.delete("page");
       params.delete("print");
@@ -183,11 +188,12 @@ export function AccountTaggingWorkspace({
       normalizedAddress ? params.set("address", normalizedAddress) : params.delete("address");
       normalizedAddress2 ? params.set("address2", normalizedAddress2) : params.delete("address2");
       normalizedCustomer ? params.set("customer", normalizedCustomer) : params.delete("customer");
+      normalizedResultSearch ? params.set("resultSearch", normalizedResultSearch) : params.delete("resultSearch");
 
       const query = params.toString();
       return query ? `${pathname}?${query}` : pathname;
     },
-    [address2Query, addressQuery, customerQuery, pathname, searchParams, selectedBranchId, selectedProduct, selectedStatus]
+    [address2Query, addressQuery, customerQuery, pathname, resultSearchQuery, searchParams, selectedBranchId, selectedProduct, selectedStatus]
   );
 
   useEffect(() => {
@@ -195,13 +201,16 @@ export function AccountTaggingWorkspace({
       mounted.current = true;
       return;
     }
+    if (addressQuery === address && address2Query === address2 && customerQuery === customerName && resultSearchQuery === resultSearch) {
+      return;
+    }
 
     const timeout = window.setTimeout(() => {
-      router.replace(buildHref(undefined, addressQuery, address2Query, customerQuery));
+      router.replace(buildHref(undefined, addressQuery, address2Query, customerQuery, resultSearchQuery));
     }, 400);
 
     return () => window.clearTimeout(timeout);
-  }, [address2Query, addressQuery, buildHref, customerQuery, router]);
+  }, [address, address2, address2Query, addressQuery, buildHref, customerName, customerQuery, resultSearch, resultSearchQuery, router]);
 
   const assignmentSummary = useMemo(() => {
     if (!totalLoans) return "No matching loans to tag.";
@@ -217,16 +226,11 @@ export function AccountTaggingWorkspace({
   function assignMatching(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-    const action = submitter?.value === "assignZone" ? "assignZone" : "assignOfficer";
     const assignedToId = Number(form.get("assignedToId"));
     const zone = String(form.get("zone") ?? "").trim();
-    if (action === "assignOfficer" && !assignedToId) {
-      setError("Select an Account Officer first.");
-      return;
-    }
-    if (action === "assignZone" && !zone) {
-      setError("Enter the Zone before assigning matching accounts.");
+    const division = String(form.get("division") ?? "").trim();
+    if (!assignedToId && !zone && !division) {
+      setError("Choose an Account Officer, Zone, or Division before assigning matching accounts.");
       return;
     }
     if (!hasFilters) {
@@ -241,15 +245,17 @@ export function AccountTaggingWorkspace({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action,
+          action: "assignMatching",
           assignedToId,
           zone,
+          division,
           branchId: selectedBranchId,
           product: selectedProduct,
           address,
           address2,
           customerName,
-          loanStatus: selectedStatus
+          loanStatus: selectedStatus,
+          resultSearch
         })
       });
       const data = await response.json().catch(() => null);
@@ -257,11 +263,7 @@ export function AccountTaggingWorkspace({
         setError(data?.error ?? "Unable to assign matching accounts.");
         return;
       }
-      setMessage(
-        `${data.count.toLocaleString("en-US")} loan${data.count === 1 ? "" : "s"} ${
-          action === "assignZone" ? "updated with Zone" : "tagged to Account Officer"
-        }.`
-      );
+      setMessage(`${data.count.toLocaleString("en-US")} loan${data.count === 1 ? "" : "s"} updated with the provided tagging fields.`);
       router.refresh();
     });
   }
@@ -272,9 +274,10 @@ export function AccountTaggingWorkspace({
     const loanId = Number(form.get("loanId"));
     const assignedToId = Number(form.get("assignedToId"));
     const zone = String(form.get("zone") ?? "").trim();
+    const division = String(form.get("division") ?? "").trim();
 
-    if (!assignedToId) {
-      setError("Select an Account Officer before updating the row.");
+    if (!assignedToId && !zone && !division) {
+      setError("Choose an Account Officer, Zone, or Division before updating the row.");
       return;
     }
 
@@ -288,7 +291,8 @@ export function AccountTaggingWorkspace({
           action: "updateLoan",
           loanId,
           assignedToId,
-          zone
+          zone,
+          division
         })
       });
       const data = await response.json().catch(() => null);
@@ -382,40 +386,39 @@ export function AccountTaggingWorkspace({
       </section>
 
       {canAssign ? (
-        <form onSubmit={assignMatching} className="panel grid gap-4 p-4 no-print lg:grid-cols-[minmax(180px,0.8fr)_minmax(260px,1.2fr)_minmax(240px,1fr)]">
+        <form onSubmit={assignMatching} className="panel grid gap-4 p-4 no-print lg:grid-cols-[minmax(170px,0.75fr)_minmax(230px,1fr)_minmax(180px,0.8fr)_minmax(180px,0.8fr)_auto]">
           <div>
             <p className="text-sm font-bold text-slate-950">Bulk assignment</p>
             <p className="mt-1 text-xs font-semibold text-slate-500">{assignmentSummary}</p>
+            <p className="mt-2 text-[11px] font-semibold text-slate-500">Blank fields keep their current values.</p>
           </div>
-          <div className="grid gap-2">
-            <label className="block">
-              <span className="mb-2 block text-sm font-semibold text-slate-700">Account Officer</span>
-              <select name="assignedToId" className="field" disabled={!officers.length || isPending}>
-                <option value="">Select Account Officer</option>
-                {officers.map((officer) => (
-                  <option key={officer.id} value={officer.id}>
-                    {officer.name} - {officer.email}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button className="btn-primary w-full" name="action" value="assignOfficer" disabled={isPending || !officers.length || !totalLoans || !hasFilters}>
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-slate-700">Account Officer</span>
+            <select name="assignedToId" className="field" disabled={!officers.length || isPending}>
+              <option value="">Select Account Officer</option>
+              {officers.map((officer) => (
+                <option key={officer.id} value={officer.id}>
+                  {officer.name} - {officer.email}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-slate-700">Zone</span>
+            <input name="zone" className="field" placeholder="Enter zone" disabled={isPending || !totalLoans || !hasFilters} />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-slate-700">Division</span>
+            <input name="division" className="field" placeholder="Enter division" disabled={isPending || !totalLoans || !hasFilters} />
+          </label>
+          <div className="self-end">
+            <button className="btn-primary w-full whitespace-nowrap" disabled={isPending || !totalLoans || !hasFilters}>
               <Tag className="h-4 w-4" />
-              {isPending ? "Assigning..." : "Assign matching AO"}
+              {isPending ? "Assigning..." : "Assign matching"}
             </button>
           </div>
-          <div className="grid gap-2">
-            <label className="block">
-              <span className="mb-2 block text-sm font-semibold text-slate-700">Zone</span>
-              <input name="zone" className="field" placeholder="Enter zone for matching loans" disabled={isPending || !totalLoans || !hasFilters} />
-            </label>
-            <button className="btn-secondary w-full" name="action" value="assignZone" disabled={isPending || !totalLoans || !hasFilters}>
-              <Tag className="h-4 w-4" />
-              {isPending ? "Updating..." : "Assign matching Zone"}
-            </button>
-          </div>
-          {message ? <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-brand-green lg:col-span-3">{message}</p> : null}
-          {error ? <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 lg:col-span-3">{error}</p> : null}
+          {message ? <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-brand-green lg:col-span-5">{message}</p> : null}
+          {error ? <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 lg:col-span-5">{error}</p> : null}
         </form>
       ) : null}
 
@@ -432,6 +435,7 @@ export function AccountTaggingWorkspace({
                 <p><span className="font-semibold">Address area:</span> {address || "All"}</p>
                 <p><span className="font-semibold">Address detail:</span> {address2 || "All"}</p>
                 <p><span className="font-semibold">Customer filter:</span> {customerName || "All"}</p>
+                <p><span className="font-semibold">Result search:</span> {resultSearch || "All"}</p>
                 <p>
                   <span className="font-semibold">Portfolio:</span>{" "}
                   Principal balance {money(portfolioTotals.principal)} | Interest balance {money(portfolioTotals.interest)} | PDI balance {money(portfolioTotals.pdi)} | Penalty balance {money(portfolioTotals.penalty)} | Payments {money(portfolioTotals.payments)} | Waived/Deducted {money(portfolioTotals.waived)} | Balance {money(portfolioTotals.balance)}
@@ -451,7 +455,16 @@ export function AccountTaggingWorkspace({
               {!printAllResults ? <span className="print-only"> - current printed page only</span> : null}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <label className="relative block no-print">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                className="field h-9 w-64 pl-9 text-xs"
+                value={resultSearchQuery}
+                onChange={(event) => setResultSearchQuery(event.target.value)}
+                placeholder="Search all result fields"
+              />
+            </label>
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
               <Users className="h-4 w-4 text-brand-blue" />
               Account tagging queue
@@ -498,22 +511,23 @@ export function AccountTaggingWorkspace({
             : null}
           <table className="w-full table-fixed text-left text-[11px]" style={{ minWidth: `${tableMinWidth}px` }}>
             <colgroup>
-              <col className="w-10" />
-              <col className="w-[176px]" />
-              <col className="w-[212px]" />
-              <col className="w-[108px]" />
-              <col className="w-[126px]" />
-              <col className="w-[82px]" />
-              <col className="w-[96px]" />
-              <col className="w-[96px]" />
-              <col className="w-[74px]" />
-              <col className="w-[96px]" />
-              <col className="w-[96px]" />
-              <col className="w-[76px]" />
-              <col className="w-[96px]" />
+              <col className="w-9" />
+              <col className="w-[168px]" />
+              <col className="w-[204px]" />
+              <col className="w-[104px]" />
+              <col className="w-[120px]" />
+              <col className="w-[78px]" />
+              <col className="w-[92px]" />
+              <col className="w-[92px]" />
+              <col className="w-[70px]" />
+              <col className="w-[92px]" />
+              <col className="w-[92px]" />
+              <col className="w-[72px]" />
+              <col className="w-[92px]" />
+              <col className="w-[112px]" />
               <col className="w-[116px]" />
-              <col className="w-[128px]" />
-              <col className="w-[212px]" />
+              <col className="w-[116px]" />
+              <col className="w-[196px]" />
             </colgroup>
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
@@ -532,6 +546,7 @@ export function AccountTaggingWorkspace({
                 <th className="px-2 py-2 text-right">Balance</th>
                 <th className="px-2 py-2">Status</th>
                 <th className="px-2 py-2">Zone</th>
+                <th className="px-2 py-2">Division</th>
                 <th className="px-2 py-2">Assigned AO</th>
               </tr>
             </thead>
@@ -587,6 +602,22 @@ export function AccountTaggingWorkspace({
                   <td className="px-2 py-2">
                     {canAssign ? (
                       <>
+                        <input
+                          className="field h-9 text-xs no-print"
+                          form={`tagging-row-${loan.id}`}
+                          name="division"
+                          defaultValue={loan.division ?? ""}
+                          placeholder="Division"
+                        />
+                        <span className="print-only font-semibold text-slate-700">{loan.division || "-"}</span>
+                      </>
+                    ) : (
+                      <span className="font-semibold text-slate-700">{loan.division || "-"}</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2">
+                    {canAssign ? (
+                      <>
                       <div className="flex gap-2 no-print">
                         <select
                           className="field h-9 min-w-0 flex-1 text-xs"
@@ -620,7 +651,7 @@ export function AccountTaggingWorkspace({
               ))}
               {!loans.length ? (
                 <tr>
-                  <td className="px-4 py-8 text-sm font-semibold text-slate-500" colSpan={16}>
+                  <td className="px-4 py-8 text-sm font-semibold text-slate-500" colSpan={17}>
                     {hasFilters ? "No matching loans found." : "Use branch, address, or customer filters to load accounts for tagging."}
                   </td>
                 </tr>
@@ -639,7 +670,7 @@ export function AccountTaggingWorkspace({
                   <TotalAmountCell value={visibleTotals.payments} tone="green" />
                   <TotalAmountCell value={visibleTotals.waived} />
                   <TotalAmountCell value={visibleTotals.balance} tone="red" />
-                  <td className="px-2 py-2" colSpan={3} />
+                  <td className="px-2 py-2" colSpan={4} />
                 </tr>
               </tfoot>
             ) : null}
