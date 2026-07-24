@@ -189,6 +189,7 @@ export default async function AccountTaggingPage({
   const resultSearch = params?.resultSearch?.trim() || "";
   const viewTagging = params?.view === "tagging";
   const viewDistribution = params?.view === "distribution";
+  const viewProvinceDistribution = params?.view === "province-distribution";
   const requestedOfficerId = Number(params?.officerId);
   const requestedAssignmentZone = params?.assignmentZone?.trim() || "";
   if (user.role === "ACCOUNT_OFFICER" && !viewTagging) {
@@ -206,7 +207,7 @@ export default async function AccountTaggingPage({
     accessibleBranchIds === null ||
     accessibleBranchIds.includes(requestedBranchNumber);
   const selectedBranchId = selectedBranchAllowed ? requestedBranchId : "ALL";
-  const assignmentRows = viewTagging || viewDistribution
+  const assignmentRows = viewTagging || viewDistribution || viewProvinceDistribution
     ? await prisma.remedialAssignment.findMany({
         where: {
           status: "ACTIVE",
@@ -215,6 +216,7 @@ export default async function AccountTaggingPage({
         },
         select: {
           zone: true,
+          province: true,
           assignedTo: { select: { id: true, name: true, email: true } },
           loan: {
             select: {
@@ -228,7 +230,7 @@ export default async function AccountTaggingPage({
         }
       })
     : [];
-  const unassignedLoans = viewDistribution
+  const unassignedLoans = viewDistribution || viewProvinceDistribution
     ? await prisma.loan.findMany({
         where: {
           AND: [
@@ -355,6 +357,52 @@ export default async function AccountTaggingPage({
       startAngle: start * 3.6,
       endAngle: distributionCursor * 3.6,
       percentage: distributionTotal ? (entry.count / distributionTotal) * 100 : 0
+    };
+  });
+  const provinceSummaryMap = new Map<string, { count: number; customers: Set<number>; principalBalance: number }>();
+  for (const assignment of assignmentRows) {
+    const province = assignment.province?.trim() || "Province not set";
+    const summary = provinceSummaryMap.get(province) ?? { count: 0, customers: new Set<number>(), principalBalance: 0 };
+    summary.count += 1;
+    summary.customers.add(assignment.loan.clientId);
+    summary.principalBalance += distributionPrincipalBalance(assignment.loan);
+    provinceSummaryMap.set(province, summary);
+  }
+  const provinceOrder = ["Agusan del Norte", "Agusan del Sur", "Surigao del Norte", "Surigao del Sur", "Province not set"];
+  const provinceEntries = [
+    ...Array.from(provinceSummaryMap.entries())
+      .map(([name, summary], index) => ({
+        id: index + 1,
+        name,
+        count: summary.count,
+        customers: summary.customers.size,
+        principalBalance: summary.principalBalance
+      }))
+      .sort((a, b) => provinceOrder.indexOf(a.name) - provinceOrder.indexOf(b.name)),
+    ...(unassignedCount
+      ? [{ id: 0, name: "Unassigned", count: unassignedCount, customers: unassignedCustomerCount, principalBalance: unassignedPrincipalBalance }]
+      : [])
+  ];
+  const provinceDistributionTotal = provinceEntries.reduce((sum, entry) => sum + entry.count, 0);
+  let provinceDistributionCursor = 0;
+  const provinceColors: Record<string, string> = {
+    "Agusan del Norte": "#2563eb",
+    "Agusan del Sur": "#16a34a",
+    "Surigao del Norte": "#7c3aed",
+    "Surigao del Sur": "#ea580c",
+    "Province not set": "#eab308",
+    Unassigned: "#94a3b8"
+  };
+  const provinceDistributionSegments = provinceEntries.map((entry) => {
+    const start = provinceDistributionCursor;
+    const size = provinceDistributionTotal ? (entry.count / provinceDistributionTotal) * 100 : 0;
+    provinceDistributionCursor += size;
+    return {
+      ...entry,
+      color: provinceColors[entry.name] ?? "#64748b",
+      startAngle: start * 3.6,
+      endAngle: provinceDistributionCursor * 3.6,
+      percentage: provinceDistributionTotal ? (entry.count / provinceDistributionTotal) * 100 : 0
     };
   });
   const selectedAssignmentZone =
@@ -564,14 +612,12 @@ export default async function AccountTaggingPage({
         </div>
         {user.role !== "ACCOUNT_OFFICER" ? (
           <div className="flex flex-wrap gap-2 no-print">
-            <Link className="btn-secondary" href={viewTagging || viewDistribution ? "/account-tagging" : "/account-tagging?view=tagging"}>
-              {viewTagging || viewDistribution ? "Back to Tagging" : "View Tagging"}
+            <Link className="btn-secondary" href={viewTagging || viewDistribution || viewProvinceDistribution ? "/account-tagging" : "/account-tagging?view=tagging"}>
+              {viewTagging || viewDistribution || viewProvinceDistribution ? "Back to Tagging" : "View Tagging"}
             </Link>
-            {viewDistribution ? (
-              <Link className="btn-secondary" href="/account-tagging?view=tagging">View Tagging</Link>
-            ) : (
-              <Link className="btn-secondary" href="/account-tagging?view=distribution">AO Distribution</Link>
-            )}
+            {(viewDistribution || viewProvinceDistribution) ? <Link className="btn-secondary" href="/account-tagging?view=tagging">View Tagging</Link> : null}
+            {!viewDistribution ? <Link className="btn-secondary" href="/account-tagging?view=distribution">AO Distribution</Link> : null}
+            {!viewProvinceDistribution ? <Link className="btn-secondary" href="/account-tagging?view=province-distribution">Province Distribution</Link> : null}
           </div>
         ) : null}
       </div>
@@ -635,6 +681,64 @@ export default async function AccountTaggingPage({
         </section>
       ) : null}
 
+      {viewProvinceDistribution ? (
+        <section className="panel p-6">
+          <div>
+            <h3 className="text-xl font-bold text-slate-950">Account Distribution per Province</h3>
+            <p className="mt-1 text-sm text-slate-600">{provinceDistributionTotal.toLocaleString("en-US")} account(s), including unassigned</p>
+          </div>
+          {provinceDistributionTotal ? (
+            <div className="mt-4 grid items-center gap-4 lg:grid-cols-[minmax(520px,1fr)_340px]">
+              <svg className="mx-auto h-auto w-full max-w-[620px]" viewBox="0 0 520 520" role="img" aria-label="Account distribution per Province">
+                {provinceDistributionSegments.map((segment) => (
+                  <path key={segment.id} d={piePath(segment.startAngle, segment.endAngle)} fill={segment.color} stroke="#fff" strokeWidth="2" />
+                ))}
+                {provinceDistributionSegments.map((segment) => {
+                  const midpoint = (segment.startAngle + segment.endAngle) / 2;
+                  const point = piePoint(260, 260, segment.percentage < 5 ? 205 : 155, midpoint);
+                  return (
+                    <text
+                      key={`province-label-${segment.id}`}
+                      x={point.x}
+                      y={point.y}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill="white"
+                      fontSize={segment.percentage < 3 ? 9 : segment.percentage < 8 ? 11 : 13}
+                      fontWeight="700"
+                      style={{ paintOrder: "stroke", stroke: "rgba(15,23,42,.55)", strokeWidth: 3, strokeLinejoin: "round" }}
+                    >
+                      {segment.percentage.toFixed(1)}%
+                    </text>
+                  );
+                })}
+              </svg>
+              <div className="grid gap-1.5">
+                {provinceDistributionSegments.map((segment) => (
+                  <div key={segment.id} className="rounded-md border border-slate-100 px-3 py-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: segment.color }} />
+                        <span className="truncate text-sm font-semibold text-slate-800">{segment.name}</span>
+                      </div>
+                      <span className="whitespace-nowrap text-sm font-extrabold text-slate-950">
+                        {segment.count.toLocaleString("en-US")} ({segment.percentage.toFixed(1)}%)
+                      </span>
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between gap-3 border-t border-slate-100 pt-1.5 text-xs">
+                      <span className="text-slate-500">Customers <strong className="text-brand-blue">{segment.customers.toLocaleString("en-US")}</strong></span>
+                      <span className="text-right text-slate-500">Principal <strong className="text-red-700">{segment.principalBalance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</strong></span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="mt-6 text-sm font-semibold text-slate-500">No accounts found for province distribution.</p>
+          )}
+        </section>
+      ) : null}
+
       {viewTagging ? (
         <section className="space-y-3 no-print">
           <div>
@@ -683,7 +787,7 @@ export default async function AccountTaggingPage({
         </section>
       ) : null}
 
-      {viewDistribution || (viewTagging && !selectedOfficer) ? null : (
+      {viewDistribution || viewProvinceDistribution || (viewTagging && !selectedOfficer) ? null : (
       <AccountTaggingWorkspace
         branches={branches}
         officers={officers}
