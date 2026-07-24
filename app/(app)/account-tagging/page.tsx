@@ -159,6 +159,20 @@ function piePath(startAngle: number, endAngle: number, radius = 240, center = 26
   return `M ${center} ${center} L ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} 0 ${end.x} ${end.y} Z`;
 }
 
+function distributionPrincipalBalance(loan: {
+  principalAmount: unknown;
+  balance: unknown;
+  amortizationSchedules: Array<{ principalAmort: unknown; paidPrincipal: unknown }>;
+}) {
+  const balance = Number(loan.balance);
+  if (!loan.amortizationSchedules.length) return Math.min(Number(loan.principalAmount), balance);
+  const scheduleBalance = loan.amortizationSchedules.reduce(
+    (sum, schedule) => sum + Math.max(0, Number(schedule.principalAmort) - Number(schedule.paidPrincipal)),
+    0
+  );
+  return Math.min(scheduleBalance, balance);
+}
+
 export default async function AccountTaggingPage({
   searchParams
 }: {
@@ -202,12 +216,20 @@ export default async function AccountTaggingPage({
         select: {
           zone: true,
           assignedTo: { select: { id: true, name: true, email: true } },
-          loan: { select: { clientId: true, balance: true, paidAmount: true } }
+          loan: {
+            select: {
+              clientId: true,
+              balance: true,
+              paidAmount: true,
+              principalAmount: true,
+              amortizationSchedules: { select: { principalAmort: true, paidPrincipal: true } }
+            }
+          }
         }
       })
     : [];
-  const unassignedCount = viewDistribution
-    ? await prisma.loan.count({
+  const unassignedLoans = viewDistribution
+    ? await prisma.loan.findMany({
         where: {
           AND: [
             branchAccessFilter,
@@ -219,9 +241,21 @@ export default async function AccountTaggingPage({
               ]
             }
           ]
+        },
+        select: {
+          clientId: true,
+          balance: true,
+          principalAmount: true,
+          amortizationSchedules: { select: { principalAmort: true, paidPrincipal: true } }
         }
       })
-    : 0;
+    : [];
+  const unassignedCount = unassignedLoans.length;
+  const unassignedCustomerCount = new Set(unassignedLoans.map((loan) => loan.clientId)).size;
+  const unassignedPrincipalBalance = unassignedLoans.reduce(
+    (sum, loan) => sum + distributionPrincipalBalance(loan),
+    0
+  );
   const summaryMap = new Map<number, {
     id: number;
     name: string;
@@ -229,6 +263,7 @@ export default async function AccountTaggingPage({
     count: number;
     balance: number;
     payments: number;
+    principalBalance: number;
     customerIds: Set<number>;
     zones: Set<string>;
     breakdowns: Map<string, { assignments: number; balance: number; payments: number; customerIds: Set<number> }>;
@@ -239,6 +274,7 @@ export default async function AccountTaggingPage({
       count: 0,
       balance: 0,
       payments: 0,
+      principalBalance: 0,
       customerIds: new Set<number>(),
       zones: new Set<string>(),
       breakdowns: new Map()
@@ -246,6 +282,7 @@ export default async function AccountTaggingPage({
     current.count += 1;
     current.balance += Number(assignment.loan.balance);
     current.payments += Number(assignment.loan.paidAmount);
+    current.principalBalance += distributionPrincipalBalance(assignment.loan);
     current.customerIds.add(assignment.loan.clientId);
     const zone = assignment.zone?.trim() || "Not specified";
     current.zones.add(zone);
@@ -270,6 +307,7 @@ export default async function AccountTaggingPage({
       count: summary.count,
       balance: summary.balance,
       payments: summary.payments,
+      principalBalance: summary.principalBalance,
       customerCount: summary.customerIds.size,
       zones: Array.from(summary.zones).sort(),
       breakdowns: Array.from(summary.breakdowns.entries())
@@ -286,8 +324,22 @@ export default async function AccountTaggingPage({
   const selectedOfficer = assignmentSummaries.find((officer) => officer.id === requestedOfficerId) ?? null;
   const distributionColors = ["#0f766e", "#2563eb", "#7c3aed", "#db2777", "#ea580c", "#ca8a04", "#16a34a", "#0891b2", "#475569", "#dc2626"];
   const distributionEntries = [
-    ...assignmentSummaries.map((officer) => ({ id: officer.id, name: officer.name, count: officer.count })),
-    ...(unassignedCount ? [{ id: 0, name: "Unassigned", count: unassignedCount }] : [])
+    ...assignmentSummaries.map((officer) => ({
+      id: officer.id,
+      name: officer.name,
+      count: officer.count,
+      customers: officer.customerCount,
+      principalBalance: officer.principalBalance
+    })),
+    ...(unassignedCount
+      ? [{
+          id: 0,
+          name: "Unassigned",
+          count: unassignedCount,
+          customers: unassignedCustomerCount,
+          principalBalance: unassignedPrincipalBalance
+        }]
+      : [])
   ];
   const distributionTotal = distributionEntries.reduce((sum, entry) => sum + entry.count, 0);
   let distributionCursor = 0;
@@ -559,14 +611,20 @@ export default async function AccountTaggingPage({
               </svg>
               <div className="grid gap-1.5">
                 {distributionSegments.map((segment) => (
-                  <div key={segment.id} className="flex items-center justify-between gap-3 rounded-md border border-slate-100 px-3 py-2">
-                    <div className="flex min-w-0 items-center gap-2">
+                  <div key={segment.id} className="rounded-md border border-slate-100 px-3 py-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-2">
                       <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: segment.color }} />
                       <span className="truncate text-sm font-semibold text-slate-800">{segment.name}</span>
+                      </div>
+                      <span className="whitespace-nowrap text-sm font-extrabold text-slate-950">
+                        {segment.count.toLocaleString("en-US")} ({segment.percentage.toFixed(1)}%)
+                      </span>
                     </div>
-                    <span className="whitespace-nowrap text-sm font-extrabold text-slate-950">
-                      {segment.count.toLocaleString("en-US")} ({segment.percentage.toFixed(1)}%)
-                    </span>
+                    <div className="mt-1.5 flex items-center justify-between gap-3 border-t border-slate-100 pt-1.5 text-xs">
+                      <span className="text-slate-500">Customers <strong className="text-brand-blue">{segment.customers.toLocaleString("en-US")}</strong></span>
+                      <span className="text-right text-slate-500">Principal <strong className="text-red-700">{segment.principalBalance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</strong></span>
+                    </div>
                   </div>
                 ))}
               </div>
