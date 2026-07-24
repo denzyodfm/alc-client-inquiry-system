@@ -561,11 +561,12 @@ export default async function AccountTaggingPage({
                       <span className="text-right font-bold text-red-700">{breakdown.balance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</span>
                     </Link>
                   ))}
-                </div>
-                <div className="mt-3 grid grid-cols-3 gap-3 border-t border-slate-200 pt-3 text-xs">
-                  <div><p className="font-semibold uppercase text-slate-500">Total customers</p><p className="mt-1 text-lg font-extrabold text-brand-blue">{officer.customerCount.toLocaleString("en-US")}</p></div>
-                  <div><p className="font-semibold uppercase text-slate-500">Total assigned</p><p className="mt-1 text-lg font-extrabold text-slate-950">{officer.count.toLocaleString("en-US")}</p></div>
-                  <div><p className="font-semibold uppercase text-slate-500">Total balance</p><p className="mt-1 font-extrabold text-red-700">{officer.balance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</p></div>
+                  <div className="grid grid-cols-[1fr_70px_76px_110px] gap-2 border-t-2 border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                    <span className="font-bold uppercase text-slate-600">Total</span>
+                    <span className="text-right font-extrabold text-brand-blue">{officer.customerCount.toLocaleString("en-US")}</span>
+                    <span className="text-right font-extrabold text-slate-950">{officer.count.toLocaleString("en-US")}</span>
+                    <span className="text-right font-extrabold text-red-700">{officer.balance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</span>
+                  </div>
                 </div>
               </div>
             ))}
