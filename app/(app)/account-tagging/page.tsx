@@ -16,6 +16,7 @@ type AccountTaggingLoan = Prisma.LoanGetPayload<{
     remedialAssignment: {
       include: {
         assignedTo: { select: { id: true; name: true; email: true } };
+        areaTeamLeader: { select: { id: true; name: true; email: true } };
       };
     };
     amortizationSchedules: true;
@@ -133,6 +134,8 @@ function toAccountTaggingRow(loan: AccountTaggingLoan): AccountTaggingLoanRow {
     assignedOfficerId: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.assignedTo.id : null,
     assignmentId: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.id : null,
     assignedOfficer: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.assignedTo.name : null,
+    areaTeamLeaderId: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.areaTeamLeader?.id ?? null : null,
+    areaTeamLeader: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.areaTeamLeader?.name ?? null : null,
     zone: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.zone : null,
     division: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.division : null,
     province: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.province : null,
@@ -159,6 +162,7 @@ export default async function AccountTaggingPage({
   const selectedStatus = params?.status?.trim() || "ALL";
   const resultSearch = params?.resultSearch?.trim() || "";
   const viewTagging = params?.view === "tagging";
+  const viewDistribution = params?.view === "distribution";
   const requestedOfficerId = Number(params?.officerId);
   const requestedAssignmentZone = params?.assignmentZone?.trim() || "";
   if (user.role === "ACCOUNT_OFFICER" && !viewTagging) {
@@ -176,7 +180,7 @@ export default async function AccountTaggingPage({
     accessibleBranchIds === null ||
     accessibleBranchIds.includes(requestedBranchNumber);
   const selectedBranchId = selectedBranchAllowed ? requestedBranchId : "ALL";
-  const assignmentRows = viewTagging
+  const assignmentRows = viewTagging || viewDistribution
     ? await prisma.remedialAssignment.findMany({
         where: {
           status: "ACTIVE",
@@ -252,6 +256,24 @@ export default async function AccountTaggingPage({
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
   const selectedOfficer = assignmentSummaries.find((officer) => officer.id === requestedOfficerId) ?? null;
+  const distributionColors = ["#0f766e", "#2563eb", "#7c3aed", "#db2777", "#ea580c", "#ca8a04", "#16a34a", "#0891b2", "#475569", "#dc2626"];
+  const distributionTotal = assignmentSummaries.reduce((sum, officer) => sum + officer.count, 0);
+  let distributionCursor = 0;
+  const distributionSegments = assignmentSummaries.map((officer, index) => {
+    const start = distributionCursor;
+    const size = distributionTotal ? (officer.count / distributionTotal) * 100 : 0;
+    distributionCursor += size;
+    return {
+      ...officer,
+      color: distributionColors[index % distributionColors.length],
+      start,
+      end: distributionCursor,
+      percentage: distributionTotal ? (officer.count / distributionTotal) * 100 : 0
+    };
+  });
+  const distributionGradient = distributionSegments
+    .map((segment) => `${segment.color} ${segment.start}% ${segment.end}%`)
+    .join(", ");
   const selectedAssignmentZone =
     selectedOfficer?.breakdowns.some((breakdown) => breakdown.zone === requestedAssignmentZone)
       ? requestedAssignmentZone
@@ -277,7 +299,7 @@ export default async function AccountTaggingPage({
     ]
   };
 
-  const [totalLoans, portfolioLoans, branches, officers, productOptions, statusOptions] = await Promise.all([
+  const [totalLoans, portfolioLoans, branches, officers, areaTeamLeaders, productOptions, statusOptions] = await Promise.all([
     hasFilters ? prisma.loan.count({ where }) : Promise.resolve(0),
     hasFilters
       ? prisma.loan.findMany({
@@ -289,6 +311,7 @@ export default async function AccountTaggingPage({
             remedialAssignment: {
               include: {
                 assignedTo: { select: { id: true, name: true, email: true } }
+                ,areaTeamLeader: { select: { id: true, name: true, email: true } }
               }
             }
           }
@@ -302,6 +325,22 @@ export default async function AccountTaggingPage({
     prisma.user.findMany({
       where: {
         role: "ACCOUNT_OFFICER",
+        isActive: true,
+        ...(selectedBranchId !== "ALL"
+          ? {
+              OR: [
+                { allBranches: true },
+                { branchAccess: { some: { branchId: Number(selectedBranchId) } } }
+              ]
+            }
+          : {})
+      },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, email: true }
+    }),
+    prisma.user.findMany({
+      where: {
+        role: "AREA_TEAM_LEADER",
         isActive: true,
         ...(selectedBranchId !== "ALL"
           ? {
@@ -358,6 +397,7 @@ export default async function AccountTaggingPage({
           remedialAssignment: {
             include: {
               assignedTo: { select: { id: true, name: true, email: true } }
+              ,areaTeamLeader: { select: { id: true, name: true, email: true } }
             }
           },
           amortizationSchedules: {
@@ -439,10 +479,53 @@ export default async function AccountTaggingPage({
             : "Search outstanding loans by address and customer name, then assign matching accounts to an Account Officer."}
         </p>
         </div>
-        {user.role !== "ACCOUNT_OFFICER" ? <Link className="btn-secondary no-print" href={viewTagging ? "/account-tagging" : "/account-tagging?view=tagging"}>
-          {viewTagging ? "Back to Tagging" : "View Tagging"}
-        </Link> : null}
+        {user.role !== "ACCOUNT_OFFICER" ? (
+          <div className="flex flex-wrap gap-2 no-print">
+            <Link className="btn-secondary" href={viewTagging || viewDistribution ? "/account-tagging" : "/account-tagging?view=tagging"}>
+              {viewTagging || viewDistribution ? "Back to Tagging" : "View Tagging"}
+            </Link>
+            {viewDistribution ? (
+              <Link className="btn-secondary" href="/account-tagging?view=tagging">View Tagging</Link>
+            ) : (
+              <Link className="btn-secondary" href="/account-tagging?view=distribution">AO Distribution</Link>
+            )}
+          </div>
+        ) : null}
       </div>
+
+      {viewDistribution ? (
+        <section className="panel p-6">
+          <div>
+            <h3 className="text-xl font-bold text-slate-950">Account Distribution per Account Officer</h3>
+            <p className="mt-1 text-sm text-slate-600">{distributionTotal.toLocaleString("en-US")} active account assignment(s)</p>
+          </div>
+          {distributionTotal ? (
+            <div className="mt-6 grid items-center gap-8 lg:grid-cols-[360px_1fr]">
+              <div className="mx-auto flex h-72 w-72 items-center justify-center rounded-full" style={{ background: `conic-gradient(${distributionGradient})` }}>
+                <div className="flex h-36 w-36 flex-col items-center justify-center rounded-full bg-white shadow-inner">
+                  <span className="text-3xl font-extrabold text-slate-950">{distributionTotal.toLocaleString("en-US")}</span>
+                  <span className="text-xs font-bold uppercase text-slate-500">Accounts</span>
+                </div>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {distributionSegments.map((segment) => (
+                  <div key={segment.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: segment.color }} />
+                      <span className="truncate text-sm font-semibold text-slate-800">{segment.name}</span>
+                    </div>
+                    <span className="whitespace-nowrap text-sm font-extrabold text-slate-950">
+                      {segment.count.toLocaleString("en-US")} ({segment.percentage.toFixed(1)}%)
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="mt-6 text-sm font-semibold text-slate-500">No active AO assignments found.</p>
+          )}
+        </section>
+      ) : null}
 
       {viewTagging ? (
         <section className="space-y-3 no-print">
@@ -491,10 +574,11 @@ export default async function AccountTaggingPage({
         </section>
       ) : null}
 
-      {viewTagging && !selectedOfficer ? null : (
+      {viewDistribution || (viewTagging && !selectedOfficer) ? null : (
       <AccountTaggingWorkspace
         branches={branches}
         officers={officers}
+        areaTeamLeaders={areaTeamLeaders}
         products={productOptions.map((option) => option.loanProduct).filter((product): product is string => typeof product === "string" && Boolean(product.trim()))}
         statuses={statusOptions.map((option) => option.sourceStatusName).filter((status): status is string => typeof status === "string" && Boolean(status.trim()))}
         loans={loans.map(toAccountTaggingRow)}

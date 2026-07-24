@@ -49,6 +49,8 @@ export type AccountTaggingLoanRow = {
   assignedOfficerId: number | null;
   assignmentId: number | null;
   assignedOfficer: string | null;
+  areaTeamLeaderId: number | null;
+  areaTeamLeader: string | null;
   zone: string | null;
   division: string | null;
   province: string | null;
@@ -68,6 +70,7 @@ type PageLink = {
 type AccountTaggingWorkspaceProps = {
   branches: BranchOption[];
   officers: OfficerOption[];
+  areaTeamLeaders: OfficerOption[];
   products: string[];
   statuses: string[];
   loans: AccountTaggingLoanRow[];
@@ -115,6 +118,7 @@ type AccountTaggingWorkspaceProps = {
 export function AccountTaggingWorkspace({
   branches,
   officers,
+  areaTeamLeaders,
   products,
   statuses,
   loans,
@@ -163,7 +167,7 @@ export function AccountTaggingWorkspace({
   const hasFilters = forceHasFilters || Boolean(selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || address.trim() || address2.trim() || customerName.trim() || resultSearch.trim());
   const selectedBranch = branches.find((branch) => String(branch.id) === selectedBranchId);
   const branchLabel = selectedBranch ? `${selectedBranch.branchName} (${selectedBranch.branchCode})` : "All branches";
-  const tableMinWidth = reportOnly ? 2400 : 2120;
+  const tableMinWidth = reportOnly ? 2580 : 2300;
   const visibleTotals = useMemo(
     () =>
       loans.reduce(
@@ -239,12 +243,13 @@ export function AccountTaggingWorkspace({
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const assignedToId = Number(form.get("assignedToId"));
+    const areaTeamLeaderId = Number(form.get("areaTeamLeaderId"));
     const zone = String(form.get("zone") ?? "").trim();
     const division = String(form.get("division") ?? "").trim();
     const province = String(form.get("province") ?? "").trim();
     const municipality = String(form.get("municipality") ?? "").trim();
     const barangay = String(form.get("barangay") ?? "").trim();
-    if (!assignedToId && !zone && !division && !province && !municipality && !barangay) {
+    if (!assignedToId && !areaTeamLeaderId && !zone && !division && !province && !municipality && !barangay) {
       setError("Provide at least one bulk-assignment field.");
       return;
     }
@@ -262,6 +267,7 @@ export function AccountTaggingWorkspace({
         body: JSON.stringify({
           action: "assignMatching",
           assignedToId,
+          areaTeamLeaderId,
           zone,
           division,
           province,
@@ -291,13 +297,14 @@ export function AccountTaggingWorkspace({
     const form = new FormData(event.currentTarget);
     const loanId = Number(form.get("loanId"));
     const assignedToId = Number(form.get("assignedToId"));
+    const areaTeamLeaderId = Number(form.get("areaTeamLeaderId"));
     const zone = String(form.get("zone") ?? "").trim();
     const division = String(form.get("division") ?? "").trim();
     const province = String(form.get("province") ?? "").trim();
     const municipality = String(form.get("municipality") ?? "").trim();
     const barangay = String(form.get("barangay") ?? "").trim();
 
-    if (!assignedToId && !zone && !division && !province && !municipality && !barangay) {
+    if (!assignedToId && !areaTeamLeaderId && !zone && !division && !province && !municipality && !barangay) {
       setError("Provide at least one tagging field to update.");
       return;
     }
@@ -312,6 +319,7 @@ export function AccountTaggingWorkspace({
           action: "updateLoan",
           loanId,
           assignedToId,
+          areaTeamLeaderId,
           zone,
           division,
           province,
@@ -447,6 +455,17 @@ export function AccountTaggingWorkspace({
               {officers.map((officer) => (
                 <option key={officer.id} value={officer.id}>
                   {officer.name} - {officer.email}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-slate-700">Area TL</span>
+            <select name="areaTeamLeaderId" className="field" disabled={!areaTeamLeaders.length || isPending}>
+              <option value="">Select Area TL</option>
+              {areaTeamLeaders.map((teamLeader) => (
+                <option key={teamLeader.id} value={teamLeader.id}>
+                  {teamLeader.name} - {teamLeader.email}
                 </option>
               ))}
             </select>
@@ -588,6 +607,7 @@ export function AccountTaggingWorkspace({
               <col className="w-[116px]" />
               <col className="w-[116px]" />
               <col className="w-[120px]" />
+              <col className="w-[180px]" />
               <col className="w-[140px]" />
               <col className="w-[120px]" />
               {reportOnly ? <col className="w-[160px]" /> : null}
@@ -615,6 +635,7 @@ export function AccountTaggingWorkspace({
                 <th className="px-2 py-2">Province</th>
                 <th className="px-2 py-2">City/Municipality</th>
                 <th className="px-2 py-2">Barangay</th>
+                <th className="px-2 py-2">Area TL</th>
                 {reportOnly ? <th className="px-2 py-2">Client Condition</th> : null}
                 {reportOnly ? <th className="px-2 py-2">Approval</th> : null}
                 <th className="px-2 py-2">Assigned AO</th>
@@ -688,6 +709,26 @@ export function AccountTaggingWorkspace({
                   <LocationTagCell canAssign={canAssign} formId={`tagging-row-${loan.id}`} name="province" value={loan.province} />
                   <LocationTagCell canAssign={canAssign} formId={`tagging-row-${loan.id}`} name="municipality" value={loan.municipality} placeholder="City/Municipality" />
                   <LocationTagCell canAssign={canAssign} formId={`tagging-row-${loan.id}`} name="barangay" value={loan.barangay} />
+                  <td className="px-2 py-2">
+                    {canAssign ? (
+                      <>
+                        <select
+                          className="field h-9 min-w-0 text-xs no-print"
+                          form={`tagging-row-${loan.id}`}
+                          name="areaTeamLeaderId"
+                          defaultValue={loan.areaTeamLeaderId ?? ""}
+                        >
+                          <option value="">Select Area TL</option>
+                          {areaTeamLeaders.map((teamLeader) => (
+                            <option key={teamLeader.id} value={teamLeader.id}>{teamLeader.name}</option>
+                          ))}
+                        </select>
+                        <span className="print-only font-semibold text-slate-700">{loan.areaTeamLeader || "Unassigned"}</span>
+                      </>
+                    ) : (
+                      <span className="font-semibold text-slate-700">{loan.areaTeamLeader || "Unassigned"}</span>
+                    )}
+                  </td>
                   {reportOnly ? (
                     <td className="px-2 py-2">
                       {currentUserRole === "ACCOUNT_OFFICER" && loan.assignmentId ? (
@@ -758,7 +799,7 @@ export function AccountTaggingWorkspace({
               ))}
               {!loans.length ? (
                 <tr>
-                  <td className="px-4 py-8 text-sm font-semibold text-slate-500" colSpan={reportOnly ? 22 : 20}>
+                  <td className="px-4 py-8 text-sm font-semibold text-slate-500" colSpan={reportOnly ? 23 : 21}>
                     {hasFilters ? "No matching loans found." : "Use branch, address, or customer filters to load accounts for tagging."}
                   </td>
                 </tr>
@@ -777,7 +818,7 @@ export function AccountTaggingWorkspace({
                   <TotalAmountCell value={visibleTotals.payments} tone="green" />
                   <TotalAmountCell value={visibleTotals.waived} />
                   <TotalAmountCell value={visibleTotals.balance} tone="red" />
-                  <td className="px-2 py-2" colSpan={reportOnly ? 9 : 7} />
+                  <td className="px-2 py-2" colSpan={reportOnly ? 10 : 8} />
                 </tr>
               </tfoot>
             ) : null}

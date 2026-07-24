@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { Prisma, UserRole } from "@prisma/client";
 import { requireApiUser } from "@/lib/api";
+import { getAccessibleBranchIds } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 function parseRole(value: unknown) {
@@ -16,7 +17,7 @@ function parseBranchIds(value: unknown) {
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const { user: currentUser, response } = await requireApiUser(["ADMIN"]);
+  const { user: currentUser, response } = await requireApiUser(["ADMIN", "AREA_TEAM_LEADER"]);
   if (response) return response;
 
   const { id } = await context.params;
@@ -27,8 +28,23 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const password = String(body.password ?? "");
   const confirmPassword = String(body.confirmPassword ?? "");
   const role = parseRole(body.role);
-  const allBranches = Boolean(body.allBranches);
+  const isAdmin = currentUser!.role === "ADMIN";
+  const accessibleBranchIds = await getAccessibleBranchIds(currentUser!);
+  const allBranches = Boolean(body.allBranches) && (isAdmin || accessibleBranchIds === null);
   const branchIds = allBranches ? [] : parseBranchIds(body.branchIds);
+  const existingUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true }
+  });
+  if (!existingUser) {
+    return NextResponse.json({ error: "User not found." }, { status: 404 });
+  }
+  if (!isAdmin && (existingUser.role === "ADMIN" || role !== "ACCOUNT_OFFICER")) {
+    return NextResponse.json({ error: "Area Team Leaders can only edit Account Officer users." }, { status: 403 });
+  }
+  if (!isAdmin && accessibleBranchIds !== null && branchIds.some((branchId) => !accessibleBranchIds.includes(branchId))) {
+    return NextResponse.json({ error: "You can only grant access to your assigned branches." }, { status: 403 });
+  }
 
   if (!name || !email) {
     return NextResponse.json({ error: "Name and email are required." }, { status: 400 });

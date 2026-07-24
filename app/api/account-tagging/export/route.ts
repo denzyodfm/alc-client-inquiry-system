@@ -133,7 +133,8 @@ export async function GET(request: Request) {
         amortizationSchedules: true,
         remedialAssignment: {
           include: {
-            assignedTo: { select: { name: true } }
+            assignedTo: { select: { name: true } },
+            areaTeamLeader: { select: { name: true } }
           }
         }
       }
@@ -171,6 +172,7 @@ export async function GET(request: Request) {
       const barangay = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.barangay ?? "-" : "-";
       const clientCondition = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.clientCondition ?? "-" : "-";
       const conditionApproval = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.conditionApprovalStatus ?? "Not reported" : "Not reported";
+      const areaTeamLeader = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.areaTeamLeader?.name ?? "Unassigned" : "Unassigned";
       const amounts = loanAmountBreakdown(loan);
       return `<tr>
         <td>${index + 1}</td>
@@ -201,6 +203,7 @@ export async function GET(request: Request) {
         <td>${cell(province)}</td>
         <td>${cell(municipality)}</td>
         <td>${cell(barangay)}</td>
+        <td>${cell(areaTeamLeader)}</td>
         <td>${cell(clientCondition)}</td>
         <td>${cell(conditionApproval)}</td>
         <td>${cell(assignedOfficer)}</td>
@@ -273,6 +276,7 @@ export async function GET(request: Request) {
           <th>Province</th>
           <th>City/Municipality</th>
           <th>Barangay</th>
+          <th>Area TL</th>
           <th>Client Condition</th>
           <th>Condition Approval</th>
           <th>Assigned AO</th>

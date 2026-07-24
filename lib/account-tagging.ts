@@ -97,6 +97,8 @@ export function accountTaggingSearchWhere(filters: AccountTaggingFilters): Prism
           { remedialAssignment: { is: { conditionApprovalStatus: { contains: term } } } },
           { remedialAssignment: { is: { assignedTo: { name: { contains: term } } } } },
           { remedialAssignment: { is: { assignedTo: { email: { contains: term } } } } }
+          ,{ remedialAssignment: { is: { areaTeamLeader: { name: { contains: term } } } } }
+          ,{ remedialAssignment: { is: { areaTeamLeader: { email: { contains: term } } } } }
         ]
       }))
     ]

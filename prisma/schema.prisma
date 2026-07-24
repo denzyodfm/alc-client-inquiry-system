@@ -61,6 +61,7 @@ model User {
   branchAccess UserBranchAccess[]
   remedialAssignments RemedialAssignment[] @relation("RemedialAssignedOfficer")
   remedialAssignedBy RemedialAssignment[] @relation("RemedialAssignedBy")
+  remedialAreaTeamLeader RemedialAssignment[] @relation("RemedialAreaTeamLeader")
   remedialVisitsCreated RemedialVisit[] @relation("RemedialVisitCreatedBy")
   remedialVisitsApproved RemedialVisit[] @relation("RemedialVisitApprovedBy")
   clientLogs   ClientLog[] @relation("ClientLogEncodedBy")
@@ -205,6 +206,7 @@ model RemedialAssignment {
   branchId     Int      @map("branch_id")
   assignedToId Int      @map("assigned_to_id")
   assignedById Int?     @map("assigned_by_id")
+  areaTeamLeaderId Int? @map("area_team_leader_id")
   status       RemedialAssignmentStatus @default(ACTIVE)
   zone         String?  @db.VarChar(120)
   division     String?  @db.VarChar(120)
@@ -224,10 +226,12 @@ model RemedialAssignment {
   branch       Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
   assignedTo   User     @relation("RemedialAssignedOfficer", fields: [assignedToId], references: [id], onDelete: Restrict)
   assignedBy   User?    @relation("RemedialAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+  areaTeamLeader User? @relation("RemedialAreaTeamLeader", fields: [areaTeamLeaderId], references: [id], onDelete: SetNull)
   visits       RemedialVisit[]
 
   @@index([branchId])
   @@index([assignedToId])
+  @@index([areaTeamLeaderId])
   @@index([status])
   @@map("remedial_assignments")
 }

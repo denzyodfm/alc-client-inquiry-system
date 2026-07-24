@@ -33,6 +33,23 @@ async function validateOfficer(assignedToId: number, branchIds: number[]) {
   });
 }
 
+async function validateAreaTeamLeader(areaTeamLeaderId: number, branchIds: number[]) {
+  if (!Number.isInteger(areaTeamLeaderId) || areaTeamLeaderId <= 0) return null;
+  return prisma.user.findFirst({
+    where: {
+      id: areaTeamLeaderId,
+      role: "AREA_TEAM_LEADER",
+      isActive: true,
+      OR: [{ allBranches: true }, { branchAccess: { some: { branchId: { in: branchIds } } } }]
+    },
+    select: {
+      id: true,
+      allBranches: true,
+      branchAccess: { select: { branchId: true } }
+    }
+  });
+}
+
 export async function POST(request: Request) {
   const { user, response } = await requireApiUser([...ASSIGNMENT_ROLES]);
   if (response) return response;
@@ -41,6 +58,7 @@ export async function POST(request: Request) {
   const body = await request.json();
   const action = assignmentAction(body.action);
   const assignedToId = Number(body.assignedToId);
+  const areaTeamLeaderId = Number(body.areaTeamLeaderId);
   const zone = String(body.zone ?? "").trim();
   const division = String(body.division ?? "").trim();
   const province = String(body.province ?? "").trim();
@@ -53,7 +71,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Loan is required." }, { status: 400 });
     }
     const hasAssignedOfficer = Number.isInteger(assignedToId) && assignedToId > 0;
-    if (!hasAssignedOfficer && !zone && !division && !province && !municipality && !barangay) {
+    const hasAreaTeamLeader = Number.isInteger(areaTeamLeaderId) && areaTeamLeaderId > 0;
+    if (!hasAssignedOfficer && !hasAreaTeamLeader && !zone && !division && !province && !municipality && !barangay) {
       return NextResponse.json({ error: "Provide at least one tagging field to update." }, { status: 400 });
     }
 
@@ -81,6 +100,9 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Selected Account Officer has no access to this loan branch." }, { status: 400 });
       }
     }
+    if (hasAreaTeamLeader && !(await validateAreaTeamLeader(areaTeamLeaderId, [loan.branchId]))) {
+      return NextResponse.json({ error: "Selected Area TL has no access to this loan branch." }, { status: 400 });
+    }
 
     await prisma.remedialAssignment.upsert({
       where: { loanId: loan.id },
@@ -89,6 +111,7 @@ export async function POST(request: Request) {
         branchId: loan.branchId,
         assignedToId: nextAssignedToId,
         assignedById: user.id,
+        ...(hasAreaTeamLeader ? { areaTeamLeaderId } : {}),
         ...(zone ? { zone } : {}),
         ...(division ? { division } : {}),
         ...(province ? { province } : {}),
@@ -99,6 +122,7 @@ export async function POST(request: Request) {
       update: {
         ...(hasAssignedOfficer ? { assignedToId } : {}),
         assignedById: user.id,
+        ...(hasAreaTeamLeader ? { areaTeamLeaderId } : {}),
         ...(zone ? { zone } : {}),
         ...(division ? { division } : {}),
         ...(province ? { province } : {}),
@@ -122,7 +146,8 @@ export async function POST(request: Request) {
   const hasFilters = branchId !== "ALL" || product !== "ALL" || loanStatus !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName) || Boolean(resultSearch);
 
   const hasAssignedOfficer = Number.isInteger(assignedToId) && assignedToId > 0;
-  if (!hasAssignedOfficer && !zone && !division && !province && !municipality && !barangay) {
+  const hasAreaTeamLeader = Number.isInteger(areaTeamLeaderId) && areaTeamLeaderId > 0;
+  if (!hasAssignedOfficer && !hasAreaTeamLeader && !zone && !division && !province && !municipality && !barangay) {
     return NextResponse.json({ error: "Provide at least one bulk-assignment field." }, { status: 400 });
   }
   if (!hasFilters) {
@@ -185,6 +210,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Selected Account Officer has no access to one or more matching loan branches." }, { status: 400 });
     }
   }
+  if (hasAreaTeamLeader) {
+    const teamLeader = await validateAreaTeamLeader(areaTeamLeaderId, loanBranchIds);
+    if (!teamLeader) {
+      return NextResponse.json({ error: "Selected Area TL has no access to the matching loan branches." }, { status: 400 });
+    }
+    const teamLeaderBranchIds = teamLeader.branchAccess.map((access) => access.branchId);
+    if (!teamLeader.allBranches && loanBranchIds.some((branchId) => !teamLeaderBranchIds.includes(branchId))) {
+      return NextResponse.json({ error: "Selected Area TL has no access to one or more matching loan branches." }, { status: 400 });
+    }
+  }
 
   const assignments = await prisma.$transaction(async (tx) => {
     const saved = [];
@@ -201,6 +236,7 @@ export async function POST(request: Request) {
             branchId: loan.branchId,
             assignedToId: nextAssignedToId,
             assignedById: user.id,
+            ...(hasAreaTeamLeader ? { areaTeamLeaderId } : {}),
             ...(zone ? { zone } : {}),
             ...(division ? { division } : {}),
             ...(province ? { province } : {}),
@@ -211,6 +247,7 @@ export async function POST(request: Request) {
           update: {
             ...(hasAssignedOfficer ? { assignedToId } : {}),
             assignedById: user.id,
+            ...(hasAreaTeamLeader ? { areaTeamLeaderId } : {}),
             ...(zone ? { zone } : {}),
             ...(division ? { division } : {}),
             ...(province ? { province } : {}),

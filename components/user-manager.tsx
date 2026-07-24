@@ -47,6 +47,7 @@ export function UserManager({
   canGrantAllBranches: boolean;
 }) {
   const isAdmin = currentUserRole === "ADMIN";
+  const canEditUsers = isAdmin || currentUserRole === "AREA_TEAM_LEADER";
   const [users, setUsers] = useState(initialUsers);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [allBranches, setAllBranches] = useState(canGrantAllBranches);
@@ -330,7 +331,7 @@ export function UserManager({
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    {isAdmin ? <div className="flex flex-nowrap justify-end gap-2">
+                    {canEditUsers ? <div className="flex flex-nowrap justify-end gap-2">
                       <button type="button" className="btn-secondary h-9 px-3 text-xs" onClick={() => editUser(user)} disabled={loading}>
                         <Pencil className="h-4 w-4" />
                         Edit
@@ -338,7 +339,7 @@ export function UserManager({
                       <button type="button" className="btn-secondary h-9 px-3 text-xs" onClick={() => toggleUser(user)} disabled={loading}>
                         {user.isActive ? "Deactivate" : "Activate"}
                       </button>
-                      <button
+                      {isAdmin ? <button
                         type="button"
                         className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-red-200 bg-white px-3 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                         onClick={() => deleteUser(user)}
@@ -346,7 +347,7 @@ export function UserManager({
                       >
                         <Trash2 className="h-4 w-4" />
                         Delete
-                      </button>
+                      </button> : null}
                     </div> : <span className="text-xs text-slate-400">View only</span>}
                   </td>
                 </tr>
