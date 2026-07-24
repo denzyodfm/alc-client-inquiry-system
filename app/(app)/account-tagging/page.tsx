@@ -425,7 +425,8 @@ export default async function AccountTaggingPage({
         address2,
         customerName,
         loanStatus: selectedStatus,
-        resultSearch
+        resultSearch,
+        excludeCustomerConditions: !viewTagging
       })
     ]
   };

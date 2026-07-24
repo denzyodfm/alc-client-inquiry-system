@@ -196,7 +196,8 @@ export async function POST(request: Request) {
         address2,
         customerName,
         loanStatus,
-        resultSearch
+        resultSearch,
+        excludeCustomerConditions: true
       })
     ]
   };

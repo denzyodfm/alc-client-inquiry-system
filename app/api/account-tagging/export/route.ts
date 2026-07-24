@@ -115,7 +115,8 @@ export async function GET(request: Request) {
         address2,
         customerName,
         loanStatus: selectedStatus,
-        resultSearch
+        resultSearch,
+        excludeCustomerConditions: !(Number.isInteger(effectiveOfficerId) && effectiveOfficerId > 0)
       })
     ]
   };

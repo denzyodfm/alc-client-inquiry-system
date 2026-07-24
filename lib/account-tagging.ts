@@ -9,6 +9,7 @@ export type AccountTaggingFilters = {
   customerName?: string;
   loanStatus?: string;
   resultSearch?: string;
+  excludeCustomerConditions?: boolean;
 };
 
 export function accountTaggingTerms(value?: string) {
@@ -72,6 +73,16 @@ export function accountTaggingSearchWhere(filters: AccountTaggingFilters): Prism
       branchId ? { branchId: Number(branchId) || -1 } : {},
       product ? { loanProduct: product } : {},
       loanStatus ? { sourceStatusName: loanStatus } : {},
+      filters.excludeCustomerConditions
+        ? {
+            OR: [
+              { remedialAssignment: { is: null } },
+              { remedialAssignment: { is: { clientCondition: null } } },
+              { remedialAssignment: { is: { clientCondition: "" } } },
+              { remedialAssignment: { is: { clientCondition: { notIn: ["UNLOCATED", "DORMANT", "RIP"] } } } }
+            ]
+          }
+        : {},
       ...addressTerms.map((term) => ({ client: { address: { contains: term } } })),
       ...address2Where,
       ...customerTerms.map((term) => ({ client: { fullName: { contains: term } } })),
