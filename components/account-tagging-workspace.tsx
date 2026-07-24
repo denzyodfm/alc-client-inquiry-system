@@ -47,12 +47,15 @@ export type AccountTaggingLoanRow = {
   waivedAmount: number;
   balance: number;
   assignedOfficerId: number | null;
+  assignmentId: number | null;
   assignedOfficer: string | null;
   zone: string | null;
   division: string | null;
   province: string | null;
   municipality: string | null;
   barangay: string | null;
+  clientCondition: string | null;
+  conditionApprovalStatus: string | null;
   loanDetail: LoanDetailLoan;
 };
 
@@ -104,6 +107,9 @@ type AccountTaggingWorkspaceProps = {
   paginatedHref: string;
   canAssign: boolean;
   reportDate: string;
+  reportOnly?: boolean;
+  forceHasFilters?: boolean;
+  currentUserRole: string;
 };
 
 export function AccountTaggingWorkspace({
@@ -135,7 +141,10 @@ export function AccountTaggingWorkspace({
   excelHref,
   paginatedHref,
   canAssign,
-  reportDate
+  reportDate,
+  reportOnly = false,
+  forceHasFilters = false,
+  currentUserRole
 }: AccountTaggingWorkspaceProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -151,10 +160,10 @@ export function AccountTaggingWorkspace({
   const topScrollRef = useRef<HTMLDivElement | null>(null);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const syncingScroll = useRef(false);
-  const hasFilters = Boolean(selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || address.trim() || address2.trim() || customerName.trim() || resultSearch.trim());
+  const hasFilters = forceHasFilters || Boolean(selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || address.trim() || address2.trim() || customerName.trim() || resultSearch.trim());
   const selectedBranch = branches.find((branch) => String(branch.id) === selectedBranchId);
   const branchLabel = selectedBranch ? `${selectedBranch.branchName} (${selectedBranch.branchCode})` : "All branches";
-  const tableMinWidth = 2120;
+  const tableMinWidth = reportOnly ? 2400 : 2120;
   const visibleTotals = useMemo(
     () =>
       loans.reduce(
@@ -320,6 +329,30 @@ export function AccountTaggingWorkspace({
     });
   }
 
+  function updateClientCondition(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const assignmentId = Number(form.get("assignmentId"));
+    const action = String(form.get("action") ?? "report");
+    const condition = String(form.get("condition") ?? "");
+    setError(null);
+    setMessage(null);
+    startTransition(async () => {
+      const response = await fetch("/api/account-tagging/condition", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignmentId, action, condition })
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        setError(data?.error ?? "Unable to update client condition.");
+        return;
+      }
+      setMessage(action === "approve" ? "Client condition approved." : "Client condition submitted for Area TL approval.");
+      router.refresh();
+    });
+  }
+
   function syncHorizontalScroll(source: "top" | "table") {
     if (syncingScroll.current) return;
     const top = topScrollRef.current;
@@ -339,7 +372,7 @@ export function AccountTaggingWorkspace({
 
   return (
     <div className="space-y-4">
-      <form onSubmit={submitSearch} className="panel grid gap-3 p-4 no-print lg:grid-cols-[1fr_1fr_1fr_1.2fr_1.2fr_auto_auto]">
+      {!reportOnly ? <form onSubmit={submitSearch} className="panel grid gap-3 p-4 no-print lg:grid-cols-[1fr_1fr_1fr_1.2fr_1.2fr_auto_auto]">
         <label className="block">
           <span className="mb-2 block text-sm font-semibold text-slate-700">Branch</span>
           <select name="branchId" className="field" defaultValue={selectedBranchId}>
@@ -388,9 +421,9 @@ export function AccountTaggingWorkspace({
         <Link className="btn-secondary w-full self-end lg:w-auto" href="/account-tagging">
           Clear
         </Link>
-      </form>
+      </form> : null}
 
-      <section className="grid gap-3 no-print md:grid-cols-4 xl:grid-cols-7">
+      {!reportOnly ? <section className="grid gap-3 no-print md:grid-cols-4 xl:grid-cols-7">
         <PortfolioMetric label="Principal balance" value={portfolioTotals.principal} detail={`Original ${money(portfolioTotals.originalPrincipal)}`} />
         <PortfolioMetric label="Interest balance" value={portfolioTotals.interest} detail={`Original ${money(portfolioTotals.originalInterest)}`} />
         <PortfolioMetric label="PDI balance" value={portfolioTotals.pdi} detail={`Original ${money(portfolioTotals.originalPdi)}`} />
@@ -398,7 +431,7 @@ export function AccountTaggingWorkspace({
         <PortfolioMetric label="Total payments" value={portfolioTotals.payments} tone="green" />
         <PortfolioMetric label="Waived / deducted" value={portfolioTotals.waived} />
         <PortfolioMetric label="Balance portfolio" value={portfolioTotals.balance} tone="red" />
-      </section>
+      </section> : null}
 
       {canAssign ? (
         <form onSubmit={assignMatching} className="panel grid gap-4 p-4 no-print md:grid-cols-2 xl:grid-cols-4">
@@ -557,6 +590,8 @@ export function AccountTaggingWorkspace({
               <col className="w-[120px]" />
               <col className="w-[140px]" />
               <col className="w-[120px]" />
+              {reportOnly ? <col className="w-[160px]" /> : null}
+              {reportOnly ? <col className="w-[130px]" /> : null}
               <col className="w-[196px]" />
             </colgroup>
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -580,6 +615,8 @@ export function AccountTaggingWorkspace({
                 <th className="px-2 py-2">Province</th>
                 <th className="px-2 py-2">City/Municipality</th>
                 <th className="px-2 py-2">Barangay</th>
+                {reportOnly ? <th className="px-2 py-2">Client Condition</th> : null}
+                {reportOnly ? <th className="px-2 py-2">Approval</th> : null}
                 <th className="px-2 py-2">Assigned AO</th>
               </tr>
             </thead>
@@ -651,6 +688,40 @@ export function AccountTaggingWorkspace({
                   <LocationTagCell canAssign={canAssign} formId={`tagging-row-${loan.id}`} name="province" value={loan.province} />
                   <LocationTagCell canAssign={canAssign} formId={`tagging-row-${loan.id}`} name="municipality" value={loan.municipality} placeholder="City/Municipality" />
                   <LocationTagCell canAssign={canAssign} formId={`tagging-row-${loan.id}`} name="barangay" value={loan.barangay} />
+                  {reportOnly ? (
+                    <td className="px-2 py-2">
+                      {currentUserRole === "ACCOUNT_OFFICER" && loan.assignmentId ? (
+                        <form onSubmit={updateClientCondition} className="flex gap-2 no-print">
+                          <input type="hidden" name="assignmentId" value={loan.assignmentId} />
+                          <input type="hidden" name="action" value="report" />
+                          <select name="condition" className="field h-9 min-w-0 text-xs" defaultValue={loan.clientCondition ?? ""} required>
+                            <option value="">Select condition</option>
+                            <option value="UNLOCATED">Unlocated</option>
+                            <option value="RIP">RIP</option>
+                          </select>
+                          <button className="btn-secondary h-9 px-2 text-xs" disabled={isPending}>Submit</button>
+                        </form>
+                      ) : (
+                        <span className="font-semibold text-slate-700">{loan.clientCondition === "UNLOCATED" ? "Unlocated" : loan.clientCondition || "-"}</span>
+                      )}
+                      <span className="print-only font-semibold text-slate-700">{loan.clientCondition === "UNLOCATED" ? "Unlocated" : loan.clientCondition || "-"}</span>
+                    </td>
+                  ) : null}
+                  {reportOnly ? (
+                    <td className="px-2 py-2">
+                      {loan.conditionApprovalStatus === "PENDING" && (currentUserRole === "AREA_TEAM_LEADER" || currentUserRole === "ADMIN") && loan.assignmentId ? (
+                        <form onSubmit={updateClientCondition} className="no-print">
+                          <input type="hidden" name="assignmentId" value={loan.assignmentId} />
+                          <input type="hidden" name="action" value="approve" />
+                          <button className="btn-primary h-9 px-3 text-xs" disabled={isPending}>Approve</button>
+                        </form>
+                      ) : (
+                        <span className={`rounded-md px-2 py-1 text-xs font-bold ${loan.conditionApprovalStatus === "APPROVED" ? "bg-emerald-50 text-brand-green" : loan.conditionApprovalStatus === "PENDING" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-500"}`}>
+                          {loan.conditionApprovalStatus ?? "Not reported"}
+                        </span>
+                      )}
+                    </td>
+                  ) : null}
                   <td className="px-2 py-2">
                     {canAssign ? (
                       <>
@@ -687,7 +758,7 @@ export function AccountTaggingWorkspace({
               ))}
               {!loans.length ? (
                 <tr>
-                  <td className="px-4 py-8 text-sm font-semibold text-slate-500" colSpan={20}>
+                  <td className="px-4 py-8 text-sm font-semibold text-slate-500" colSpan={reportOnly ? 22 : 20}>
                     {hasFilters ? "No matching loans found." : "Use branch, address, or customer filters to load accounts for tagging."}
                   </td>
                 </tr>
@@ -706,7 +777,7 @@ export function AccountTaggingWorkspace({
                   <TotalAmountCell value={visibleTotals.payments} tone="green" />
                   <TotalAmountCell value={visibleTotals.waived} />
                   <TotalAmountCell value={visibleTotals.balance} tone="red" />
-                  <td className="px-2 py-2" colSpan={7} />
+                  <td className="px-2 py-2" colSpan={reportOnly ? 9 : 7} />
                 </tr>
               </tfoot>
             ) : null}

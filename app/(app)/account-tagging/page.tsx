@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import Link from "next/link";
 import { AccountTaggingWorkspace, type AccountTaggingLoanRow } from "@/components/account-tagging-workspace";
 import type { LoanDetailLoan } from "@/components/loan-detail-window";
 import { accountTaggingHref, accountTaggingSearchWhere } from "@/lib/account-tagging";
@@ -129,12 +130,15 @@ function toAccountTaggingRow(loan: AccountTaggingLoan): AccountTaggingLoanRow {
     sourceStatusCode: loan.sourceStatusCode,
     ...amounts,
     assignedOfficerId: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.assignedTo.id : null,
+    assignmentId: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.id : null,
     assignedOfficer: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.assignedTo.name : null,
     zone: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.zone : null,
     division: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.division : null,
     province: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.province : null,
     municipality: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.municipality : null,
     barangay: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.barangay : null,
+    clientCondition: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.clientCondition : null,
+    conditionApprovalStatus: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.conditionApprovalStatus : null,
     loanDetail: toLoanDetail(loan)
   };
 }
@@ -142,7 +146,7 @@ function toAccountTaggingRow(loan: AccountTaggingLoan): AccountTaggingLoanRow {
 export default async function AccountTaggingPage({
   searchParams
 }: {
-  searchParams?: Promise<{ branchId?: string; product?: string; address?: string; address2?: string; customer?: string; status?: string; resultSearch?: string; page?: string; print?: string }>;
+  searchParams?: Promise<{ branchId?: string; product?: string; address?: string; address2?: string; customer?: string; status?: string; resultSearch?: string; page?: string; print?: string; view?: string; officerId?: string }>;
 }) {
   const user = await requireUser(["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
   const params = await searchParams;
@@ -153,6 +157,8 @@ export default async function AccountTaggingPage({
   const customerName = params?.customer?.trim() || "";
   const selectedStatus = params?.status?.trim() || "ALL";
   const resultSearch = params?.resultSearch?.trim() || "";
+  const viewTagging = params?.view === "tagging";
+  const requestedOfficerId = Number(params?.officerId);
   const currentPage = Math.max(1, Number(params?.page ?? 1) || 1);
   const pageSize = 100;
   const accessibleBranchIds = await getAccessibleBranchIds(user);
@@ -164,11 +170,35 @@ export default async function AccountTaggingPage({
     accessibleBranchIds === null ||
     accessibleBranchIds.includes(requestedBranchNumber);
   const selectedBranchId = selectedBranchAllowed ? requestedBranchId : "ALL";
-  const hasFilters = selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName) || Boolean(resultSearch);
+  const assignmentRows = viewTagging
+    ? await prisma.remedialAssignment.findMany({
+        where: {
+          status: "ACTIVE",
+          ...(user.role === "ACCOUNT_OFFICER" ? { assignedToId: user.id } : {}),
+          ...(accessibleBranchIds === null ? {} : { branchId: { in: accessibleBranchIds } })
+        },
+        select: {
+          assignedTo: { select: { id: true, name: true, email: true } },
+          loan: { select: { balance: true, paidAmount: true } }
+        }
+      })
+    : [];
+  const summaryMap = new Map<number, { id: number; name: string; email: string; count: number; balance: number; payments: number }>();
+  for (const assignment of assignmentRows) {
+    const current = summaryMap.get(assignment.assignedTo.id) ?? { ...assignment.assignedTo, count: 0, balance: 0, payments: 0 };
+    current.count += 1;
+    current.balance += Number(assignment.loan.balance);
+    current.payments += Number(assignment.loan.paidAmount);
+    summaryMap.set(current.id, current);
+  }
+  const assignmentSummaries = Array.from(summaryMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  const selectedOfficer = assignmentSummaries.find((officer) => officer.id === requestedOfficerId) ?? null;
+  const hasFilters = Boolean(selectedOfficer) || selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName) || Boolean(resultSearch);
   const printAllResults = params?.print === "all" && hasFilters;
   const where: Prisma.LoanWhereInput = {
     AND: [
       branchAccessFilter,
+      selectedOfficer ? { remedialAssignment: { is: { status: "ACTIVE", assignedToId: selectedOfficer.id } } } : {},
       accountTaggingSearchWhere({
         branchId: selectedBranchId,
         product: selectedProduct,
@@ -303,8 +333,12 @@ export default async function AccountTaggingPage({
       balance: 0
     }
   );
-  const pageHref = (page: number) => accountTaggingHref({ page, branchId: selectedBranchId, product: selectedProduct, address, address2, customerName, loanStatus: selectedStatus, resultSearch });
-  const printBaseHref = accountTaggingHref({ branchId: selectedBranchId, product: selectedProduct, address, address2, customerName, loanStatus: selectedStatus, resultSearch });
+  const withTaggingView = (href: string) => {
+    if (!viewTagging) return href;
+    return `${href}${href.includes("?") ? "&" : "?"}view=tagging${selectedOfficer ? `&officerId=${selectedOfficer.id}` : ""}`;
+  };
+  const pageHref = (page: number) => withTaggingView(accountTaggingHref({ page, branchId: selectedBranchId, product: selectedProduct, address, address2, customerName, loanStatus: selectedStatus, resultSearch }));
+  const printBaseHref = withTaggingView(accountTaggingHref({ branchId: selectedBranchId, product: selectedProduct, address, address2, customerName, loanStatus: selectedStatus, resultSearch }));
   const printableHref = `${printBaseHref}${
     printBaseHref.includes("?") ? "&" : "?"
   }print=all`;
@@ -316,6 +350,7 @@ export default async function AccountTaggingPage({
   if (customerName) exportParams.set("customer", customerName);
   if (selectedStatus !== "ALL") exportParams.set("status", selectedStatus);
   if (resultSearch) exportParams.set("resultSearch", resultSearch);
+  if (selectedOfficer) exportParams.set("officerId", String(selectedOfficer.id));
   const excelHref = `/api/account-tagging/export${exportParams.toString() ? `?${exportParams.toString()}` : ""}`;
   const visiblePages = Array.from({ length: totalPages }, (_, index) => index + 1)
     .filter((page) => page === 1 || page === totalPages || Math.abs(page - safePage) <= 2);
@@ -327,14 +362,46 @@ export default async function AccountTaggingPage({
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
         <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Portfolio assignment</p>
         <h2 className="mt-2 text-3xl font-bold text-slate-950">Account Tagging</h2>
         <p className="mt-2 text-sm font-semibold text-slate-600">
           Search outstanding loans by address and customer name, then assign matching accounts to an Account Officer.
         </p>
+        </div>
+        <Link className="btn-secondary no-print" href={viewTagging ? "/account-tagging" : "/account-tagging?view=tagging"}>
+          {viewTagging ? "Back to Tagging" : "View Tagging"}
+        </Link>
       </div>
 
+      {viewTagging ? (
+        <section className="space-y-3 no-print">
+          <div>
+            <h3 className="text-xl font-bold text-slate-950">AO Assignments</h3>
+            <p className="mt-1 text-sm text-slate-600">Select an Account Officer to view the complete tagged portfolio.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {assignmentSummaries.map((officer) => (
+              <Link
+                key={officer.id}
+                href={`/account-tagging?view=tagging&officerId=${officer.id}`}
+                className={`rounded-xl border bg-white p-4 transition hover:border-brand-blue hover:shadow-sm ${selectedOfficer?.id === officer.id ? "border-brand-blue ring-2 ring-blue-100" : "border-slate-200"}`}
+              >
+                <p className="font-bold text-slate-950">{officer.name}</p>
+                <p className="mt-1 text-xs text-slate-500">{officer.email}</p>
+                <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                  <div><p className="text-slate-500">Assignments</p><p className="mt-1 text-lg font-extrabold text-brand-blue">{officer.count.toLocaleString("en-US")}</p></div>
+                  <div><p className="text-slate-500">Balance</p><p className="mt-1 font-extrabold text-red-700">{officer.balance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</p></div>
+                </div>
+              </Link>
+            ))}
+            {!assignmentSummaries.length ? <p className="text-sm font-semibold text-slate-500">No active AO assignments found.</p> : null}
+          </div>
+        </section>
+      ) : null}
+
+      {viewTagging && !selectedOfficer ? null : (
       <AccountTaggingWorkspace
         branches={branches}
         officers={officers}
@@ -377,7 +444,11 @@ export default async function AccountTaggingPage({
         paginatedHref={pageHref(1)}
         canAssign={canAssignRemedial(user.role)}
         reportDate={new Date().toISOString()}
+        currentUserRole={user.role}
+        reportOnly={viewTagging}
+        forceHasFilters={Boolean(selectedOfficer)}
       />
+      )}
     </div>
   );
 }

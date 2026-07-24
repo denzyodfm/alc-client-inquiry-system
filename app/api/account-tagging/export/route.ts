@@ -87,6 +87,8 @@ export async function GET(request: Request) {
   const customerName = searchParams.get("customer")?.trim() || "";
   const selectedStatus = searchParams.get("status")?.trim() || "ALL";
   const resultSearch = searchParams.get("resultSearch")?.trim() || "";
+  const officerId = Number(searchParams.get("officerId"));
+  const effectiveOfficerId = user.role === "ACCOUNT_OFFICER" ? user.id : officerId;
   const accessibleBranchIds = await getAccessibleBranchIds(user);
   const branchAccessFilter: Prisma.LoanWhereInput =
     accessibleBranchIds === null ? {} : accessibleBranchIds.length ? { branchId: { in: accessibleBranchIds } } : { branchId: -1 };
@@ -99,6 +101,9 @@ export async function GET(request: Request) {
   const where: Prisma.LoanWhereInput = {
     AND: [
       branchAccessFilter,
+      Number.isInteger(effectiveOfficerId) && effectiveOfficerId > 0
+        ? { remedialAssignment: { is: { status: "ACTIVE", assignedToId: effectiveOfficerId } } }
+        : {},
       accountTaggingSearchWhere({
         branchId,
         product: selectedProduct,
@@ -160,6 +165,8 @@ export async function GET(request: Request) {
       const province = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.province ?? "-" : "-";
       const municipality = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.municipality ?? "-" : "-";
       const barangay = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.barangay ?? "-" : "-";
+      const clientCondition = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.clientCondition ?? "-" : "-";
+      const conditionApproval = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.conditionApprovalStatus ?? "Not reported" : "Not reported";
       const amounts = loanAmountBreakdown(loan);
       return `<tr>
         <td>${index + 1}</td>
@@ -190,6 +197,8 @@ export async function GET(request: Request) {
         <td>${cell(province)}</td>
         <td>${cell(municipality)}</td>
         <td>${cell(barangay)}</td>
+        <td>${cell(clientCondition)}</td>
+        <td>${cell(conditionApproval)}</td>
         <td>${cell(assignedOfficer)}</td>
       </tr>`;
     })
@@ -260,6 +269,8 @@ export async function GET(request: Request) {
           <th>Province</th>
           <th>City/Municipality</th>
           <th>Barangay</th>
+          <th>Client Condition</th>
+          <th>Condition Approval</th>
           <th>Assigned AO</th>
         </tr>
       </thead>

@@ -211,6 +211,12 @@ model RemedialAssignment {
   province     String?  @db.VarChar(120)
   municipality String? @db.VarChar(120)
   barangay     String?  @db.VarChar(120)
+  clientCondition String? @map("client_condition") @db.VarChar(20)
+  conditionApprovalStatus String? @map("condition_approval_status") @db.VarChar(20)
+  conditionReportedById Int? @map("condition_reported_by_id")
+  conditionApprovedById Int? @map("condition_approved_by_id")
+  conditionReportedAt DateTime? @map("condition_reported_at")
+  conditionApprovedAt DateTime? @map("condition_approved_at")
   assignmentNotes String? @map("assignment_notes") @db.Text
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
