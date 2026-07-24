@@ -42,22 +42,42 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  if (user.role !== "ACCOUNT_OFFICER" || assignment.assignedToId !== user.id) {
-    return NextResponse.json({ error: "Only the assigned Account Officer can report this client condition." }, { status: 403 });
+  const canManage =
+    (user.role === "ACCOUNT_OFFICER" && assignment.assignedToId === user.id) ||
+    user.role === "AREA_TEAM_LEADER" ||
+    user.role === "ADMIN";
+  if (!canManage) {
+    return NextResponse.json({ error: "You cannot update this client condition." }, { status: 403 });
+  }
+
+  if (action === "clear") {
+    await prisma.remedialAssignment.update({
+      where: { id: assignment.id },
+      data: {
+        clientCondition: null,
+        conditionApprovalStatus: null,
+        conditionReportedById: null,
+        conditionReportedAt: null,
+        conditionApprovedById: null,
+        conditionApprovedAt: null
+      }
+    });
+    return NextResponse.json({ ok: true });
   }
   if (!["UNLOCATED", "DORMANT", "RIP"].includes(condition)) {
     return NextResponse.json({ error: "Select Unlocated, Dormant, or RIP." }, { status: 400 });
   }
 
+  const automaticallyApproved = user.role === "AREA_TEAM_LEADER" || user.role === "ADMIN";
   await prisma.remedialAssignment.update({
     where: { id: assignment.id },
     data: {
       clientCondition: condition,
-      conditionApprovalStatus: "PENDING",
+      conditionApprovalStatus: automaticallyApproved ? "APPROVED" : "PENDING",
       conditionReportedById: user.id,
       conditionReportedAt: new Date(),
-      conditionApprovedById: null,
-      conditionApprovedAt: null
+      conditionApprovedById: automaticallyApproved ? user.id : null,
+      conditionApprovedAt: automaticallyApproved ? new Date() : null
     }
   });
   return NextResponse.json({ ok: true });
