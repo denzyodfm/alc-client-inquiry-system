@@ -193,6 +193,7 @@ export default async function AccountTaggingPage({
     payments: number;
     customerIds: Set<number>;
     zones: Set<string>;
+    breakdowns: Map<string, { assignments: number; balance: number; payments: number; customerIds: Set<number> }>;
   }>();
   for (const assignment of assignmentRows) {
     const current = summaryMap.get(assignment.assignedTo.id) ?? {
@@ -201,13 +202,26 @@ export default async function AccountTaggingPage({
       balance: 0,
       payments: 0,
       customerIds: new Set<number>(),
-      zones: new Set<string>()
+      zones: new Set<string>(),
+      breakdowns: new Map()
     };
     current.count += 1;
     current.balance += Number(assignment.loan.balance);
     current.payments += Number(assignment.loan.paidAmount);
     current.customerIds.add(assignment.loan.clientId);
-    if (assignment.zone?.trim()) current.zones.add(assignment.zone.trim());
+    const zone = assignment.zone?.trim() || "Not specified";
+    current.zones.add(zone);
+    const breakdown = current.breakdowns.get(zone) ?? {
+      assignments: 0,
+      balance: 0,
+      payments: 0,
+      customerIds: new Set<number>()
+    };
+    breakdown.assignments += 1;
+    breakdown.balance += Number(assignment.loan.balance);
+    breakdown.payments += Number(assignment.loan.paidAmount);
+    breakdown.customerIds.add(assignment.loan.clientId);
+    current.breakdowns.set(zone, breakdown);
     summaryMap.set(current.id, current);
   }
   const assignmentSummaries = Array.from(summaryMap.values())
@@ -219,19 +233,19 @@ export default async function AccountTaggingPage({
       balance: summary.balance,
       payments: summary.payments,
       customerCount: summary.customerIds.size,
-      zones: Array.from(summary.zones).sort()
+      zones: Array.from(summary.zones).sort(),
+      breakdowns: Array.from(summary.breakdowns.entries())
+        .map(([zone, breakdown]) => ({
+          zone,
+          assignments: breakdown.assignments,
+          customers: breakdown.customerIds.size,
+          balance: breakdown.balance,
+          payments: breakdown.payments
+        }))
+        .sort((a, b) => a.zone.localeCompare(b.zone))
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
   const selectedOfficer = assignmentSummaries.find((officer) => officer.id === requestedOfficerId) ?? null;
-  const assignmentGrandTotals = assignmentSummaries.reduce(
-    (totals, officer) => ({
-      assignments: totals.assignments + officer.count,
-      customers: totals.customers + officer.customerCount,
-      balance: totals.balance + officer.balance,
-      payments: totals.payments + officer.payments
-    }),
-    { assignments: 0, customers: 0, balance: 0, payments: 0 }
-  );
   const hasFilters = Boolean(selectedOfficer) || selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName) || Boolean(resultSearch);
   const printAllResults = params?.print === "all" && hasFilters;
   const where: Prisma.LoanWhereInput = {
@@ -420,7 +434,7 @@ export default async function AccountTaggingPage({
             <h3 className="text-xl font-bold text-slate-950">AO Assignments</h3>
             <p className="mt-1 text-sm text-slate-600">Select an Account Officer to view the complete tagged portfolio.</p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {assignmentSummaries.map((officer) => (
               <Link
                 key={officer.id}
@@ -429,26 +443,28 @@ export default async function AccountTaggingPage({
               >
                 <p className="font-bold text-slate-950">{officer.name}</p>
                 <p className="mt-1 text-xs text-slate-500">{officer.email}</p>
-                <p className="mt-3 text-xs font-semibold text-slate-600">
-                  Assigned zone: <span className="text-slate-950">{officer.zones.length ? officer.zones.join(", ") : "Not specified"}</span>
-                </p>
-                <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
-                  <div><p className="text-slate-500">Customers</p><p className="mt-1 text-lg font-extrabold text-brand-blue">{officer.customerCount.toLocaleString("en-US")}</p></div>
-                  <div><p className="text-slate-500">Assignments</p><p className="mt-1 text-lg font-extrabold text-slate-950">{officer.count.toLocaleString("en-US")}</p></div>
-                  <div><p className="text-slate-500">Balance</p><p className="mt-1 font-extrabold text-red-700">{officer.balance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</p></div>
+                <div className="mt-4 overflow-hidden rounded-lg border border-slate-100">
+                  <div className="grid grid-cols-[1fr_70px_76px_110px] gap-2 bg-slate-50 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    <span>Zone</span><span className="text-right">Customers</span><span className="text-right">Assigned</span><span className="text-right">Balance</span>
+                  </div>
+                  {officer.breakdowns.map((breakdown) => (
+                    <div key={breakdown.zone} className="grid grid-cols-[1fr_70px_76px_110px] gap-2 border-t border-slate-100 px-3 py-2 text-xs">
+                      <span className="font-semibold text-slate-800">{breakdown.zone}</span>
+                      <span className="text-right font-bold text-brand-blue">{breakdown.customers.toLocaleString("en-US")}</span>
+                      <span className="text-right font-bold text-slate-950">{breakdown.assignments.toLocaleString("en-US")}</span>
+                      <span className="text-right font-bold text-red-700">{breakdown.balance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-3 border-t border-slate-200 pt-3 text-xs">
+                  <div><p className="font-semibold uppercase text-slate-500">Total customers</p><p className="mt-1 text-lg font-extrabold text-brand-blue">{officer.customerCount.toLocaleString("en-US")}</p></div>
+                  <div><p className="font-semibold uppercase text-slate-500">Total assigned</p><p className="mt-1 text-lg font-extrabold text-slate-950">{officer.count.toLocaleString("en-US")}</p></div>
+                  <div><p className="font-semibold uppercase text-slate-500">Total balance</p><p className="mt-1 font-extrabold text-red-700">{officer.balance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</p></div>
                 </div>
               </Link>
             ))}
             {!assignmentSummaries.length ? <p className="text-sm font-semibold text-slate-500">No active AO assignments found.</p> : null}
           </div>
-          {assignmentSummaries.length ? (
-            <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 xl:grid-cols-4">
-              <div><p className="text-xs font-semibold uppercase text-slate-500">Total assignments</p><p className="mt-1 text-xl font-extrabold text-slate-950">{assignmentGrandTotals.assignments.toLocaleString("en-US")}</p></div>
-              <div><p className="text-xs font-semibold uppercase text-slate-500">Total customers</p><p className="mt-1 text-xl font-extrabold text-brand-blue">{assignmentGrandTotals.customers.toLocaleString("en-US")}</p></div>
-              <div><p className="text-xs font-semibold uppercase text-slate-500">Total payments</p><p className="mt-1 text-xl font-extrabold text-brand-green">{assignmentGrandTotals.payments.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</p></div>
-              <div><p className="text-xs font-semibold uppercase text-slate-500">Total balance</p><p className="mt-1 text-xl font-extrabold text-red-700">{assignmentGrandTotals.balance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</p></div>
-            </div>
-          ) : null}
         </section>
       ) : null}
 
