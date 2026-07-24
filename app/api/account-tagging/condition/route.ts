@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   });
 
   if (!assignment) return NextResponse.json({ error: "Assignment not found." }, { status: 404 });
-  if (!(await canAccessBranch(user, assignment.branchId))) {
+  if (user.role !== "ACCOUNT_OFFICER" && !(await canAccessBranch(user, assignment.branchId))) {
     return NextResponse.json({ error: "You do not have access to this assignment." }, { status: 403 });
   }
 

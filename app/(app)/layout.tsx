@@ -32,7 +32,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const allowedNav = nav.filter((item) => item.roles.includes(user.role));
+  const allowedNav = nav
+    .filter((item) => item.roles.includes(user.role))
+    .filter((item) =>
+      user.role !== "ACCOUNT_OFFICER" ||
+      ["/inquiry", "/client-logs", "/loans", "/account-tagging"].includes(item.href)
+    )
+    .map((item) =>
+      user.role === "ACCOUNT_OFFICER" && item.href === "/account-tagging"
+        ? { ...item, href: "/account-tagging?view=tagging", label: "Account View" }
+        : item
+    );
 
   return (
     <AppShell user={{ name: user.name, role: user.role }} nav={allowedNav}>

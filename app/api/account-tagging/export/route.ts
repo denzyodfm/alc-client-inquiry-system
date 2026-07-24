@@ -89,7 +89,8 @@ export async function GET(request: Request) {
   const resultSearch = searchParams.get("resultSearch")?.trim() || "";
   const officerId = Number(searchParams.get("officerId"));
   const effectiveOfficerId = user.role === "ACCOUNT_OFFICER" ? user.id : officerId;
-  const accessibleBranchIds = await getAccessibleBranchIds(user);
+  const assignmentZone = searchParams.get("assignmentZone")?.trim() || "";
+  const accessibleBranchIds = user.role === "ACCOUNT_OFFICER" ? null : await getAccessibleBranchIds(user);
   const branchAccessFilter: Prisma.LoanWhereInput =
     accessibleBranchIds === null ? {} : accessibleBranchIds.length ? { branchId: { in: accessibleBranchIds } } : { branchId: -1 };
   const requestedBranchNumber = selectedBranchId === "ALL" ? null : Number(selectedBranchId);
@@ -103,6 +104,9 @@ export async function GET(request: Request) {
       branchAccessFilter,
       Number.isInteger(effectiveOfficerId) && effectiveOfficerId > 0
         ? { remedialAssignment: { is: { status: "ACTIVE", assignedToId: effectiveOfficerId } } }
+        : {},
+      assignmentZone
+        ? { remedialAssignment: { is: { zone: assignmentZone === "Not specified" ? null : assignmentZone } } }
         : {},
       accountTaggingSearchWhere({
         branchId,

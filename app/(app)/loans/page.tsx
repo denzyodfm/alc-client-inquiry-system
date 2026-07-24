@@ -98,6 +98,10 @@ export default async function LoansPage({
       : accountOfficerBranchIds.length
         ? { branchId: { in: accountOfficerBranchIds } }
         : { branchId: -1 };
+  const accountOfficerHoFilter: Prisma.LoanWhereInput =
+    user.role === "ACCOUNT_OFFICER"
+      ? { NOT: { branch: { branchName: { contains: "ALC HO" } } } }
+      : {};
   const requestedBranchNumber = requestedBranchId === "ALL" ? null : Number(requestedBranchId);
   const selectedBranchAllowed =
     requestedBranchNumber === null ||
@@ -123,7 +127,7 @@ export default async function LoansPage({
   };
   const where: Prisma.LoanWhereInput = {
     ...hiddenActiveStatusFilter,
-    AND: [inactiveStatus12Where(), hasLoanDetailsFilter, accountOfficerBranchFilter],
+    AND: [inactiveStatus12Where(), hasLoanDetailsFilter, accountOfficerBranchFilter, accountOfficerHoFilter],
     ...(selectedStatus === "ALL" ? {} : { sourceStatusName: selectedStatus }),
     ...(selectedProduct === "ALL" ? {} : { loanProduct: selectedProduct }),
     ...(selectedBranchId === "ALL" ? {} : { branchId: Number(selectedBranchId) }),
@@ -155,7 +159,10 @@ export default async function LoansPage({
     }),
     prisma.loan.count({ where }),
     prisma.branch.findMany({
-      where: accountOfficerBranchIds === null ? {} : { id: { in: accountOfficerBranchIds } },
+      where: {
+        ...(accountOfficerBranchIds === null ? {} : { id: { in: accountOfficerBranchIds } }),
+        ...(user.role === "ACCOUNT_OFFICER" ? { NOT: { branchName: { contains: "ALC HO" } } } : {})
+      },
       select: { id: true, branchName: true, branchCode: true },
       orderBy: { branchName: "asc" }
     }),
@@ -163,7 +170,7 @@ export default async function LoansPage({
       distinct: ["sourceStatusName"],
       where: {
         ...hiddenActiveStatusFilter,
-        AND: [inactiveStatus12Where(), hasLoanDetailsFilter, accountOfficerBranchFilter],
+        AND: [inactiveStatus12Where(), hasLoanDetailsFilter, accountOfficerBranchFilter, accountOfficerHoFilter],
         sourceStatusName: { not: null, notIn: ["ACTIVE"] },
         sourceStatusCode: { not: 12 }
       },
@@ -174,7 +181,7 @@ export default async function LoansPage({
       distinct: ["loanProduct"],
       where: {
         ...hiddenActiveStatusFilter,
-        AND: [inactiveStatus12Where(), hasLoanDetailsFilter, accountOfficerBranchFilter],
+        AND: [inactiveStatus12Where(), hasLoanDetailsFilter, accountOfficerBranchFilter, accountOfficerHoFilter],
         loanProduct: { not: null }
       },
       select: { loanProduct: true },
@@ -216,7 +223,7 @@ export default async function LoansPage({
     ? await prisma.loan.findMany({
         where: {
           ...hiddenActiveStatusFilter,
-          AND: [inactiveStatus12Where(), hasLoanDetailsFilter, accountOfficerBranchFilter],
+          AND: [inactiveStatus12Where(), hasLoanDetailsFilter, accountOfficerBranchFilter, accountOfficerHoFilter],
           clientId: { in: visibleClientIds }
         },
         orderBy: [{ releasedAt: "desc" }, { updatedAt: "desc" }],

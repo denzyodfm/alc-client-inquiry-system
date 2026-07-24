@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AccountTaggingWorkspace, type AccountTaggingLoanRow } from "@/components/account-tagging-workspace";
 import type { LoanDetailLoan } from "@/components/loan-detail-window";
 import { accountTaggingHref, accountTaggingSearchWhere } from "@/lib/account-tagging";
@@ -146,7 +147,7 @@ function toAccountTaggingRow(loan: AccountTaggingLoan): AccountTaggingLoanRow {
 export default async function AccountTaggingPage({
   searchParams
 }: {
-  searchParams?: Promise<{ branchId?: string; product?: string; address?: string; address2?: string; customer?: string; status?: string; resultSearch?: string; page?: string; print?: string; view?: string; officerId?: string }>;
+  searchParams?: Promise<{ branchId?: string; product?: string; address?: string; address2?: string; customer?: string; status?: string; resultSearch?: string; page?: string; print?: string; view?: string; officerId?: string; assignmentZone?: string }>;
 }) {
   const user = await requireUser(["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
   const params = await searchParams;
@@ -159,9 +160,14 @@ export default async function AccountTaggingPage({
   const resultSearch = params?.resultSearch?.trim() || "";
   const viewTagging = params?.view === "tagging";
   const requestedOfficerId = Number(params?.officerId);
+  const requestedAssignmentZone = params?.assignmentZone?.trim() || "";
+  if (user.role === "ACCOUNT_OFFICER" && !viewTagging) {
+    redirect("/account-tagging?view=tagging");
+  }
   const currentPage = Math.max(1, Number(params?.page ?? 1) || 1);
   const pageSize = 100;
-  const accessibleBranchIds = await getAccessibleBranchIds(user);
+  const accessibleBranchIds =
+    user.role === "ACCOUNT_OFFICER" && viewTagging ? null : await getAccessibleBranchIds(user);
   const branchAccessFilter: Prisma.LoanWhereInput =
     accessibleBranchIds === null ? {} : accessibleBranchIds.length ? { branchId: { in: accessibleBranchIds } } : { branchId: -1 };
   const requestedBranchNumber = requestedBranchId === "ALL" ? null : Number(requestedBranchId);
@@ -175,7 +181,7 @@ export default async function AccountTaggingPage({
         where: {
           status: "ACTIVE",
           ...(user.role === "ACCOUNT_OFFICER" ? { assignedToId: user.id } : {}),
-          ...(accessibleBranchIds === null ? {} : { branchId: { in: accessibleBranchIds } })
+          ...(user.role === "ACCOUNT_OFFICER" || accessibleBranchIds === null ? {} : { branchId: { in: accessibleBranchIds } })
         },
         select: {
           zone: true,
@@ -246,12 +252,19 @@ export default async function AccountTaggingPage({
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
   const selectedOfficer = assignmentSummaries.find((officer) => officer.id === requestedOfficerId) ?? null;
+  const selectedAssignmentZone =
+    selectedOfficer?.breakdowns.some((breakdown) => breakdown.zone === requestedAssignmentZone)
+      ? requestedAssignmentZone
+      : "";
   const hasFilters = Boolean(selectedOfficer) || selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName) || Boolean(resultSearch);
   const printAllResults = params?.print === "all" && hasFilters;
   const where: Prisma.LoanWhereInput = {
     AND: [
       branchAccessFilter,
       selectedOfficer ? { remedialAssignment: { is: { status: "ACTIVE", assignedToId: selectedOfficer.id } } } : {},
+      selectedAssignmentZone
+        ? { remedialAssignment: { is: { zone: selectedAssignmentZone === "Not specified" ? null : selectedAssignmentZone } } }
+        : {},
       accountTaggingSearchWhere({
         branchId: selectedBranchId,
         product: selectedProduct,
@@ -388,7 +401,7 @@ export default async function AccountTaggingPage({
   );
   const withTaggingView = (href: string) => {
     if (!viewTagging) return href;
-    return `${href}${href.includes("?") ? "&" : "?"}view=tagging${selectedOfficer ? `&officerId=${selectedOfficer.id}` : ""}`;
+    return `${href}${href.includes("?") ? "&" : "?"}view=tagging${selectedOfficer ? `&officerId=${selectedOfficer.id}` : ""}${selectedAssignmentZone ? `&assignmentZone=${encodeURIComponent(selectedAssignmentZone)}` : ""}`;
   };
   const pageHref = (page: number) => withTaggingView(accountTaggingHref({ page, branchId: selectedBranchId, product: selectedProduct, address, address2, customerName, loanStatus: selectedStatus, resultSearch }));
   const printBaseHref = withTaggingView(accountTaggingHref({ branchId: selectedBranchId, product: selectedProduct, address, address2, customerName, loanStatus: selectedStatus, resultSearch }));
@@ -404,6 +417,7 @@ export default async function AccountTaggingPage({
   if (selectedStatus !== "ALL") exportParams.set("status", selectedStatus);
   if (resultSearch) exportParams.set("resultSearch", resultSearch);
   if (selectedOfficer) exportParams.set("officerId", String(selectedOfficer.id));
+  if (selectedAssignmentZone) exportParams.set("assignmentZone", selectedAssignmentZone);
   const excelHref = `/api/account-tagging/export${exportParams.toString() ? `?${exportParams.toString()}` : ""}`;
   const visiblePages = Array.from({ length: totalPages }, (_, index) => index + 1)
     .filter((page) => page === 1 || page === totalPages || Math.abs(page - safePage) <= 2);
@@ -418,28 +432,33 @@ export default async function AccountTaggingPage({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
         <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Portfolio assignment</p>
-        <h2 className="mt-2 text-3xl font-bold text-slate-950">Account Tagging</h2>
+        <h2 className="mt-2 text-3xl font-bold text-slate-950">{user.role === "ACCOUNT_OFFICER" ? "Account View" : "Account Tagging"}</h2>
         <p className="mt-2 text-sm font-semibold text-slate-600">
-          Search outstanding loans by address and customer name, then assign matching accounts to an Account Officer.
+          {user.role === "ACCOUNT_OFFICER"
+            ? "View the accounts assigned to you by zone."
+            : "Search outstanding loans by address and customer name, then assign matching accounts to an Account Officer."}
         </p>
         </div>
-        <Link className="btn-secondary no-print" href={viewTagging ? "/account-tagging" : "/account-tagging?view=tagging"}>
+        {user.role !== "ACCOUNT_OFFICER" ? <Link className="btn-secondary no-print" href={viewTagging ? "/account-tagging" : "/account-tagging?view=tagging"}>
           {viewTagging ? "Back to Tagging" : "View Tagging"}
-        </Link>
+        </Link> : null}
       </div>
 
       {viewTagging ? (
         <section className="space-y-3 no-print">
           <div>
-            <h3 className="text-xl font-bold text-slate-950">AO Assignments</h3>
-            <p className="mt-1 text-sm text-slate-600">Select an Account Officer to view the complete tagged portfolio.</p>
+            <h3 className="text-xl font-bold text-slate-950">{user.role === "ACCOUNT_OFFICER" ? "My Assignments" : "AO Assignments"}</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              {user.role === "ACCOUNT_OFFICER"
+                ? "Select a zone to view your assigned accounts."
+                : "Select a zone inside an Account Officer card to view its tagged portfolio."}
+            </p>
           </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {assignmentSummaries.map((officer) => (
-              <Link
+              <div
                 key={officer.id}
-                href={`/account-tagging?view=tagging&officerId=${officer.id}`}
-                className={`rounded-xl border bg-white p-4 transition hover:border-brand-blue hover:shadow-sm ${selectedOfficer?.id === officer.id ? "border-brand-blue ring-2 ring-blue-100" : "border-slate-200"}`}
+                className={`rounded-xl border bg-white p-4 ${selectedOfficer?.id === officer.id ? "border-brand-blue ring-2 ring-blue-100" : "border-slate-200"}`}
               >
                 <p className="font-bold text-slate-950">{officer.name}</p>
                 <p className="mt-1 text-xs text-slate-500">{officer.email}</p>
@@ -448,12 +467,16 @@ export default async function AccountTaggingPage({
                     <span>Zone</span><span className="text-right">Customers</span><span className="text-right">Assigned</span><span className="text-right">Balance</span>
                   </div>
                   {officer.breakdowns.map((breakdown) => (
-                    <div key={breakdown.zone} className="grid grid-cols-[1fr_70px_76px_110px] gap-2 border-t border-slate-100 px-3 py-2 text-xs">
+                    <Link
+                      key={breakdown.zone}
+                      href={`/account-tagging?view=tagging&officerId=${officer.id}&assignmentZone=${encodeURIComponent(breakdown.zone)}`}
+                      className={`grid grid-cols-[1fr_70px_76px_110px] gap-2 border-t border-slate-100 px-3 py-2 text-xs transition hover:bg-blue-50 ${selectedOfficer?.id === officer.id && selectedAssignmentZone === breakdown.zone ? "bg-blue-50 ring-1 ring-inset ring-brand-blue" : ""}`}
+                    >
                       <span className="font-semibold text-slate-800">{breakdown.zone}</span>
                       <span className="text-right font-bold text-brand-blue">{breakdown.customers.toLocaleString("en-US")}</span>
                       <span className="text-right font-bold text-slate-950">{breakdown.assignments.toLocaleString("en-US")}</span>
                       <span className="text-right font-bold text-red-700">{breakdown.balance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</span>
-                    </div>
+                    </Link>
                   ))}
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-3 border-t border-slate-200 pt-3 text-xs">
@@ -461,7 +484,7 @@ export default async function AccountTaggingPage({
                   <div><p className="font-semibold uppercase text-slate-500">Total assigned</p><p className="mt-1 text-lg font-extrabold text-slate-950">{officer.count.toLocaleString("en-US")}</p></div>
                   <div><p className="font-semibold uppercase text-slate-500">Total balance</p><p className="mt-1 font-extrabold text-red-700">{officer.balance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</p></div>
                 </div>
-              </Link>
+              </div>
             ))}
             {!assignmentSummaries.length ? <p className="text-sm font-semibold text-slate-500">No active AO assignments found.</p> : null}
           </div>

@@ -45,7 +45,7 @@ function clientWordSearch(value: string): Prisma.ClientWhereInput {
     : { fullName: { contains: value.trim() } };
 }
 
-export async function searchClientInquiry(payload: InquiryPayload) {
+export async function searchClientInquiry(payload: InquiryPayload, options?: { excludeAlcHo?: boolean }) {
   const visibleLoanFilter = visibleSyncedLoanWhere();
   const or = [];
   if (payload.q?.trim()) {
@@ -83,6 +83,7 @@ export async function searchClientInquiry(payload: InquiryPayload) {
   const clients = await prisma.client.findMany({
     where: {
       OR: or,
+      ...(options?.excludeAlcHo ? { NOT: { branch: { branchName: { contains: "ALC HO" } } } } : {}),
       loans: { some: visibleLoanFilter }
     },
     include: {
