@@ -35,10 +35,21 @@ function branchAccessLabel(user: User, branches: BranchOption[]) {
   return labels.length ? labels.join(", ") : "No branch access";
 }
 
-export function UserManager({ initialUsers, branches }: { initialUsers: User[]; branches: BranchOption[] }) {
+export function UserManager({
+  initialUsers,
+  branches,
+  currentUserRole,
+  canGrantAllBranches
+}: {
+  initialUsers: User[];
+  branches: BranchOption[];
+  currentUserRole: string;
+  canGrantAllBranches: boolean;
+}) {
+  const isAdmin = currentUserRole === "ADMIN";
   const [users, setUsers] = useState(initialUsers);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [allBranches, setAllBranches] = useState(true);
+  const [allBranches, setAllBranches] = useState(canGrantAllBranches);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -63,7 +74,7 @@ export function UserManager({ initialUsers, branches }: { initialUsers: User[]; 
   function cancelEdit() {
     resetMessages();
     setEditingUser(null);
-    setAllBranches(true);
+    setAllBranches(canGrantAllBranches);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -213,15 +224,22 @@ export function UserManager({ initialUsers, branches }: { initialUsers: User[]; 
             placeholder={editingUser ? "Confirm new password" : "Confirm temporary password"}
             required={!editingUser}
           />
-          <select name="role" className="field" defaultValue={editingUser?.role ?? "INQUIRY_USER"}>
-            <option value="ADMIN">Admin</option>
-            <option value="INQUIRY_USER">Inquiry User</option>
-            <option value="AUDITOR">Auditor</option>
-            <option value="ACCOUNT_OFFICER">Account Officer</option>
-            <option value="AREA_TEAM_LEADER">Area Team Leader</option>
-            <option value="CREDIT_COMMITTEE">Credit Committee</option>
-            <option value="HO_CASHIER">HO Cashier</option>
-          </select>
+          {isAdmin ? (
+            <select name="role" className="field" defaultValue={editingUser?.role ?? "INQUIRY_USER"}>
+              <option value="ADMIN">Admin</option>
+              <option value="INQUIRY_USER">Inquiry User</option>
+              <option value="AUDITOR">Auditor</option>
+              <option value="ACCOUNT_OFFICER">Account Officer</option>
+              <option value="AREA_TEAM_LEADER">Area Team Leader</option>
+              <option value="CREDIT_COMMITTEE">Credit Committee</option>
+              <option value="HO_CASHIER">HO Cashier</option>
+            </select>
+          ) : (
+            <>
+              <input type="hidden" name="role" value="ACCOUNT_OFFICER" />
+              <div className="field bg-slate-50 text-slate-700">Account Officer</div>
+            </>
+          )}
           <div className="rounded-lg border border-slate-200 p-3">
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
               <input
@@ -230,6 +248,7 @@ export function UserManager({ initialUsers, branches }: { initialUsers: User[]; 
                 className="h-4 w-4 rounded border-slate-300"
                 checked={allBranches}
                 onChange={(event) => setAllBranches(event.target.checked)}
+                disabled={!canGrantAllBranches}
               />
               Access all branches
             </label>
@@ -311,7 +330,7 @@ export function UserManager({ initialUsers, branches }: { initialUsers: User[]; 
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex flex-wrap justify-end gap-2">
+                    {isAdmin ? <div className="flex flex-nowrap justify-end gap-2">
                       <button type="button" className="btn-secondary h-9 px-3 text-xs" onClick={() => editUser(user)} disabled={loading}>
                         <Pencil className="h-4 w-4" />
                         Edit
@@ -328,7 +347,7 @@ export function UserManager({ initialUsers, branches }: { initialUsers: User[]; 
                         <Trash2 className="h-4 w-4" />
                         Delete
                       </button>
-                    </div>
+                    </div> : <span className="text-xs text-slate-400">View only</span>}
                   </td>
                 </tr>
               ))}

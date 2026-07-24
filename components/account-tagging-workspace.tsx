@@ -50,6 +50,9 @@ export type AccountTaggingLoanRow = {
   assignedOfficer: string | null;
   zone: string | null;
   division: string | null;
+  province: string | null;
+  municipality: string | null;
+  barangay: string | null;
   loanDetail: LoanDetailLoan;
 };
 
@@ -151,7 +154,7 @@ export function AccountTaggingWorkspace({
   const hasFilters = Boolean(selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || address.trim() || address2.trim() || customerName.trim() || resultSearch.trim());
   const selectedBranch = branches.find((branch) => String(branch.id) === selectedBranchId);
   const branchLabel = selectedBranch ? `${selectedBranch.branchName} (${selectedBranch.branchCode})` : "All branches";
-  const tableMinWidth = 1760;
+  const tableMinWidth = 2120;
   const visibleTotals = useMemo(
     () =>
       loans.reduce(
@@ -229,8 +232,11 @@ export function AccountTaggingWorkspace({
     const assignedToId = Number(form.get("assignedToId"));
     const zone = String(form.get("zone") ?? "").trim();
     const division = String(form.get("division") ?? "").trim();
-    if (!assignedToId && !zone && !division) {
-      setError("Choose an Account Officer, Zone, or Division before assigning matching accounts.");
+    const province = String(form.get("province") ?? "").trim();
+    const municipality = String(form.get("municipality") ?? "").trim();
+    const barangay = String(form.get("barangay") ?? "").trim();
+    if (!assignedToId && !zone && !division && !province && !municipality && !barangay) {
+      setError("Provide at least one bulk-assignment field.");
       return;
     }
     if (!hasFilters) {
@@ -249,6 +255,9 @@ export function AccountTaggingWorkspace({
           assignedToId,
           zone,
           division,
+          province,
+          municipality,
+          barangay,
           branchId: selectedBranchId,
           product: selectedProduct,
           address,
@@ -275,9 +284,12 @@ export function AccountTaggingWorkspace({
     const assignedToId = Number(form.get("assignedToId"));
     const zone = String(form.get("zone") ?? "").trim();
     const division = String(form.get("division") ?? "").trim();
+    const province = String(form.get("province") ?? "").trim();
+    const municipality = String(form.get("municipality") ?? "").trim();
+    const barangay = String(form.get("barangay") ?? "").trim();
 
-    if (!assignedToId && !zone && !division) {
-      setError("Choose an Account Officer, Zone, or Division before updating the row.");
+    if (!assignedToId && !zone && !division && !province && !municipality && !barangay) {
+      setError("Provide at least one tagging field to update.");
       return;
     }
 
@@ -292,7 +304,10 @@ export function AccountTaggingWorkspace({
           loanId,
           assignedToId,
           zone,
-          division
+          division,
+          province,
+          municipality,
+          barangay
         })
       });
       const data = await response.json().catch(() => null);
@@ -386,7 +401,7 @@ export function AccountTaggingWorkspace({
       </section>
 
       {canAssign ? (
-        <form onSubmit={assignMatching} className="panel grid gap-4 p-4 no-print lg:grid-cols-[minmax(170px,0.75fr)_minmax(230px,1fr)_minmax(180px,0.8fr)_minmax(180px,0.8fr)_auto]">
+        <form onSubmit={assignMatching} className="panel grid gap-4 p-4 no-print md:grid-cols-2 xl:grid-cols-4">
           <div>
             <p className="text-sm font-bold text-slate-950">Bulk assignment</p>
             <p className="mt-1 text-xs font-semibold text-slate-500">{assignmentSummary}</p>
@@ -411,14 +426,26 @@ export function AccountTaggingWorkspace({
             <span className="mb-2 block text-sm font-semibold text-slate-700">Division</span>
             <input name="division" className="field" placeholder="Enter division" disabled={isPending || !totalLoans || !hasFilters} />
           </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-slate-700">Province</span>
+            <input name="province" className="field" placeholder="Enter province" disabled={isPending || !totalLoans || !hasFilters} />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-slate-700">City/Municipality</span>
+            <input name="municipality" className="field" placeholder="Enter city/municipality" disabled={isPending || !totalLoans || !hasFilters} />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-slate-700">Barangay</span>
+            <input name="barangay" className="field" placeholder="Enter barangay" disabled={isPending || !totalLoans || !hasFilters} />
+          </label>
           <div className="self-end">
             <button className="btn-primary w-full whitespace-nowrap" disabled={isPending || !totalLoans || !hasFilters}>
               <Tag className="h-4 w-4" />
               {isPending ? "Assigning..." : "Assign matching"}
             </button>
           </div>
-          {message ? <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-brand-green lg:col-span-5">{message}</p> : null}
-          {error ? <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 lg:col-span-5">{error}</p> : null}
+          {message ? <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-brand-green md:col-span-2 xl:col-span-4">{message}</p> : null}
+          {error ? <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 md:col-span-2 xl:col-span-4">{error}</p> : null}
         </form>
       ) : null}
 
@@ -527,6 +554,9 @@ export function AccountTaggingWorkspace({
               <col className="w-[112px]" />
               <col className="w-[116px]" />
               <col className="w-[116px]" />
+              <col className="w-[120px]" />
+              <col className="w-[140px]" />
+              <col className="w-[120px]" />
               <col className="w-[196px]" />
             </colgroup>
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -547,6 +577,9 @@ export function AccountTaggingWorkspace({
                 <th className="px-2 py-2">Status</th>
                 <th className="px-2 py-2">Zone</th>
                 <th className="px-2 py-2">Division</th>
+                <th className="px-2 py-2">Province</th>
+                <th className="px-2 py-2">City/Municipality</th>
+                <th className="px-2 py-2">Barangay</th>
                 <th className="px-2 py-2">Assigned AO</th>
               </tr>
             </thead>
@@ -615,6 +648,9 @@ export function AccountTaggingWorkspace({
                       <span className="font-semibold text-slate-700">{loan.division || "-"}</span>
                     )}
                   </td>
+                  <LocationTagCell canAssign={canAssign} formId={`tagging-row-${loan.id}`} name="province" value={loan.province} />
+                  <LocationTagCell canAssign={canAssign} formId={`tagging-row-${loan.id}`} name="municipality" value={loan.municipality} placeholder="City/Municipality" />
+                  <LocationTagCell canAssign={canAssign} formId={`tagging-row-${loan.id}`} name="barangay" value={loan.barangay} />
                   <td className="px-2 py-2">
                     {canAssign ? (
                       <>
@@ -651,7 +687,7 @@ export function AccountTaggingWorkspace({
               ))}
               {!loans.length ? (
                 <tr>
-                  <td className="px-4 py-8 text-sm font-semibold text-slate-500" colSpan={17}>
+                  <td className="px-4 py-8 text-sm font-semibold text-slate-500" colSpan={20}>
                     {hasFilters ? "No matching loans found." : "Use branch, address, or customer filters to load accounts for tagging."}
                   </td>
                 </tr>
@@ -670,7 +706,7 @@ export function AccountTaggingWorkspace({
                   <TotalAmountCell value={visibleTotals.payments} tone="green" />
                   <TotalAmountCell value={visibleTotals.waived} />
                   <TotalAmountCell value={visibleTotals.balance} tone="red" />
-                  <td className="px-2 py-2" colSpan={4} />
+                  <td className="px-2 py-2" colSpan={7} />
                 </tr>
               </tfoot>
             ) : null}
@@ -743,6 +779,34 @@ function AmountCell({ balance, original }: { balance: number; original: number }
     <td className="px-2 py-2 text-right">
       <p className="font-bold text-red-700">{money(balance)}</p>
       <p className="mt-0.5 text-[11px] font-semibold text-slate-500">Orig {money(original)}</p>
+    </td>
+  );
+}
+
+function LocationTagCell({
+  canAssign,
+  formId,
+  name,
+  value,
+  placeholder
+}: {
+  canAssign: boolean;
+  formId: string;
+  name: "province" | "municipality" | "barangay";
+  value: string | null;
+  placeholder?: string;
+}) {
+  const label = placeholder ?? name.charAt(0).toUpperCase() + name.slice(1);
+  return (
+    <td className="px-2 py-2">
+      {canAssign ? (
+        <>
+          <input className="field h-9 text-xs no-print" form={formId} name={name} defaultValue={value ?? ""} placeholder={label} />
+          <span className="print-only font-semibold text-slate-700">{value || "-"}</span>
+        </>
+      ) : (
+        <span className="font-semibold text-slate-700">{value || "-"}</span>
+      )}
     </td>
   );
 }

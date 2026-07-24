@@ -157,6 +157,9 @@ export async function GET(request: Request) {
       const assignedOfficer = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.assignedTo.name : "Unassigned";
       const zone = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.zone ?? "-" : "-";
       const division = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.division ?? "-" : "-";
+      const province = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.province ?? "-" : "-";
+      const municipality = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.municipality ?? "-" : "-";
+      const barangay = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.barangay ?? "-" : "-";
       const amounts = loanAmountBreakdown(loan);
       return `<tr>
         <td>${index + 1}</td>
@@ -184,6 +187,9 @@ export async function GET(request: Request) {
         <td>${cell(statusLabel(loan.sourceStatusCode, loan.sourceStatusName))}</td>
         <td>${cell(zone)}</td>
         <td>${cell(division)}</td>
+        <td>${cell(province)}</td>
+        <td>${cell(municipality)}</td>
+        <td>${cell(barangay)}</td>
         <td>${cell(assignedOfficer)}</td>
       </tr>`;
     })
@@ -251,6 +257,9 @@ export async function GET(request: Request) {
           <th>Status</th>
           <th>Zone</th>
           <th>Division</th>
+          <th>Province</th>
+          <th>City/Municipality</th>
+          <th>Barangay</th>
           <th>Assigned AO</th>
         </tr>
       </thead>

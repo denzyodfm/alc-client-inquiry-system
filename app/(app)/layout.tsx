@@ -24,7 +24,7 @@ const nav: NavConfig[] = [
   { href: "/remedial", label: "Remedial", icon: "MapPinned", roles: ["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
   { href: "/account-tagging", label: "Account Tagging", icon: "Tag", roles: ["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
   { href: "/sync-logs", label: "Sync Logs", icon: "History", roles: ["ADMIN", "AUDITOR"] },
-  { href: "/users", label: "Users", icon: "Users", roles: ["ADMIN"] },
+  { href: "/users", label: "Users", icon: "Users", roles: ["ADMIN", "AREA_TEAM_LEADER"] },
   { href: "/settings", label: "Settings", icon: "Settings", roles: ["ADMIN"] }
 ];
 

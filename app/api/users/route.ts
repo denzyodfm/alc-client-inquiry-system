@@ -2,13 +2,24 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { Prisma, UserRole } from "@prisma/client";
 import { requireApiUser } from "@/lib/api";
+import { getAccessibleBranchIds } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  const { response } = await requireApiUser(["ADMIN"]);
+  const { user: currentUser, response } = await requireApiUser(["ADMIN", "AREA_TEAM_LEADER"]);
   if (response) return response;
+  const accessibleBranchIds = await getAccessibleBranchIds(currentUser!);
+  const isAdmin = currentUser!.role === "ADMIN";
 
   const users = await prisma.user.findMany({
+    where: isAdmin
+      ? undefined
+      : {
+          role: "ACCOUNT_OFFICER",
+          ...(accessibleBranchIds === null
+            ? {}
+            : { allBranches: false, branchAccess: { some: { branchId: { in: accessibleBranchIds } } } })
+        },
     orderBy: { name: "asc" },
     select: {
       id: true,
@@ -36,7 +47,7 @@ function parseBranchIds(value: unknown) {
 }
 
 export async function POST(request: Request) {
-  const { response } = await requireApiUser(["ADMIN"]);
+  const { user: currentUser, response } = await requireApiUser(["ADMIN", "AREA_TEAM_LEADER"]);
   if (response) return response;
 
   const body = await request.json();
@@ -45,7 +56,9 @@ export async function POST(request: Request) {
   const password = String(body.password ?? "");
   const confirmPassword = String(body.confirmPassword ?? "");
   const role = parseRole(body.role);
-  const allBranches = Boolean(body.allBranches);
+  const isAdmin = currentUser!.role === "ADMIN";
+  const accessibleBranchIds = await getAccessibleBranchIds(currentUser!);
+  const allBranches = Boolean(body.allBranches) && (isAdmin || accessibleBranchIds === null);
   const branchIds = allBranches ? [] : parseBranchIds(body.branchIds);
 
   if (!name || !email || !password) {
@@ -59,6 +72,12 @@ export async function POST(request: Request) {
   }
   if (!role) {
     return NextResponse.json({ error: "Invalid role selected." }, { status: 400 });
+  }
+  if (!isAdmin && role !== "ACCOUNT_OFFICER") {
+    return NextResponse.json({ error: "Area Team Leaders can only create Account Officer users." }, { status: 403 });
+  }
+  if (!isAdmin && accessibleBranchIds !== null && branchIds.some((branchId) => !accessibleBranchIds.includes(branchId))) {
+    return NextResponse.json({ error: "You can only grant access to your assigned branches." }, { status: 403 });
   }
 
   try {

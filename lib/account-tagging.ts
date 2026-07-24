@@ -90,6 +90,9 @@ export function accountTaggingSearchWhere(filters: AccountTaggingFilters): Prism
           { branch: { branchCode: { contains: term } } },
           { remedialAssignment: { is: { zone: { contains: term } } } },
           { remedialAssignment: { is: { division: { contains: term } } } },
+          { remedialAssignment: { is: { province: { contains: term } } } },
+          { remedialAssignment: { is: { municipality: { contains: term } } } },
+          { remedialAssignment: { is: { barangay: { contains: term } } } },
           { remedialAssignment: { is: { assignedTo: { name: { contains: term } } } } },
           { remedialAssignment: { is: { assignedTo: { email: { contains: term } } } } }
         ]

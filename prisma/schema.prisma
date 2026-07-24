@@ -208,6 +208,9 @@ model RemedialAssignment {
   status       RemedialAssignmentStatus @default(ACTIVE)
   zone         String?  @db.VarChar(120)
   division     String?  @db.VarChar(120)
+  province     String?  @db.VarChar(120)
+  municipality String? @db.VarChar(120)
+  barangay     String?  @db.VarChar(120)
   assignmentNotes String? @map("assignment_notes") @db.Text
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")

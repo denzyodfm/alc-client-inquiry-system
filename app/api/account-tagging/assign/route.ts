@@ -43,6 +43,9 @@ export async function POST(request: Request) {
   const assignedToId = Number(body.assignedToId);
   const zone = String(body.zone ?? "").trim();
   const division = String(body.division ?? "").trim();
+  const province = String(body.province ?? "").trim();
+  const municipality = String(body.municipality ?? "").trim();
+  const barangay = String(body.barangay ?? "").trim();
 
   if (action === "updateLoan") {
     const loanId = Number(body.loanId);
@@ -50,8 +53,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Loan is required." }, { status: 400 });
     }
     const hasAssignedOfficer = Number.isInteger(assignedToId) && assignedToId > 0;
-    if (!hasAssignedOfficer && !zone && !division) {
-      return NextResponse.json({ error: "Choose an Account Officer, Zone, or Division to update." }, { status: 400 });
+    if (!hasAssignedOfficer && !zone && !division && !province && !municipality && !barangay) {
+      return NextResponse.json({ error: "Provide at least one tagging field to update." }, { status: 400 });
     }
 
     const loan = await prisma.loan.findUnique({
@@ -88,6 +91,9 @@ export async function POST(request: Request) {
         assignedById: user.id,
         ...(zone ? { zone } : {}),
         ...(division ? { division } : {}),
+        ...(province ? { province } : {}),
+        ...(municipality ? { municipality } : {}),
+        ...(barangay ? { barangay } : {}),
         assignmentNotes: "Corrected from Account Tagging."
       },
       update: {
@@ -95,6 +101,9 @@ export async function POST(request: Request) {
         assignedById: user.id,
         ...(zone ? { zone } : {}),
         ...(division ? { division } : {}),
+        ...(province ? { province } : {}),
+        ...(municipality ? { municipality } : {}),
+        ...(barangay ? { barangay } : {}),
         status: "ACTIVE",
         assignmentNotes: "Corrected from Account Tagging."
       }
@@ -113,8 +122,8 @@ export async function POST(request: Request) {
   const hasFilters = branchId !== "ALL" || product !== "ALL" || loanStatus !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName) || Boolean(resultSearch);
 
   const hasAssignedOfficer = Number.isInteger(assignedToId) && assignedToId > 0;
-  if (!hasAssignedOfficer && !zone && !division) {
-    return NextResponse.json({ error: "Choose an Account Officer, Zone, or Division before assigning matching accounts." }, { status: 400 });
+  if (!hasAssignedOfficer && !zone && !division && !province && !municipality && !barangay) {
+    return NextResponse.json({ error: "Provide at least one bulk-assignment field." }, { status: 400 });
   }
   if (!hasFilters) {
     return NextResponse.json({ error: "Please filter by branch, address, or customer before assigning." }, { status: 400 });
@@ -194,6 +203,9 @@ export async function POST(request: Request) {
             assignedById: user.id,
             ...(zone ? { zone } : {}),
             ...(division ? { division } : {}),
+            ...(province ? { province } : {}),
+            ...(municipality ? { municipality } : {}),
+            ...(barangay ? { barangay } : {}),
             assignmentNotes: "Tagged from Account Tagging."
           },
           update: {
@@ -201,6 +213,9 @@ export async function POST(request: Request) {
             assignedById: user.id,
             ...(zone ? { zone } : {}),
             ...(division ? { division } : {}),
+            ...(province ? { province } : {}),
+            ...(municipality ? { municipality } : {}),
+            ...(barangay ? { barangay } : {}),
             status: "ACTIVE",
             assignmentNotes: "Tagged from Account Tagging."
           }

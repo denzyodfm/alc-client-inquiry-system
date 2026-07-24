@@ -132,6 +132,9 @@ function toAccountTaggingRow(loan: AccountTaggingLoan): AccountTaggingLoanRow {
     assignedOfficer: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.assignedTo.name : null,
     zone: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.zone : null,
     division: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.division : null,
+    province: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.province : null,
+    municipality: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.municipality : null,
+    barangay: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.barangay : null,
     loanDetail: toLoanDetail(loan)
   };
 }
