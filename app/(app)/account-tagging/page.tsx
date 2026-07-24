@@ -540,7 +540,6 @@ export default async function AccountTaggingPage({
                   const midpoint = (segment.startAngle + segment.endAngle) / 2;
                   const labelRadius = segment.percentage < 5 ? 205 : 155;
                   const point = piePoint(260, 260, labelRadius, midpoint);
-                  const displayName = segment.name.length > 22 ? `${segment.name.slice(0, 20)}…` : segment.name;
                   return (
                     <text
                       key={`label-${segment.id}`}
@@ -553,8 +552,7 @@ export default async function AccountTaggingPage({
                       fontWeight="700"
                       style={{ paintOrder: "stroke", stroke: "rgba(15,23,42,.55)", strokeWidth: 3, strokeLinejoin: "round" }}
                     >
-                      <tspan x={point.x} dy="-0.35em">{displayName}</tspan>
-                      <tspan x={point.x} dy="1.25em">{segment.percentage.toFixed(1)}%</tspan>
+                      {segment.percentage.toFixed(1)}%
                     </text>
                   );
                 })}
