@@ -178,21 +178,60 @@ export default async function AccountTaggingPage({
           ...(accessibleBranchIds === null ? {} : { branchId: { in: accessibleBranchIds } })
         },
         select: {
+          zone: true,
           assignedTo: { select: { id: true, name: true, email: true } },
-          loan: { select: { balance: true, paidAmount: true } }
+          loan: { select: { clientId: true, balance: true, paidAmount: true } }
         }
       })
     : [];
-  const summaryMap = new Map<number, { id: number; name: string; email: string; count: number; balance: number; payments: number }>();
+  const summaryMap = new Map<number, {
+    id: number;
+    name: string;
+    email: string;
+    count: number;
+    balance: number;
+    payments: number;
+    customerIds: Set<number>;
+    zones: Set<string>;
+  }>();
   for (const assignment of assignmentRows) {
-    const current = summaryMap.get(assignment.assignedTo.id) ?? { ...assignment.assignedTo, count: 0, balance: 0, payments: 0 };
+    const current = summaryMap.get(assignment.assignedTo.id) ?? {
+      ...assignment.assignedTo,
+      count: 0,
+      balance: 0,
+      payments: 0,
+      customerIds: new Set<number>(),
+      zones: new Set<string>()
+    };
     current.count += 1;
     current.balance += Number(assignment.loan.balance);
     current.payments += Number(assignment.loan.paidAmount);
+    current.customerIds.add(assignment.loan.clientId);
+    if (assignment.zone?.trim()) current.zones.add(assignment.zone.trim());
     summaryMap.set(current.id, current);
   }
-  const assignmentSummaries = Array.from(summaryMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  const assignmentSummaries = Array.from(summaryMap.values())
+    .map((summary) => ({
+      id: summary.id,
+      name: summary.name,
+      email: summary.email,
+      count: summary.count,
+      balance: summary.balance,
+      payments: summary.payments,
+      customerCount: summary.customerIds.size,
+      zones: Array.from(summary.zones).sort()
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
   const selectedOfficer = assignmentSummaries.find((officer) => officer.id === requestedOfficerId) ?? null;
+  const assignmentGrandTotals = assignmentSummaries.reduce(
+    (totals, officer) => ({
+      assignments: totals.assignments + officer.count,
+      customers: totals.customers + officer.customerCount,
+      balance: totals.balance + officer.balance,
+      payments: totals.payments + officer.payments
+    }),
+    { assignments: 0, customers: 0, balance: 0, payments: 0 }
+  );
   const hasFilters = Boolean(selectedOfficer) || selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName) || Boolean(resultSearch);
   const printAllResults = params?.print === "all" && hasFilters;
   const where: Prisma.LoanWhereInput = {
@@ -390,14 +429,26 @@ export default async function AccountTaggingPage({
               >
                 <p className="font-bold text-slate-950">{officer.name}</p>
                 <p className="mt-1 text-xs text-slate-500">{officer.email}</p>
-                <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-                  <div><p className="text-slate-500">Assignments</p><p className="mt-1 text-lg font-extrabold text-brand-blue">{officer.count.toLocaleString("en-US")}</p></div>
+                <p className="mt-3 text-xs font-semibold text-slate-600">
+                  Assigned zone: <span className="text-slate-950">{officer.zones.length ? officer.zones.join(", ") : "Not specified"}</span>
+                </p>
+                <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
+                  <div><p className="text-slate-500">Customers</p><p className="mt-1 text-lg font-extrabold text-brand-blue">{officer.customerCount.toLocaleString("en-US")}</p></div>
+                  <div><p className="text-slate-500">Assignments</p><p className="mt-1 text-lg font-extrabold text-slate-950">{officer.count.toLocaleString("en-US")}</p></div>
                   <div><p className="text-slate-500">Balance</p><p className="mt-1 font-extrabold text-red-700">{officer.balance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</p></div>
                 </div>
               </Link>
             ))}
             {!assignmentSummaries.length ? <p className="text-sm font-semibold text-slate-500">No active AO assignments found.</p> : null}
           </div>
+          {assignmentSummaries.length ? (
+            <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div><p className="text-xs font-semibold uppercase text-slate-500">Total assignments</p><p className="mt-1 text-xl font-extrabold text-slate-950">{assignmentGrandTotals.assignments.toLocaleString("en-US")}</p></div>
+              <div><p className="text-xs font-semibold uppercase text-slate-500">Total customers</p><p className="mt-1 text-xl font-extrabold text-brand-blue">{assignmentGrandTotals.customers.toLocaleString("en-US")}</p></div>
+              <div><p className="text-xs font-semibold uppercase text-slate-500">Total payments</p><p className="mt-1 text-xl font-extrabold text-brand-green">{assignmentGrandTotals.payments.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</p></div>
+              <div><p className="text-xs font-semibold uppercase text-slate-500">Total balance</p><p className="mt-1 text-xl font-extrabold text-red-700">{assignmentGrandTotals.balance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</p></div>
+            </div>
+          ) : null}
         </section>
       ) : null}
 

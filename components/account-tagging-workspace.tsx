@@ -433,7 +433,7 @@ export function AccountTaggingWorkspace({
         <PortfolioMetric label="Balance portfolio" value={portfolioTotals.balance} tone="red" />
       </section> : null}
 
-      {canAssign ? (
+      {canAssign && !reportOnly ? (
         <form onSubmit={assignMatching} className="panel grid gap-4 p-4 no-print md:grid-cols-2 xl:grid-cols-4">
           <div>
             <p className="text-sm font-bold text-slate-950">Bulk assignment</p>
