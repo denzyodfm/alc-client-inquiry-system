@@ -147,6 +147,18 @@ function toAccountTaggingRow(loan: AccountTaggingLoan): AccountTaggingLoanRow {
   };
 }
 
+function piePoint(cx: number, cy: number, radius: number, angle: number) {
+  const radians = ((angle - 90) * Math.PI) / 180;
+  return { x: cx + radius * Math.cos(radians), y: cy + radius * Math.sin(radians) };
+}
+
+function piePath(startAngle: number, endAngle: number, radius = 240, center = 260) {
+  const start = piePoint(center, center, radius, endAngle);
+  const end = piePoint(center, center, radius, startAngle);
+  const largeArc = endAngle - startAngle <= 180 ? 0 : 1;
+  return `M ${center} ${center} L ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} 0 ${end.x} ${end.y} Z`;
+}
+
 export default async function AccountTaggingPage({
   searchParams
 }: {
@@ -194,6 +206,22 @@ export default async function AccountTaggingPage({
         }
       })
     : [];
+  const unassignedCount = viewDistribution
+    ? await prisma.loan.count({
+        where: {
+          AND: [
+            branchAccessFilter,
+            accountTaggingSearchWhere({}),
+            {
+              OR: [
+                { remedialAssignment: { is: null } },
+                { remedialAssignment: { is: { status: { not: "ACTIVE" } } } }
+              ]
+            }
+          ]
+        }
+      })
+    : 0;
   const summaryMap = new Map<number, {
     id: number;
     name: string;
@@ -257,23 +285,26 @@ export default async function AccountTaggingPage({
     .sort((a, b) => a.name.localeCompare(b.name));
   const selectedOfficer = assignmentSummaries.find((officer) => officer.id === requestedOfficerId) ?? null;
   const distributionColors = ["#0f766e", "#2563eb", "#7c3aed", "#db2777", "#ea580c", "#ca8a04", "#16a34a", "#0891b2", "#475569", "#dc2626"];
-  const distributionTotal = assignmentSummaries.reduce((sum, officer) => sum + officer.count, 0);
+  const distributionEntries = [
+    ...assignmentSummaries.map((officer) => ({ id: officer.id, name: officer.name, count: officer.count })),
+    ...(unassignedCount ? [{ id: 0, name: "Unassigned", count: unassignedCount }] : [])
+  ];
+  const distributionTotal = distributionEntries.reduce((sum, entry) => sum + entry.count, 0);
   let distributionCursor = 0;
-  const distributionSegments = assignmentSummaries.map((officer, index) => {
+  const distributionSegments = distributionEntries.map((entry, index) => {
     const start = distributionCursor;
-    const size = distributionTotal ? (officer.count / distributionTotal) * 100 : 0;
+    const size = distributionTotal ? (entry.count / distributionTotal) * 100 : 0;
     distributionCursor += size;
     return {
-      ...officer,
-      color: distributionColors[index % distributionColors.length],
+      ...entry,
+      color: entry.id === 0 ? "#94a3b8" : distributionColors[index % distributionColors.length],
       start,
       end: distributionCursor,
-      percentage: distributionTotal ? (officer.count / distributionTotal) * 100 : 0
+      startAngle: start * 3.6,
+      endAngle: distributionCursor * 3.6,
+      percentage: distributionTotal ? (entry.count / distributionTotal) * 100 : 0
     };
   });
-  const distributionGradient = distributionSegments
-    .map((segment) => `${segment.color} ${segment.start}% ${segment.end}%`)
-    .join(", ");
   const selectedAssignmentZone =
     selectedOfficer?.breakdowns.some((breakdown) => breakdown.zone === requestedAssignmentZone)
       ? requestedAssignmentZone
@@ -497,19 +528,40 @@ export default async function AccountTaggingPage({
         <section className="panel p-6">
           <div>
             <h3 className="text-xl font-bold text-slate-950">Account Distribution per Account Officer</h3>
-            <p className="mt-1 text-sm text-slate-600">{distributionTotal.toLocaleString("en-US")} active account assignment(s)</p>
+            <p className="mt-1 text-sm text-slate-600">{distributionTotal.toLocaleString("en-US")} account(s), including unassigned</p>
           </div>
           {distributionTotal ? (
-            <div className="mt-6 grid items-center gap-8 lg:grid-cols-[360px_1fr]">
-              <div className="mx-auto flex h-72 w-72 items-center justify-center rounded-full" style={{ background: `conic-gradient(${distributionGradient})` }}>
-                <div className="flex h-36 w-36 flex-col items-center justify-center rounded-full bg-white shadow-inner">
-                  <span className="text-3xl font-extrabold text-slate-950">{distributionTotal.toLocaleString("en-US")}</span>
-                  <span className="text-xs font-bold uppercase text-slate-500">Accounts</span>
-                </div>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
+            <div className="mt-4 grid items-center gap-4 lg:grid-cols-[minmax(520px,1fr)_340px]">
+              <svg className="mx-auto h-auto w-full max-w-[620px]" viewBox="0 0 520 520" role="img" aria-label="Account distribution per Account Officer">
                 {distributionSegments.map((segment) => (
-                  <div key={segment.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-3">
+                  <path key={segment.id} d={piePath(segment.startAngle, segment.endAngle)} fill={segment.color} stroke="#fff" strokeWidth="2" />
+                ))}
+                {distributionSegments.map((segment) => {
+                  const midpoint = (segment.startAngle + segment.endAngle) / 2;
+                  const labelRadius = segment.percentage < 5 ? 205 : 155;
+                  const point = piePoint(260, 260, labelRadius, midpoint);
+                  const displayName = segment.name.length > 22 ? `${segment.name.slice(0, 20)}…` : segment.name;
+                  return (
+                    <text
+                      key={`label-${segment.id}`}
+                      x={point.x}
+                      y={point.y}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill="white"
+                      fontSize={segment.percentage < 3 ? 9 : segment.percentage < 8 ? 11 : 13}
+                      fontWeight="700"
+                      style={{ paintOrder: "stroke", stroke: "rgba(15,23,42,.55)", strokeWidth: 3, strokeLinejoin: "round" }}
+                    >
+                      <tspan x={point.x} dy="-0.35em">{displayName}</tspan>
+                      <tspan x={point.x} dy="1.25em">{segment.percentage.toFixed(1)}%</tspan>
+                    </text>
+                  );
+                })}
+              </svg>
+              <div className="grid gap-1.5">
+                {distributionSegments.map((segment) => (
+                  <div key={segment.id} className="flex items-center justify-between gap-3 rounded-md border border-slate-100 px-3 py-2">
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: segment.color }} />
                       <span className="truncate text-sm font-semibold text-slate-800">{segment.name}</span>
