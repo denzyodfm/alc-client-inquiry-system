@@ -64,6 +64,30 @@ export async function POST(request: Request) {
   const province = String(body.province ?? "").trim();
   const municipality = String(body.municipality ?? "").trim();
   const barangay = String(body.barangay ?? "").trim();
+  const clientCondition = String(body.clientCondition ?? "").trim().toUpperCase();
+  const hasClientCondition = ["UNLOCATED", "DORMANT", "RIP"].includes(clientCondition);
+  if (clientCondition && !hasClientCondition) {
+    return NextResponse.json({ error: "Invalid customer condition." }, { status: 400 });
+  }
+  const conditionApprovalData = hasClientCondition
+    ? user.role === "ADMIN" || user.role === "AREA_TEAM_LEADER"
+      ? {
+          clientCondition,
+          conditionApprovalStatus: "APPROVED",
+          conditionReportedById: user.id,
+          conditionReportedAt: new Date(),
+          conditionApprovedById: user.id,
+          conditionApprovedAt: new Date()
+        }
+      : {
+          clientCondition,
+          conditionApprovalStatus: "PENDING",
+          conditionReportedById: user.id,
+          conditionReportedAt: new Date(),
+          conditionApprovedById: null,
+          conditionApprovedAt: null
+        }
+    : {};
 
   if (action === "updateLoan") {
     const loanId = Number(body.loanId);
@@ -72,7 +96,7 @@ export async function POST(request: Request) {
     }
     const hasAssignedOfficer = Number.isInteger(assignedToId) && assignedToId > 0;
     const hasAreaTeamLeader = Number.isInteger(areaTeamLeaderId) && areaTeamLeaderId > 0;
-    if (!hasAssignedOfficer && !hasAreaTeamLeader && !zone && !division && !province && !municipality && !barangay) {
+    if (!hasAssignedOfficer && !hasAreaTeamLeader && !zone && !division && !province && !municipality && !barangay && !hasClientCondition) {
       return NextResponse.json({ error: "Provide at least one tagging field to update." }, { status: 400 });
     }
 
@@ -117,6 +141,7 @@ export async function POST(request: Request) {
         ...(province ? { province } : {}),
         ...(municipality ? { municipality } : {}),
         ...(barangay ? { barangay } : {}),
+        ...conditionApprovalData,
         assignmentNotes: "Corrected from Account Tagging."
       },
       update: {
@@ -128,6 +153,7 @@ export async function POST(request: Request) {
         ...(province ? { province } : {}),
         ...(municipality ? { municipality } : {}),
         ...(barangay ? { barangay } : {}),
+        ...conditionApprovalData,
         status: "ACTIVE",
         assignmentNotes: "Corrected from Account Tagging."
       }
@@ -147,7 +173,7 @@ export async function POST(request: Request) {
 
   const hasAssignedOfficer = Number.isInteger(assignedToId) && assignedToId > 0;
   const hasAreaTeamLeader = Number.isInteger(areaTeamLeaderId) && areaTeamLeaderId > 0;
-  if (!hasAssignedOfficer && !hasAreaTeamLeader && !zone && !division && !province && !municipality && !barangay) {
+  if (!hasAssignedOfficer && !hasAreaTeamLeader && !zone && !division && !province && !municipality && !barangay && !hasClientCondition) {
     return NextResponse.json({ error: "Provide at least one bulk-assignment field." }, { status: 400 });
   }
   if (!hasFilters) {
@@ -242,6 +268,7 @@ export async function POST(request: Request) {
             ...(province ? { province } : {}),
             ...(municipality ? { municipality } : {}),
             ...(barangay ? { barangay } : {}),
+            ...conditionApprovalData,
             assignmentNotes: "Tagged from Account Tagging."
           },
           update: {
@@ -253,6 +280,7 @@ export async function POST(request: Request) {
             ...(province ? { province } : {}),
             ...(municipality ? { municipality } : {}),
             ...(barangay ? { barangay } : {}),
+            ...conditionApprovalData,
             status: "ACTIVE",
             assignmentNotes: "Tagged from Account Tagging."
           }

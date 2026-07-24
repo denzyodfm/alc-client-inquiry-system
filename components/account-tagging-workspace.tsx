@@ -249,7 +249,8 @@ export function AccountTaggingWorkspace({
     const province = String(form.get("province") ?? "").trim();
     const municipality = String(form.get("municipality") ?? "").trim();
     const barangay = String(form.get("barangay") ?? "").trim();
-    if (!assignedToId && !areaTeamLeaderId && !zone && !division && !province && !municipality && !barangay) {
+    const clientCondition = String(form.get("clientCondition") ?? "").trim();
+    if (!assignedToId && !areaTeamLeaderId && !zone && !division && !province && !municipality && !barangay && !clientCondition) {
       setError("Provide at least one bulk-assignment field.");
       return;
     }
@@ -273,6 +274,7 @@ export function AccountTaggingWorkspace({
           province,
           municipality,
           barangay,
+          clientCondition,
           branchId: selectedBranchId,
           product: selectedProduct,
           address,
@@ -489,6 +491,15 @@ export function AccountTaggingWorkspace({
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-slate-700">Barangay</span>
             <input name="barangay" className="field" placeholder="Enter barangay" disabled={isPending || !totalLoans || !hasFilters} />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-slate-700">Customer Condition</span>
+            <select name="clientCondition" className="field" disabled={isPending || !totalLoans || !hasFilters}>
+              <option value="">Keep current condition</option>
+              <option value="UNLOCATED">Unlocated</option>
+              <option value="DORMANT">Dormant</option>
+              <option value="RIP">RIP</option>
+            </select>
           </label>
           <div className="self-end">
             <button className="btn-primary w-full whitespace-nowrap" disabled={isPending || !totalLoans || !hasFilters}>
@@ -738,6 +749,7 @@ export function AccountTaggingWorkspace({
                           <select name="condition" className="field h-9 min-w-0 text-xs" defaultValue={loan.clientCondition ?? ""} required>
                             <option value="">Select condition</option>
                             <option value="UNLOCATED">Unlocated</option>
+                            <option value="DORMANT">Dormant</option>
                             <option value="RIP">RIP</option>
                           </select>
                           <button className="btn-secondary h-9 px-2 text-xs" disabled={isPending}>Submit</button>

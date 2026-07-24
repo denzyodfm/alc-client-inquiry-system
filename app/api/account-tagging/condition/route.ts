@@ -45,8 +45,8 @@ export async function POST(request: Request) {
   if (user.role !== "ACCOUNT_OFFICER" || assignment.assignedToId !== user.id) {
     return NextResponse.json({ error: "Only the assigned Account Officer can report this client condition." }, { status: 403 });
   }
-  if (condition !== "UNLOCATED" && condition !== "RIP") {
-    return NextResponse.json({ error: "Select Unlocated or RIP." }, { status: 400 });
+  if (!["UNLOCATED", "DORMANT", "RIP"].includes(condition)) {
+    return NextResponse.json({ error: "Select Unlocated, Dormant, or RIP." }, { status: 400 });
   }
 
   await prisma.remedialAssignment.update({
