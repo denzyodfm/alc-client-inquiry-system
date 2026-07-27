@@ -187,6 +187,9 @@ export async function GET(request: Request) {
         <td>${cell(loan.client.clientId)}</td>
         <td>${cell(loan.client.contactNumber)}</td>
         <td>${cell(loan.client.address)}</td>
+        <td>${cell(province)}</td>
+        <td>${cell(municipality)}</td>
+        <td>${cell(barangay)}</td>
         <td>${cell(loan.branch.branchName)}</td>
         <td>${cell(loan.branch.branchCode)}</td>
         <td>${cell(loan.loanNumber ?? loan.remoteId)}</td>
@@ -208,9 +211,6 @@ export async function GET(request: Request) {
         <td>${cell(statusLabel(loan.sourceStatusCode, loan.sourceStatusName))}</td>
         <td>${cell(zone)}</td>
         <td>${cell(division)}</td>
-        <td>${cell(province)}</td>
-        <td>${cell(municipality)}</td>
-        <td>${cell(barangay)}</td>
         <td>${cell(areaTeamLeader)}</td>
         <td>${cell(clientCondition)}</td>
         <td>${cell(conditionApproval)}</td>
@@ -261,6 +261,9 @@ export async function GET(request: Request) {
           <th>Client ID</th>
           <th>Contact Number</th>
           <th>Address</th>
+          <th>Province</th>
+          <th>City/Municipality</th>
+          <th>Barangay</th>
           <th>Branch</th>
           <th>Branch Code</th>
           <th>Loan Number</th>
@@ -282,9 +285,6 @@ export async function GET(request: Request) {
           <th>Status</th>
           <th>Zone</th>
           <th>Division</th>
-          <th>Province</th>
-          <th>City/Municipality</th>
-          <th>Barangay</th>
           <th>Area TL</th>
           <th>Client Condition</th>
           <th>Condition Approval</th>

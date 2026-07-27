@@ -689,6 +689,9 @@ export function AccountTaggingWorkspace({
                 <th className="px-2 py-2">No.</th>
                 <th className="px-2 py-2">Client</th>
                 <th className="px-2 py-2">Address</th>
+                <th className="px-2 py-2">Province</th>
+                <th className="px-2 py-2">City/Municipality</th>
+                <th className="px-2 py-2">Barangay</th>
                 <th className="px-2 py-2">Branch / Loan</th>
                 <th className="px-2 py-2">Product / Branch AO</th>
                 <th className="px-2 py-2">Maturity</th>
@@ -703,9 +706,6 @@ export function AccountTaggingWorkspace({
                 <th className="px-2 py-2">Status</th>
                 <th className="px-2 py-2">Zone</th>
                 <th className="px-2 py-2">Division</th>
-                <th className="px-2 py-2">Province</th>
-                <th className="px-2 py-2">City/Municipality</th>
-                <th className="px-2 py-2">Barangay</th>
                 <th className="px-2 py-2">Area TL</th>
                 <th className="px-2 py-2">Client Condition</th>
                 {reportOnly ? <th className="px-2 py-2">Approval</th> : null}
@@ -721,6 +721,9 @@ export function AccountTaggingWorkspace({
                     <p className="mt-1 text-[11px] text-slate-500">{[loan.clientId, loan.contactNumber].filter(Boolean).join(" - ") || "-"}</p>
                   </td>
                   <td className="px-2 py-2 text-slate-700">{loan.address || "-"}</td>
+                  <LocationTagCell canAssign={canAssign} formId={`tagging-row-${loan.id}`} name="province" value={loan.province} />
+                  <LocationTagCell canAssign={canAssign} formId={`tagging-row-${loan.id}`} name="municipality" value={loan.municipality} placeholder="City/Municipality" />
+                  <LocationTagCell canAssign={canAssign} formId={`tagging-row-${loan.id}`} name="barangay" value={loan.barangay} />
                   <td className="px-2 py-2">
                     <p className="font-semibold text-slate-700">{loan.branchName}</p>
                     <span className="mt-1 block no-print">
@@ -778,9 +781,6 @@ export function AccountTaggingWorkspace({
                       <span className="font-semibold text-slate-700">{loan.division || "-"}</span>
                     )}
                   </td>
-                  <LocationTagCell canAssign={canAssign} formId={`tagging-row-${loan.id}`} name="province" value={loan.province} />
-                  <LocationTagCell canAssign={canAssign} formId={`tagging-row-${loan.id}`} name="municipality" value={loan.municipality} placeholder="City/Municipality" />
-                  <LocationTagCell canAssign={canAssign} formId={`tagging-row-${loan.id}`} name="barangay" value={loan.barangay} />
                   <td className="px-2 py-2">
                     {canAssign ? (
                       <>
