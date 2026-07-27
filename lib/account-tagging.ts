@@ -11,6 +11,7 @@ export type AccountTaggingFilters = {
   branchAo?: string;
   resultSearch?: string;
   excludeCustomerConditions?: boolean;
+  searched?: boolean;
 };
 
 export function accountTaggingTerms(value?: string) {
@@ -70,7 +71,8 @@ export function accountTaggingSearchWhere(filters: AccountTaggingFilters): Prism
         NOT: [
           { loanNumber: "" },
           { loanProduct: { contains: "employee" } },
-          { sourceStatusName: { contains: "not yet open" } }
+          { sourceStatusName: { contains: "not yet open" } },
+          { sourceStatusName: { contains: "closed" } }
         ]
       },
       branchId ? { branchId: Number(branchId) || -1 } : {},
@@ -128,7 +130,8 @@ export function accountTaggingHref({
   customerName,
   loanStatus,
   branchAo,
-  resultSearch
+  resultSearch,
+  searched
 }: AccountTaggingFilters & { page?: number }) {
   const params = new URLSearchParams();
   if (branchId && branchId !== "ALL") params.set("branchId", branchId);
@@ -139,6 +142,7 @@ export function accountTaggingHref({
   if (loanStatus?.trim() && loanStatus !== "ALL") params.set("status", loanStatus.trim());
   if (branchAo?.trim() && branchAo !== "ALL") params.set("branchAo", branchAo.trim());
   if (resultSearch?.trim()) params.set("resultSearch", resultSearch.trim());
+  if (searched) params.set("searched", "1");
   if (page && page > 1) params.set("page", String(page));
   const query = params.toString();
   return query ? `/account-tagging?${query}` : "/account-tagging";

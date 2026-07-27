@@ -247,7 +247,9 @@ export function AccountTaggingWorkspace({
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    router.push(buildHref(new FormData(event.currentTarget)));
+    const href = new URL(buildHref(new FormData(event.currentTarget)), window.location.origin);
+    href.searchParams.set("searched", "1");
+    router.push(`${href.pathname}?${href.searchParams.toString()}`);
   }
 
   function assignMatching(event: FormEvent<HTMLFormElement>) {

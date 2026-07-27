@@ -179,7 +179,7 @@ function distributionPrincipalBalance(loan: {
 export default async function AccountTaggingPage({
   searchParams
 }: {
-  searchParams?: Promise<{ branchId?: string; product?: string; address?: string; address2?: string; customer?: string; status?: string; branchAo?: string; resultSearch?: string; page?: string; print?: string; view?: string; officerId?: string; assignmentZone?: string }>;
+  searchParams?: Promise<{ branchId?: string; product?: string; address?: string; address2?: string; customer?: string; status?: string; branchAo?: string; resultSearch?: string; page?: string; print?: string; view?: string; officerId?: string; assignmentZone?: string; searched?: string }>;
 }) {
   const user = await requireUser(["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
   const params = await searchParams;
@@ -196,6 +196,7 @@ export default async function AccountTaggingPage({
   const viewProvinceDistribution = params?.view === "province-distribution";
   const requestedOfficerId = Number(params?.officerId);
   const requestedAssignmentZone = params?.assignmentZone?.trim() || "";
+  const searchSubmitted = params?.searched === "1";
   if (user.role === "ACCOUNT_OFFICER" && !viewTagging) {
     redirect("/account-tagging?view=tagging");
   }
@@ -413,7 +414,7 @@ export default async function AccountTaggingPage({
     selectedOfficer?.breakdowns.some((breakdown) => breakdown.zone === requestedAssignmentZone)
       ? requestedAssignmentZone
       : "";
-  const hasFilters = Boolean(selectedOfficer) || selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || selectedBranchAo !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName) || Boolean(resultSearch);
+  const hasFilters = searchSubmitted || Boolean(selectedOfficer) || selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || selectedBranchAo !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName) || Boolean(resultSearch);
   const printAllResults = params?.print === "all" && hasFilters;
   const where: Prisma.LoanWhereInput = {
     AND: [
@@ -605,8 +606,8 @@ export default async function AccountTaggingPage({
     if (!viewTagging) return href;
     return `${href}${href.includes("?") ? "&" : "?"}view=tagging${selectedOfficer ? `&officerId=${selectedOfficer.id}` : ""}${selectedAssignmentZone ? `&assignmentZone=${encodeURIComponent(selectedAssignmentZone)}` : ""}`;
   };
-  const pageHref = (page: number) => withTaggingView(accountTaggingHref({ page, branchId: selectedBranchId, product: selectedProduct, address, address2, customerName, loanStatus: selectedStatus, branchAo: selectedBranchAo, resultSearch }));
-  const printBaseHref = withTaggingView(accountTaggingHref({ branchId: selectedBranchId, product: selectedProduct, address, address2, customerName, loanStatus: selectedStatus, branchAo: selectedBranchAo, resultSearch }));
+  const pageHref = (page: number) => withTaggingView(accountTaggingHref({ page, branchId: selectedBranchId, product: selectedProduct, address, address2, customerName, loanStatus: selectedStatus, branchAo: selectedBranchAo, resultSearch, searched: searchSubmitted }));
+  const printBaseHref = withTaggingView(accountTaggingHref({ branchId: selectedBranchId, product: selectedProduct, address, address2, customerName, loanStatus: selectedStatus, branchAo: selectedBranchAo, resultSearch, searched: searchSubmitted }));
   const printableHref = `${printBaseHref}${
     printBaseHref.includes("?") ? "&" : "?"
   }print=all`;
@@ -874,7 +875,7 @@ export default async function AccountTaggingPage({
         reportDate={new Date().toISOString()}
         currentUserRole={user.role}
         reportOnly={viewTagging}
-        forceHasFilters={Boolean(selectedOfficer)}
+        forceHasFilters={searchSubmitted || Boolean(selectedOfficer)}
       />
       )}
     </div>
