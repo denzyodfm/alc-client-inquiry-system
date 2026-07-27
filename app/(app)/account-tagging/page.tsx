@@ -79,6 +79,7 @@ function loanAmountBreakdown(loan: AccountTaggingLoan) {
   const originalInterest = Number(loan.interestAmount);
   const originalPdi = 0;
   const originalPenalty = Number(loan.penaltyAmount);
+  const otherCharges = Number(loan.otherChargesAmount);
   const totalPayments = Number(loan.paidAmount);
   const totalBalance = Number(loan.balance);
   const schedulePrincipalBalance = loan.amortizationSchedules.reduce(
@@ -94,8 +95,9 @@ function loanAmountBreakdown(loan: AccountTaggingLoan) {
     ? Math.min(scheduleInterestBalance, Math.max(0, totalBalance - principalBalance))
     : Math.min(originalInterest, Math.max(0, totalBalance - principalBalance));
   const pdiBalance = 0;
-  const penaltyBalance = Math.max(0, totalBalance - principalBalance - interestBalance - pdiBalance);
-  const originalTotal = originalPrincipal + originalInterest + originalPdi + originalPenalty;
+  const otherChargesBalance = Math.min(otherCharges, Math.max(0, totalBalance - principalBalance - interestBalance - pdiBalance));
+  const penaltyBalance = Math.max(0, totalBalance - principalBalance - interestBalance - pdiBalance - otherChargesBalance);
+  const originalTotal = originalPrincipal + originalInterest + originalPdi + originalPenalty + otherCharges;
   const waivedAmount = Math.max(0, originalTotal - totalPayments - totalBalance);
 
   return {
@@ -107,6 +109,7 @@ function loanAmountBreakdown(loan: AccountTaggingLoan) {
     interestBalance,
     pdiBalance,
     penaltyBalance,
+    otherCharges: otherChargesBalance,
     totalPayments,
     waivedAmount,
     balance: totalBalance
@@ -176,7 +179,7 @@ function distributionPrincipalBalance(loan: {
 export default async function AccountTaggingPage({
   searchParams
 }: {
-  searchParams?: Promise<{ branchId?: string; product?: string; address?: string; address2?: string; customer?: string; status?: string; resultSearch?: string; page?: string; print?: string; view?: string; officerId?: string; assignmentZone?: string }>;
+  searchParams?: Promise<{ branchId?: string; product?: string; address?: string; address2?: string; customer?: string; status?: string; branchAo?: string; resultSearch?: string; page?: string; print?: string; view?: string; officerId?: string; assignmentZone?: string }>;
 }) {
   const user = await requireUser(["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
   const params = await searchParams;
@@ -186,6 +189,7 @@ export default async function AccountTaggingPage({
   const address2 = params?.address2?.trim() || "";
   const customerName = params?.customer?.trim() || "";
   const selectedStatus = params?.status?.trim() || "ALL";
+  const selectedBranchAo = params?.branchAo?.trim() || "ALL";
   const resultSearch = params?.resultSearch?.trim() || "";
   const viewTagging = params?.view === "tagging";
   const viewDistribution = params?.view === "distribution";
@@ -409,7 +413,7 @@ export default async function AccountTaggingPage({
     selectedOfficer?.breakdowns.some((breakdown) => breakdown.zone === requestedAssignmentZone)
       ? requestedAssignmentZone
       : "";
-  const hasFilters = Boolean(selectedOfficer) || selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName) || Boolean(resultSearch);
+  const hasFilters = Boolean(selectedOfficer) || selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || selectedBranchAo !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName) || Boolean(resultSearch);
   const printAllResults = params?.print === "all" && hasFilters;
   const where: Prisma.LoanWhereInput = {
     AND: [
@@ -425,13 +429,14 @@ export default async function AccountTaggingPage({
         address2,
         customerName,
         loanStatus: selectedStatus,
+        branchAo: selectedBranchAo,
         resultSearch,
         excludeCustomerConditions: !viewTagging
       })
     ]
   };
 
-  const [totalLoans, portfolioLoans, branches, officers, areaTeamLeaders, productOptions, statusOptions] = await Promise.all([
+  const [totalLoans, portfolioLoans, branches, officers, areaTeamLeaders, productOptions, statusOptions, branchAoOptions, savedConditionOptions, configuredConditionOptions] = await Promise.all([
     hasFilters ? prisma.loan.count({ where }) : Promise.resolve(0),
     hasFilters
       ? prisma.loan.findMany({
@@ -508,6 +513,31 @@ export default async function AccountTaggingPage({
       },
       select: { sourceStatusName: true },
       orderBy: { sourceStatusName: "asc" }
+    }),
+    prisma.loan.findMany({
+      distinct: ["branchAo"],
+      where: {
+        AND: [
+          branchAccessFilter,
+          { branchAo: { not: null } },
+          { branchAo: { not: "" } }
+        ]
+      },
+      select: { branchAo: true },
+      orderBy: { branchAo: "asc" }
+    }),
+    prisma.remedialAssignment.findMany({
+      distinct: ["clientCondition"],
+      where: {
+        clientCondition: { not: null },
+        ...(accessibleBranchIds === null ? {} : { branchId: { in: accessibleBranchIds } })
+      },
+      select: { clientCondition: true },
+      orderBy: { clientCondition: "asc" }
+    }),
+    prisma.clientConditionOption.findMany({
+      select: { name: true },
+      orderBy: { name: "asc" }
     })
   ]);
 
@@ -575,8 +605,8 @@ export default async function AccountTaggingPage({
     if (!viewTagging) return href;
     return `${href}${href.includes("?") ? "&" : "?"}view=tagging${selectedOfficer ? `&officerId=${selectedOfficer.id}` : ""}${selectedAssignmentZone ? `&assignmentZone=${encodeURIComponent(selectedAssignmentZone)}` : ""}`;
   };
-  const pageHref = (page: number) => withTaggingView(accountTaggingHref({ page, branchId: selectedBranchId, product: selectedProduct, address, address2, customerName, loanStatus: selectedStatus, resultSearch }));
-  const printBaseHref = withTaggingView(accountTaggingHref({ branchId: selectedBranchId, product: selectedProduct, address, address2, customerName, loanStatus: selectedStatus, resultSearch }));
+  const pageHref = (page: number) => withTaggingView(accountTaggingHref({ page, branchId: selectedBranchId, product: selectedProduct, address, address2, customerName, loanStatus: selectedStatus, branchAo: selectedBranchAo, resultSearch }));
+  const printBaseHref = withTaggingView(accountTaggingHref({ branchId: selectedBranchId, product: selectedProduct, address, address2, customerName, loanStatus: selectedStatus, branchAo: selectedBranchAo, resultSearch }));
   const printableHref = `${printBaseHref}${
     printBaseHref.includes("?") ? "&" : "?"
   }print=all`;
@@ -587,6 +617,7 @@ export default async function AccountTaggingPage({
   if (address2) exportParams.set("address2", address2);
   if (customerName) exportParams.set("customer", customerName);
   if (selectedStatus !== "ALL") exportParams.set("status", selectedStatus);
+  if (selectedBranchAo !== "ALL") exportParams.set("branchAo", selectedBranchAo);
   if (resultSearch) exportParams.set("resultSearch", resultSearch);
   if (selectedOfficer) exportParams.set("officerId", String(selectedOfficer.id));
   if (selectedAssignmentZone) exportParams.set("assignmentZone", selectedAssignmentZone);
@@ -795,10 +826,19 @@ export default async function AccountTaggingPage({
         areaTeamLeaders={areaTeamLeaders}
         products={productOptions.map((option) => option.loanProduct).filter((product): product is string => typeof product === "string" && Boolean(product.trim()))}
         statuses={statusOptions.map((option) => option.sourceStatusName).filter((status): status is string => typeof status === "string" && Boolean(status.trim()))}
+        branchAos={branchAoOptions.map((option) => option.branchAo).filter((branchAo): branchAo is string => typeof branchAo === "string" && Boolean(branchAo.trim()))}
+        conditionOptions={Array.from(new Set([
+          "UNLOCATED",
+          "DORMANT",
+          "RIP",
+          ...configuredConditionOptions.map((option) => option.name),
+          ...savedConditionOptions.map((option) => option.clientCondition).filter((condition): condition is string => Boolean(condition))
+        ]))}
         loans={loans.map(toAccountTaggingRow)}
         selectedBranchId={selectedBranchId}
         selectedProduct={selectedProduct}
         selectedStatus={selectedStatus}
+        selectedBranchAo={selectedBranchAo}
         address={address}
         address2={address2}
         customerName={customerName}

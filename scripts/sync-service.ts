@@ -29,6 +29,7 @@ type BranchLoanRow = {
   interest_rate?: string | number | null;
   interest_amount?: string | number | null;
   penalty_amount?: string | number | null;
+  other_charges_amount?: string | number | null;
   terms?: string | null;
   paid_amount?: string | number | null;
   balance?: string | number | null;
@@ -109,8 +110,8 @@ function asNumber(value?: string | number | null) {
   return Number.isFinite(number) ? number : 0;
 }
 
-function loanBalance(principalAmount: number, interestAmount: number, penaltyAmount: number, paidAmount: number) {
-  return Math.max(0, principalAmount + interestAmount + penaltyAmount - paidAmount);
+function loanBalance(principalAmount: number, interestAmount: number, penaltyAmount: number, otherChargesAmount: number, paidAmount: number) {
+  return Math.max(0, principalAmount + interestAmount + penaltyAmount + otherChargesAmount - paidAmount);
 }
 
 function amortizationPaidTotal(schedule: { paidPrincipal: unknown; paidInterest: unknown }) {
@@ -431,6 +432,17 @@ async function fetchBranchRows<T>(connection: ConnectionPool, table: BranchTable
     ],
     "branch_ao"
   );
+  const otherChargesColumn = firstExistingColumn(loanColumns, [
+    "other_charges",
+    "other_charge",
+    "other_charges_amount",
+    "other_charge_amount",
+    "oth_charges",
+    "oth_charge"
+  ]);
+  const otherChargesExpression = otherChargesColumn
+    ? `COALESCE(loan.${bracketColumn(otherChargesColumn)}, 0) AS other_charges_amount`
+    : "CAST(0 AS DECIMAL(14, 2)) AS other_charges_amount";
   const loanProductCandidates = [
     "loan_product",
     "product",
@@ -495,11 +507,13 @@ async function fetchBranchRows<T>(connection: ConnectionPool, table: BranchTable
         COALESCE(NULLIF(loan.int_rate, 0), loan.int_adj, 0) AS interest_rate,
         COALESCE(loan.interest, loan.adj_interest, 0) AS interest_amount,
         COALESCE(loan.penalty, 0) AS penalty_amount,
+        ${otherChargesExpression},
         NULLIF(LTRIM(RTRIM(loan.term)), '') AS terms,
         COALESCE(payments.paid_amount, 0) AS paid_amount,
         COALESCE(NULLIF(loan.principal, 0), NULLIF(loan.[principal_1st], 0), loan.net_amt, 0)
           + COALESCE(loan.interest, loan.adj_interest, 0)
           + COALESCE(loan.penalty, 0)
+          + ${otherChargesColumn ? `COALESCE(loan.${bracketColumn(otherChargesColumn)}, 0)` : "0"}
           - COALESCE(payments.paid_amount, 0) AS balance,
         COALESCE(NULLIF(loan.p_loan_status, 0), loan.loan_status) AS status,
         COALESCE(NULLIF(loan.p_loan_status, 0), loan.loan_status) AS source_status_code,
@@ -824,10 +838,11 @@ export async function syncBranch(branch: Branch): Promise<BranchSyncResult> {
       const interestRate = asNumber(row.interest_rate);
       const interestAmount = asNumber(row.interest_amount);
       const penaltyAmount = asNumber(row.penalty_amount);
+      const otherChargesAmount = asNumber(row.other_charges_amount);
       const paidAmount = asNumber(row.paid_amount);
       const sourceStatusCode = row.source_status_code === null || row.source_status_code === undefined ? null : Number(row.source_status_code);
       const normalizedStatusCode = Number.isFinite(sourceStatusCode) ? sourceStatusCode : null;
-      const balance = normalizedStatusCode === 10 || normalizedStatusCode === 12 ? 0 : loanBalance(principalAmount, interestAmount, penaltyAmount, paidAmount);
+      const balance = normalizedStatusCode === 10 || normalizedStatusCode === 12 ? 0 : loanBalance(principalAmount, interestAmount, penaltyAmount, otherChargesAmount, paidAmount);
       const sourceStatusName = row.source_status_name ?? null;
 
       const loan = await prisma.loan.upsert({
@@ -843,6 +858,7 @@ export async function syncBranch(branch: Branch): Promise<BranchSyncResult> {
           interestRate,
           interestAmount,
           penaltyAmount,
+          otherChargesAmount,
           terms: row.terms ?? null,
           paidAmount,
           balance,
@@ -862,6 +878,7 @@ export async function syncBranch(branch: Branch): Promise<BranchSyncResult> {
           interestRate,
           interestAmount,
           penaltyAmount,
+          otherChargesAmount,
           terms: row.terms ?? null,
           paidAmount,
           balance,

@@ -65,9 +65,9 @@ export async function POST(request: Request) {
   const municipality = String(body.municipality ?? "").trim();
   const barangay = String(body.barangay ?? "").trim();
   const clientCondition = String(body.clientCondition ?? "").trim().toUpperCase();
-  const hasClientCondition = ["UNLOCATED", "DORMANT", "RIP"].includes(clientCondition);
-  if (clientCondition && !hasClientCondition) {
-    return NextResponse.json({ error: "Invalid customer condition." }, { status: 400 });
+  const hasClientCondition = Boolean(clientCondition);
+  if (clientCondition.length > 20 || /[\u0000-\u001f\u007f]/.test(clientCondition)) {
+    return NextResponse.json({ error: "Customer condition must be 20 characters or fewer." }, { status: 400 });
   }
   const conditionApprovalData = hasClientCondition
     ? user.role === "ADMIN" || user.role === "AREA_TEAM_LEADER"
@@ -168,8 +168,9 @@ export async function POST(request: Request) {
   const address2 = String(body.address2 ?? "").trim();
   const customerName = String(body.customerName ?? "").trim();
   const loanStatus = String(body.loanStatus ?? "ALL").trim() || "ALL";
+  const branchAo = String(body.branchAo ?? "ALL").trim() || "ALL";
   const resultSearch = String(body.resultSearch ?? "").trim();
-  const hasFilters = branchId !== "ALL" || product !== "ALL" || loanStatus !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName) || Boolean(resultSearch);
+  const hasFilters = branchId !== "ALL" || product !== "ALL" || loanStatus !== "ALL" || branchAo !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName) || Boolean(resultSearch);
 
   const hasAssignedOfficer = Number.isInteger(assignedToId) && assignedToId > 0;
   const hasAreaTeamLeader = Number.isInteger(areaTeamLeaderId) && areaTeamLeaderId > 0;
@@ -196,6 +197,7 @@ export async function POST(request: Request) {
         address2,
         customerName,
         loanStatus,
+        branchAo,
         resultSearch,
         excludeCustomerConditions: true
       })

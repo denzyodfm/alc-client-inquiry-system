@@ -161,6 +161,7 @@ model Loan {
   interestRate    Decimal    @default(0) @map("interest_rate") @db.Decimal(8, 4)
   interestAmount  Decimal    @default(0) @map("interest_amount") @db.Decimal(14, 2)
   penaltyAmount   Decimal    @default(0) @map("penalty_amount") @db.Decimal(14, 2)
+  otherChargesAmount Decimal @default(0) @map("other_charges_amount") @db.Decimal(14, 2)
   terms           String?    @db.VarChar(40)
   paidAmount      Decimal    @default(0) @map("paid_amount") @db.Decimal(14, 2)
   balance         Decimal    @default(0) @db.Decimal(14, 2)
@@ -185,6 +186,14 @@ model Loan {
   @@index([loanNumber])
   @@index([loanProduct])
   @@map("loans")
+}
+
+model ClientConditionOption {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(20)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("client_condition_options")
 }
 
 model UserBranchAccess {

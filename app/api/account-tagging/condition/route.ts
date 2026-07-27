@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   const body = await request.json();
   const assignmentId = Number(body.assignmentId);
   const action = String(body.action ?? "report");
-  const condition = String(body.condition ?? "").toUpperCase();
+  const condition = String(body.condition ?? "").trim().toUpperCase();
   const assignment = await prisma.remedialAssignment.findUnique({
     where: { id: assignmentId },
     select: { id: true, branchId: true, assignedToId: true, conditionApprovalStatus: true }
@@ -64,8 +64,8 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ ok: true });
   }
-  if (!["UNLOCATED", "DORMANT", "RIP"].includes(condition)) {
-    return NextResponse.json({ error: "Select Unlocated, Dormant, or RIP." }, { status: 400 });
+  if (!condition || condition.length > 20 || /[\u0000-\u001f\u007f]/.test(condition)) {
+    return NextResponse.json({ error: "Enter a client condition using 20 characters or fewer." }, { status: 400 });
   }
 
   const automaticallyApproved = user.role === "AREA_TEAM_LEADER" || user.role === "ADMIN";

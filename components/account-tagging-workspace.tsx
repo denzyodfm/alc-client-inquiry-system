@@ -43,6 +43,7 @@ export type AccountTaggingLoanRow = {
   interestBalance: number;
   pdiBalance: number;
   penaltyBalance: number;
+  otherCharges?: number;
   totalPayments: number;
   waivedAmount: number;
   balance: number;
@@ -73,10 +74,13 @@ type AccountTaggingWorkspaceProps = {
   areaTeamLeaders: OfficerOption[];
   products: string[];
   statuses: string[];
+  branchAos: string[];
+  conditionOptions: string[];
   loans: AccountTaggingLoanRow[];
   selectedBranchId: string;
   selectedProduct: string;
   selectedStatus: string;
+  selectedBranchAo: string;
   address: string;
   address2: string;
   customerName: string;
@@ -121,10 +125,13 @@ export function AccountTaggingWorkspace({
   areaTeamLeaders,
   products,
   statuses,
+  branchAos,
+  conditionOptions,
   loans,
   selectedBranchId,
   selectedProduct,
   selectedStatus,
+  selectedBranchAo,
   address,
   address2,
   customerName,
@@ -157,6 +164,7 @@ export function AccountTaggingWorkspace({
   const [address2Query, setAddress2Query] = useState(address2);
   const [customerQuery, setCustomerQuery] = useState(customerName);
   const [resultSearchQuery, setResultSearchQuery] = useState(resultSearch);
+  const [conditionEntry, setConditionEntry] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -164,7 +172,7 @@ export function AccountTaggingWorkspace({
   const topScrollRef = useRef<HTMLDivElement | null>(null);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const syncingScroll = useRef(false);
-  const hasFilters = forceHasFilters || Boolean(selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || address.trim() || address2.trim() || customerName.trim() || resultSearch.trim());
+  const hasFilters = forceHasFilters || Boolean(selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || selectedBranchAo !== "ALL" || address.trim() || address2.trim() || customerName.trim() || resultSearch.trim());
   const selectedBranch = branches.find((branch) => String(branch.id) === selectedBranchId);
   const branchLabel = selectedBranch ? `${selectedBranch.branchName} (${selectedBranch.branchCode})` : "All branches";
   const tableMinWidth = reportOnly ? 2580 : 2300;
@@ -176,11 +184,12 @@ export function AccountTaggingWorkspace({
           interest: totals.interest + loan.interestBalance,
           pdi: totals.pdi + loan.pdiBalance,
           penalty: totals.penalty + loan.penaltyBalance,
+          otherCharges: totals.otherCharges + (loan.otherCharges ?? 0),
           payments: totals.payments + loan.totalPayments,
           waived: totals.waived + loan.waivedAmount,
           balance: totals.balance + loan.balance
         }),
-        { principal: 0, interest: 0, pdi: 0, penalty: 0, payments: 0, waived: 0, balance: 0 }
+        { principal: 0, interest: 0, pdi: 0, penalty: 0, otherCharges: 0, payments: 0, waived: 0, balance: 0 }
       ),
     [loans]
   );
@@ -191,6 +200,7 @@ export function AccountTaggingWorkspace({
       const branchId = String(formData?.get("branchId") ?? selectedBranchId);
       const product = String(formData?.get("product") ?? selectedProduct);
       const status = String(formData?.get("status") ?? selectedStatus);
+      const branchAo = String(formData?.get("branchAo") ?? selectedBranchAo);
       const normalizedAddress = nextAddress.trim();
       const normalizedAddress2 = nextAddress2.trim();
       const normalizedCustomer = nextCustomer.trim();
@@ -201,6 +211,7 @@ export function AccountTaggingWorkspace({
       branchId === "ALL" ? params.delete("branchId") : params.set("branchId", branchId);
       product === "ALL" ? params.delete("product") : params.set("product", product);
       status === "ALL" ? params.delete("status") : params.set("status", status);
+      branchAo === "ALL" ? params.delete("branchAo") : params.set("branchAo", branchAo);
       normalizedAddress ? params.set("address", normalizedAddress) : params.delete("address");
       normalizedAddress2 ? params.set("address2", normalizedAddress2) : params.delete("address2");
       normalizedCustomer ? params.set("customer", normalizedCustomer) : params.delete("customer");
@@ -209,7 +220,7 @@ export function AccountTaggingWorkspace({
       const query = params.toString();
       return query ? `${pathname}?${query}` : pathname;
     },
-    [address2Query, addressQuery, customerQuery, pathname, resultSearchQuery, searchParams, selectedBranchId, selectedProduct, selectedStatus]
+    [address2Query, addressQuery, customerQuery, pathname, resultSearchQuery, searchParams, selectedBranchAo, selectedBranchId, selectedProduct, selectedStatus]
   );
 
   useEffect(() => {
@@ -281,6 +292,7 @@ export function AccountTaggingWorkspace({
           address2,
           customerName,
           loanStatus: selectedStatus,
+          branchAo: selectedBranchAo,
           resultSearch
         })
       });
@@ -363,6 +375,31 @@ export function AccountTaggingWorkspace({
     });
   }
 
+  function addConditionOption() {
+    const name = conditionEntry.trim();
+    if (!name) {
+      setError("Enter a customer condition to add.");
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    startTransition(async () => {
+      const response = await fetch("/api/account-tagging/condition-options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name })
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        setError(data?.error ?? "Unable to add the customer condition.");
+        return;
+      }
+      setConditionEntry("");
+      setMessage(`${data.name} added to the customer-condition list. It has not been assigned to any loans.`);
+      router.refresh();
+    });
+  }
+
   function syncHorizontalScroll(source: "top" | "table") {
     if (syncingScroll.current) return;
     const top = topScrollRef.current;
@@ -382,7 +419,7 @@ export function AccountTaggingWorkspace({
 
   return (
     <div className="space-y-4">
-      {!reportOnly ? <form onSubmit={submitSearch} className="panel grid gap-3 p-4 no-print lg:grid-cols-[1fr_1fr_1fr_1.2fr_1.2fr_auto_auto]">
+      {!reportOnly ? <form onSubmit={submitSearch} className="panel grid gap-3 p-4 no-print md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
         <label className="block">
           <span className="mb-2 block text-sm font-semibold text-slate-700">Branch</span>
           <select name="branchId" className="field" defaultValue={selectedBranchId}>
@@ -409,6 +446,15 @@ export function AccountTaggingWorkspace({
             <option value="ALL">All statuses</option>
             {statuses.map((status) => (
               <option key={status} value={status}>{status}</option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-2 block text-sm font-semibold text-slate-700">Branch AO</span>
+          <select name="branchAo" className="field" defaultValue={selectedBranchAo}>
+            <option value="ALL">All Branch AOs</option>
+            {branchAos.map((branchAo) => (
+              <option key={branchAo} value={branchAo}>{branchAo}</option>
             ))}
           </select>
         </label>
@@ -451,9 +497,9 @@ export function AccountTaggingWorkspace({
             <p className="mt-2 text-[11px] font-semibold text-slate-500">Blank fields keep their current values.</p>
           </div>
           <label className="block">
-            <span className="mb-2 block text-sm font-semibold text-slate-700">Account Officer</span>
+            <span className="mb-2 block text-sm font-semibold text-slate-700">Branch AO</span>
             <select name="assignedToId" className="field" disabled={!officers.length || isPending}>
-              <option value="">Select Account Officer</option>
+              <option value="">Select Branch AO</option>
               {officers.map((officer) => (
                 <option key={officer.id} value={officer.id}>
                   {officer.name} - {officer.email}
@@ -492,14 +538,24 @@ export function AccountTaggingWorkspace({
             <span className="mb-2 block text-sm font-semibold text-slate-700">Barangay</span>
             <input name="barangay" className="field" placeholder="Enter barangay" disabled={isPending || !totalLoans || !hasFilters} />
           </label>
-          <label className="block">
+          <label className="block xl:col-span-2">
             <span className="mb-2 block text-sm font-semibold text-slate-700">Customer Condition</span>
-            <select name="clientCondition" className="field" disabled={isPending || !totalLoans || !hasFilters}>
-              <option value="">Keep current condition</option>
-              <option value="UNLOCATED">Unlocated</option>
-              <option value="DORMANT">Dormant</option>
-              <option value="RIP">RIP</option>
-            </select>
+            <span className="flex gap-2">
+              <input
+                name="clientCondition"
+                className="field"
+                list="client-condition-options"
+                maxLength={20}
+                value={conditionEntry}
+                onChange={(event) => setConditionEntry(event.target.value)}
+                placeholder="Select or type a new condition"
+                disabled={isPending}
+              />
+              <button type="button" className="btn-secondary whitespace-nowrap px-3" onClick={addConditionOption} disabled={isPending || !conditionEntry.trim()}>
+                Add condition
+              </button>
+            </span>
+            <span className="mt-1 block text-[11px] text-slate-500">Add saves it to the list; Assign matching applies it to the filtered loans.</span>
           </label>
           <div className="self-end">
             <button className="btn-primary w-full whitespace-nowrap" disabled={isPending || !totalLoans || !hasFilters}>
@@ -512,6 +568,9 @@ export function AccountTaggingWorkspace({
         </form>
       ) : null}
 
+      <datalist id="client-condition-options">
+        {conditionOptions.map((condition) => <option key={condition} value={condition} />)}
+      </datalist>
       <section className="panel overflow-hidden print-area">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
           <div>
@@ -637,6 +696,7 @@ export function AccountTaggingWorkspace({
                 <th className="px-2 py-2 text-right">Interest</th>
                 <th className="px-2 py-2 text-right">PDI</th>
                 <th className="px-2 py-2 text-right">Penalty</th>
+                <th className="px-2 py-2 text-right">Other Charges</th>
                 <th className="px-2 py-2 text-right">Payments</th>
                 <th className="px-2 py-2 text-right">Waived</th>
                 <th className="px-2 py-2 text-right">Balance</th>
@@ -647,7 +707,7 @@ export function AccountTaggingWorkspace({
                 <th className="px-2 py-2">City/Municipality</th>
                 <th className="px-2 py-2">Barangay</th>
                 <th className="px-2 py-2">Area TL</th>
-                {reportOnly ? <th className="px-2 py-2">Client Condition</th> : null}
+                <th className="px-2 py-2">Client Condition</th>
                 {reportOnly ? <th className="px-2 py-2">Approval</th> : null}
                 <th className="px-2 py-2">Assigned AO</th>
               </tr>
@@ -677,6 +737,7 @@ export function AccountTaggingWorkspace({
                   <AmountCell balance={loan.interestBalance} original={loan.originalInterest} />
                   <AmountCell balance={loan.pdiBalance} original={loan.originalPdi} />
                   <AmountCell balance={loan.penaltyBalance} original={loan.originalPenalty} />
+                  <td className="px-2 py-2 text-right font-bold text-red-700">{money(loan.otherCharges ?? 0)}</td>
                   <td className="px-2 py-2 text-right font-semibold text-brand-green">{money(loan.totalPayments)}</td>
                   <td className="px-2 py-2 text-right font-semibold">{money(loan.waivedAmount)}</td>
                   <td className="px-2 py-2 text-right font-bold text-red-700">{money(loan.balance)}</td>
@@ -740,26 +801,27 @@ export function AccountTaggingWorkspace({
                       <span className="font-semibold text-slate-700">{loan.areaTeamLeader || "Unassigned"}</span>
                     )}
                   </td>
-                  {reportOnly ? (
-                    <td className="px-2 py-2">
+                  <td className="px-2 py-2">
                       {currentUserRole === "ACCOUNT_OFFICER" && loan.assignmentId ? (
                         <form onSubmit={updateClientCondition} className="flex gap-2 no-print">
                           <input type="hidden" name="assignmentId" value={loan.assignmentId} />
                           <input type="hidden" name="action" value="report" />
-                          <select name="condition" className="field h-9 min-w-0 text-xs" defaultValue={loan.clientCondition ?? ""} required>
-                            <option value="">Select condition</option>
-                            <option value="UNLOCATED">Unlocated</option>
-                            <option value="DORMANT">Dormant</option>
-                            <option value="RIP">RIP</option>
-                          </select>
+                          <input
+                            name="condition"
+                            className="field h-9 min-w-0 text-xs"
+                            list="client-condition-options"
+                            maxLength={20}
+                            defaultValue={loan.clientCondition ?? ""}
+                            placeholder="Select or enter"
+                            required
+                          />
                           <button className="btn-secondary h-9 px-2 text-xs" disabled={isPending}>Submit</button>
                         </form>
                       ) : (
                         <span className="font-semibold text-slate-700">{loan.clientCondition === "UNLOCATED" ? "Unlocated" : loan.clientCondition || "-"}</span>
                       )}
                       <span className="print-only font-semibold text-slate-700">{loan.clientCondition === "UNLOCATED" ? "Unlocated" : loan.clientCondition || "-"}</span>
-                    </td>
-                  ) : null}
+                  </td>
                   {reportOnly ? (
                     <td className="px-2 py-2">
                       {loan.conditionApprovalStatus === "PENDING" && (currentUserRole === "AREA_TEAM_LEADER" || currentUserRole === "ADMIN") && loan.assignmentId ? (
@@ -811,7 +873,7 @@ export function AccountTaggingWorkspace({
               ))}
               {!loans.length ? (
                 <tr>
-                  <td className="px-4 py-8 text-sm font-semibold text-slate-500" colSpan={reportOnly ? 23 : 21}>
+                  <td className="px-4 py-8 text-sm font-semibold text-slate-500" colSpan={reportOnly ? 24 : 23}>
                     {hasFilters ? "No matching loans found." : "Use branch, address, or customer filters to load accounts for tagging."}
                   </td>
                 </tr>
@@ -827,10 +889,11 @@ export function AccountTaggingWorkspace({
                   <TotalAmountCell value={visibleTotals.interest} tone="red" />
                   <TotalAmountCell value={visibleTotals.pdi} tone="red" />
                   <TotalAmountCell value={visibleTotals.penalty} tone="red" />
+                  <TotalAmountCell value={visibleTotals.otherCharges} tone="red" />
                   <TotalAmountCell value={visibleTotals.payments} tone="green" />
                   <TotalAmountCell value={visibleTotals.waived} />
                   <TotalAmountCell value={visibleTotals.balance} tone="red" />
-                  <td className="px-2 py-2" colSpan={reportOnly ? 10 : 8} />
+                  <td className="px-2 py-2" colSpan={reportOnly ? 10 : 9} />
                 </tr>
               </tfoot>
             ) : null}

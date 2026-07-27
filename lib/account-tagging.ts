@@ -8,6 +8,7 @@ export type AccountTaggingFilters = {
   address2?: string;
   customerName?: string;
   loanStatus?: string;
+  branchAo?: string;
   resultSearch?: string;
   excludeCustomerConditions?: boolean;
 };
@@ -56,6 +57,7 @@ export function accountTaggingSearchWhere(filters: AccountTaggingFilters): Prism
   const branchId = filters.branchId === "ALL" ? "" : String(filters.branchId ?? "").trim();
   const product = filters.product === "ALL" ? "" : String(filters.product ?? "").trim();
   const loanStatus = filters.loanStatus === "ALL" ? "" : String(filters.loanStatus ?? "").trim();
+  const branchAo = filters.branchAo === "ALL" ? "" : String(filters.branchAo ?? "").trim();
 
   return {
     AND: [
@@ -73,6 +75,7 @@ export function accountTaggingSearchWhere(filters: AccountTaggingFilters): Prism
       branchId ? { branchId: Number(branchId) || -1 } : {},
       product ? { loanProduct: product } : {},
       loanStatus ? { sourceStatusName: loanStatus } : {},
+      branchAo ? { branchAo } : {},
       filters.excludeCustomerConditions
         ? {
             OR: [
@@ -124,6 +127,7 @@ export function accountTaggingHref({
   address2,
   customerName,
   loanStatus,
+  branchAo,
   resultSearch
 }: AccountTaggingFilters & { page?: number }) {
   const params = new URLSearchParams();
@@ -133,6 +137,7 @@ export function accountTaggingHref({
   if (address2?.trim()) params.set("address2", address2.trim());
   if (customerName?.trim()) params.set("customer", customerName.trim());
   if (loanStatus?.trim() && loanStatus !== "ALL") params.set("status", loanStatus.trim());
+  if (branchAo?.trim() && branchAo !== "ALL") params.set("branchAo", branchAo.trim());
   if (resultSearch?.trim()) params.set("resultSearch", resultSearch.trim());
   if (page && page > 1) params.set("page", String(page));
   const query = params.toString();

@@ -31,6 +31,7 @@ function loanAmountBreakdown(loan: {
   principalAmount: unknown;
   interestAmount: unknown;
   penaltyAmount: unknown;
+  otherChargesAmount: unknown;
   paidAmount: unknown;
   balance: unknown;
   amortizationSchedules: {
@@ -44,6 +45,7 @@ function loanAmountBreakdown(loan: {
   const originalInterest = Number(loan.interestAmount);
   const originalPdi = 0;
   const originalPenalty = Number(loan.penaltyAmount);
+  const otherCharges = Number(loan.otherChargesAmount);
   const totalPayments = Number(loan.paidAmount);
   const totalBalance = Number(loan.balance);
   const schedulePrincipalBalance = loan.amortizationSchedules.reduce(
@@ -59,8 +61,9 @@ function loanAmountBreakdown(loan: {
     ? Math.min(scheduleInterestBalance, Math.max(0, totalBalance - principalBalance))
     : Math.min(originalInterest, Math.max(0, totalBalance - principalBalance));
   const pdiBalance = 0;
-  const penaltyBalance = Math.max(0, totalBalance - principalBalance - interestBalance - pdiBalance);
-  const waivedAmount = Math.max(0, originalPrincipal + originalInterest + originalPdi + originalPenalty - totalPayments - totalBalance);
+  const otherChargesBalance = Math.min(otherCharges, Math.max(0, totalBalance - principalBalance - interestBalance - pdiBalance));
+  const penaltyBalance = Math.max(0, totalBalance - principalBalance - interestBalance - pdiBalance - otherChargesBalance);
+  const waivedAmount = Math.max(0, originalPrincipal + originalInterest + originalPdi + originalPenalty + otherCharges - totalPayments - totalBalance);
 
   return {
     originalPrincipal,
@@ -71,6 +74,7 @@ function loanAmountBreakdown(loan: {
     interestBalance,
     pdiBalance,
     penaltyBalance,
+    otherCharges: otherChargesBalance,
     totalPayments,
     waivedAmount,
     balance: totalBalance
@@ -86,6 +90,7 @@ export async function GET(request: Request) {
   const address2 = searchParams.get("address2")?.trim() || "";
   const customerName = searchParams.get("customer")?.trim() || "";
   const selectedStatus = searchParams.get("status")?.trim() || "ALL";
+  const selectedBranchAo = searchParams.get("branchAo")?.trim() || "ALL";
   const resultSearch = searchParams.get("resultSearch")?.trim() || "";
   const officerId = Number(searchParams.get("officerId"));
   const effectiveOfficerId = user.role === "ACCOUNT_OFFICER" ? user.id : officerId;
@@ -115,6 +120,7 @@ export async function GET(request: Request) {
         address2,
         customerName,
         loanStatus: selectedStatus,
+        branchAo: selectedBranchAo,
         resultSearch,
         excludeCustomerConditions: !(Number.isInteger(effectiveOfficerId) && effectiveOfficerId > 0)
       })
@@ -195,6 +201,7 @@ export async function GET(request: Request) {
         <td style="mso-number-format:'#,##0.00';">${amounts.pdiBalance.toFixed(2)}</td>
         <td style="mso-number-format:'#,##0.00';">${amounts.originalPenalty.toFixed(2)}</td>
         <td style="mso-number-format:'#,##0.00';">${amounts.penaltyBalance.toFixed(2)}</td>
+        <td style="mso-number-format:'#,##0.00';">${amounts.otherCharges.toFixed(2)}</td>
         <td style="mso-number-format:'#,##0.00';">${amounts.totalPayments.toFixed(2)}</td>
         <td style="mso-number-format:'#,##0.00';">${amounts.waivedAmount.toFixed(2)}</td>
         <td style="mso-number-format:'#,##0.00';">${amounts.balance.toFixed(2)}</td>
@@ -268,6 +275,7 @@ export async function GET(request: Request) {
           <th>PDI Balance</th>
           <th>Original Penalty</th>
           <th>Penalty Balance</th>
+          <th>Other Charges</th>
           <th>Total Payments</th>
           <th>Waived / Deducted</th>
           <th>Balance</th>
