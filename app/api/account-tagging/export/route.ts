@@ -178,7 +178,7 @@ export async function GET(request: Request) {
     { principal: 0, interest: 0, pdi: 0, penalty: 0, payments: 0, waived: 0, balance: 0 }
   );
   const branchLabel = branch ? `${branch.branchName} (${branch.branchCode})` : "All branches";
-  const rows = loans
+  const detailRows = loans
     .map((loan, index) => {
       const assignedOfficer = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.assignedTo.name : "Unassigned";
       const zone = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.zone ?? "-" : "-";
@@ -227,6 +227,102 @@ export async function GET(request: Request) {
       </tr>`;
     })
     .join("");
+  const locationGroups = new Map<string, {
+    province: string;
+    municipality: string;
+    barangay: string;
+    accounts: number;
+    customers: Set<number>;
+    principalBalance: number;
+    balance: number;
+  }>();
+  if (locationReport) {
+    for (const loan of loans) {
+      const assignment = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment : null;
+      const province = assignment?.province?.trim() || "Province not set";
+      const municipality = assignment?.municipality?.trim() || "City/Municipality not set";
+      const barangay = assignment?.barangay?.trim() || "Barangay not set";
+      const key = `${province}\u0000${municipality}\u0000${barangay}`;
+      const group = locationGroups.get(key) ?? {
+        province,
+        municipality,
+        barangay,
+        accounts: 0,
+        customers: new Set<number>(),
+        principalBalance: 0,
+        balance: 0
+      };
+      group.accounts += 1;
+      group.customers.add(loan.clientId);
+      group.principalBalance += loanAmountBreakdown(loan).principalBalance;
+      group.balance += Number(loan.balance);
+      locationGroups.set(key, group);
+    }
+  }
+  const sortedLocationGroups = Array.from(locationGroups.values())
+    .sort((a, b) =>
+      a.province.localeCompare(b.province, "en", { sensitivity: "base" }) ||
+      a.municipality.localeCompare(b.municipality, "en", { sensitivity: "base" }) ||
+      a.barangay.localeCompare(b.barangay, "en", { sensitivity: "base" })
+    );
+  const provinceExportMap = new Map<string, {
+    customers: Set<number>;
+    principalBalance: number;
+    municipalities: Map<string, { customers: Set<number>; principalBalance: number; barangays: typeof sortedLocationGroups }>;
+  }>();
+  for (const barangay of sortedLocationGroups) {
+    const province = provinceExportMap.get(barangay.province) ?? {
+      customers: new Set<number>(),
+      principalBalance: 0,
+      municipalities: new Map()
+    };
+    barangay.customers.forEach((customerId) => province.customers.add(customerId));
+    province.principalBalance += barangay.principalBalance;
+    const municipality = province.municipalities.get(barangay.municipality) ?? {
+      customers: new Set<number>(),
+      principalBalance: 0,
+      barangays: []
+    };
+    barangay.customers.forEach((customerId) => municipality.customers.add(customerId));
+    municipality.principalBalance += barangay.principalBalance;
+    municipality.barangays.push(barangay);
+    province.municipalities.set(barangay.municipality, municipality);
+    provinceExportMap.set(barangay.province, province);
+  }
+  let locationRowNumber = 0;
+  const locationRows = Array.from(provinceExportMap.entries()).map(([provinceName, province]) => {
+    const provinceRow = `<tr style="font-weight:700;background:#e8f0fb">
+      <td>${++locationRowNumber}</td><td>Province</td><td>${cell(provinceName)}</td>
+      <td>${province.customers.size}</td><td style="mso-number-format:'#,##0.00';">${province.principalBalance.toFixed(2)}</td>
+    </tr>`;
+    const municipalityRows = Array.from(province.municipalities.entries()).map(([municipalityName, municipality]) => {
+      const municipalityRow = `<tr style="font-weight:700;background:#f3f6fa">
+        <td>${++locationRowNumber}</td><td>City/Municipality</td><td>${cell(municipalityName)}</td>
+        <td>${municipality.customers.size}</td><td style="mso-number-format:'#,##0.00';">${municipality.principalBalance.toFixed(2)}</td>
+      </tr>`;
+      const barangayRows = municipality.barangays.map((barangay) => `<tr>
+        <td>${++locationRowNumber}</td><td>Barangay</td><td>${cell(barangay.barangay)}</td>
+        <td>${barangay.customers.size}</td><td style="mso-number-format:'#,##0.00';">${barangay.principalBalance.toFixed(2)}</td>
+      </tr>`).join("");
+      return municipalityRow + barangayRows;
+    }).join("");
+    return provinceRow + municipalityRows;
+  }).join("");
+  const rows = locationReport ? locationRows : detailRows;
+  const reportHeading = locationReport ? "Location Summary Report" : "Account Tagging Report";
+  const tableHeadings = locationReport
+    ? `<tr>
+        <th>No.</th><th>Summary Level</th><th>Location</th><th>Customers</th><th>Principal Balance</th>
+      </tr>`
+    : `<tr>
+          <th>No.</th><th>Client</th><th>Client ID</th><th>Contact Number</th><th>Address</th>
+          <th>Province</th><th>City/Municipality</th><th>Barangay</th><th>Branch</th><th>Branch Code</th>
+          <th>Loan Number</th><th>Product</th><th>Branch AO</th><th>Maturity</th><th>Original Principal</th>
+          <th>Principal Balance</th><th>Original Interest</th><th>Interest Balance</th><th>Original PDI</th>
+          <th>PDI Balance</th><th>Original Penalty</th><th>Penalty Balance</th><th>Other Charges</th>
+          <th>Total Payments</th><th>Waived / Deducted</th><th>Balance</th><th>Status</th><th>Zone</th>
+          <th>Division</th><th>Area TL</th><th>Client Condition</th><th>Condition Approval</th><th>Assigned AO</th>
+        </tr>`;
   const generatedAt = new Date();
   const html = `<!doctype html>
 <html>
@@ -243,7 +339,7 @@ export async function GET(request: Request) {
   <body>
     <table class="meta">
       <tr><td class="title" colspan="2">Agusan Lending Corporation</td></tr>
-      <tr><td colspan="2">Account Tagging Report</td></tr>
+      <tr><td colspan="2">${reportHeading}</td></tr>
       <tr><td><strong>Branch</strong></td><td>${cell(branchLabel)}</td></tr>
       <tr><td><strong>Loan product</strong></td><td>${cell(selectedProduct === "ALL" ? "All products" : selectedProduct)}</td></tr>
       <tr><td><strong>Loan status</strong></td><td>${cell(selectedStatus === "ALL" ? "All statuses" : selectedStatus)}</td></tr>
@@ -264,47 +360,13 @@ export async function GET(request: Request) {
     <br />
     <table>
       <thead>
-        <tr>
-          <th>No.</th>
-          <th>Client</th>
-          <th>Client ID</th>
-          <th>Contact Number</th>
-          <th>Address</th>
-          <th>Province</th>
-          <th>City/Municipality</th>
-          <th>Barangay</th>
-          <th>Branch</th>
-          <th>Branch Code</th>
-          <th>Loan Number</th>
-          <th>Product</th>
-          <th>Branch AO</th>
-          <th>Maturity</th>
-          <th>Original Principal</th>
-          <th>Principal Balance</th>
-          <th>Original Interest</th>
-          <th>Interest Balance</th>
-          <th>Original PDI</th>
-          <th>PDI Balance</th>
-          <th>Original Penalty</th>
-          <th>Penalty Balance</th>
-          <th>Other Charges</th>
-          <th>Total Payments</th>
-          <th>Waived / Deducted</th>
-          <th>Balance</th>
-          <th>Status</th>
-          <th>Zone</th>
-          <th>Division</th>
-          <th>Area TL</th>
-          <th>Client Condition</th>
-          <th>Condition Approval</th>
-          <th>Assigned AO</th>
-        </tr>
+        ${tableHeadings}
       </thead>
       <tbody>${rows}</tbody>
     </table>
   </body>
 </html>`;
-  const filename = `account-tagging-${filePart(branchLabel) || "all-branches"}-${new Date().toISOString().slice(0, 10)}.xls`;
+  const filename = `${locationReport ? "location-summary" : "account-tagging"}-${filePart(branchLabel) || "all-branches"}-${new Date().toISOString().slice(0, 10)}.xls`;
 
   return new NextResponse(html, {
     headers: {

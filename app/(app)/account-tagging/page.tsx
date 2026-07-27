@@ -2,9 +2,12 @@ import type { Prisma } from "@prisma/client";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AccountTaggingWorkspace, type AccountTaggingLoanRow } from "@/components/account-tagging-workspace";
+import { LoanDetailLink } from "@/components/loan-detail-link";
 import type { LoanDetailLoan } from "@/components/loan-detail-window";
+import { PrintReportButton } from "@/components/print-report-button";
 import { accountTaggingHref, accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { canAssignRemedial, getAccessibleBranchIds, requireUser } from "@/lib/auth";
+import { dateOnly } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -611,6 +614,99 @@ export default async function AccountTaggingPage({
       balance: 0
     }
   );
+  const locationSummaryMap = new Map<string, {
+    province: string;
+    municipality: string;
+    barangay: string;
+    accounts: number;
+    customers: Set<number>;
+    principalBalance: number;
+    balance: number;
+    loans: AccountTaggingLoanRow[];
+  }>();
+  for (const loan of portfolioLoans) {
+    const activeAssignment = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment : null;
+    const province = activeAssignment?.province?.trim() || "Province not set";
+    const municipality = activeAssignment?.municipality?.trim() || "City/Municipality not set";
+    const barangay = activeAssignment?.barangay?.trim() || "Barangay not set";
+    const key = `${province}\u0000${municipality}\u0000${barangay}`;
+    const summary = locationSummaryMap.get(key) ?? {
+      province,
+      municipality,
+      barangay,
+      accounts: 0,
+      customers: new Set<number>(),
+      principalBalance: 0,
+      balance: 0,
+      loans: []
+    };
+    summary.accounts += 1;
+    summary.customers.add(loan.clientId);
+    summary.principalBalance += loanAmountBreakdown(loan).principalBalance;
+    summary.balance += Number(loan.balance);
+    summary.loans.push(toAccountTaggingRow(loan));
+    locationSummaryMap.set(key, summary);
+  }
+  const locationSummary = Array.from(locationSummaryMap.values())
+    .map((summary) => ({ ...summary, customerCount: summary.customers.size }))
+    .sort((a, b) =>
+      a.province.localeCompare(b.province, "en", { sensitivity: "base" }) ||
+      a.municipality.localeCompare(b.municipality, "en", { sensitivity: "base" }) ||
+      a.barangay.localeCompare(b.barangay, "en", { sensitivity: "base" })
+    );
+  const locationHierarchy = Array.from(
+    locationSummary.reduce((provinces, barangay) => {
+      const province = provinces.get(barangay.province) ?? {
+        name: barangay.province,
+        accounts: 0,
+        customers: new Set<number>(),
+        principalBalance: 0,
+        balance: 0,
+        municipalities: new Map<string, {
+          name: string;
+          accounts: number;
+          customers: Set<number>;
+          principalBalance: number;
+          balance: number;
+          barangays: typeof locationSummary;
+        }>()
+      };
+      province.accounts += barangay.accounts;
+      barangay.customers.forEach((customerId) => province.customers.add(customerId));
+      province.principalBalance += barangay.principalBalance;
+      province.balance += barangay.balance;
+      const municipality = province.municipalities.get(barangay.municipality) ?? {
+        name: barangay.municipality,
+        accounts: 0,
+        customers: new Set<number>(),
+        principalBalance: 0,
+        balance: 0,
+        barangays: []
+      };
+      municipality.accounts += barangay.accounts;
+      barangay.customers.forEach((customerId) => municipality.customers.add(customerId));
+      municipality.principalBalance += barangay.principalBalance;
+      municipality.balance += barangay.balance;
+      municipality.barangays.push(barangay);
+      province.municipalities.set(municipality.name, municipality);
+      provinces.set(province.name, province);
+      return provinces;
+    }, new Map<string, {
+      name: string;
+      accounts: number;
+      customers: Set<number>;
+      principalBalance: number;
+      balance: number;
+      municipalities: Map<string, {
+        name: string;
+        accounts: number;
+        customers: Set<number>;
+        principalBalance: number;
+        balance: number;
+        barangays: typeof locationSummary;
+      }>;
+    }>()).values()
+  );
   const withTaggingView = (href: string) => {
     if (!viewTagging) return href;
     return `${href}${href.includes("?") ? "&" : "?"}view=tagging${selectedOfficer ? `&officerId=${selectedOfficer.id}` : ""}${selectedAssignmentZone ? `&assignmentZone=${encodeURIComponent(selectedAssignmentZone)}` : ""}`;
@@ -783,6 +879,105 @@ export default async function AccountTaggingPage({
         </section>
       ) : null}
 
+      {locationReport ? (
+        <section className="panel overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-6">
+            <div>
+              <h3 className="text-xl font-bold text-slate-950">Location Summary</h3>
+              <p className="mt-1 text-sm text-slate-600">
+                {locationSummary.length.toLocaleString("en-US")} location(s), sorted by province, city/municipality, and barangay
+              </p>
+            </div>
+            <div className="flex gap-2 no-print">
+              <a className="btn-secondary" href={excelHref}>Export to Excel</a>
+              <PrintReportButton />
+            </div>
+          </div>
+          <div className="overflow-x-auto text-sm">
+            <div className="grid min-w-[700px] grid-cols-[minmax(300px,1fr)_140px_220px] bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+              <span>Location</span><span className="text-right">Customers</span>
+              <span className="text-right">Principal Balance</span>
+            </div>
+            <div className="min-w-[700px] divide-y divide-slate-200">
+              {locationHierarchy.map((province) => (
+                <details key={province.name} className="group">
+                  <summary className="grid cursor-pointer list-none grid-cols-[minmax(300px,1fr)_140px_220px] items-center px-4 py-3 hover:bg-blue-50">
+                    <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open:before:rotate-90">{province.name}</span>
+                    <span className="text-right font-bold text-brand-blue">{province.customers.size.toLocaleString("en-US")}</span>
+                    <span className="text-right font-bold text-red-700">{province.principalBalance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</span>
+                  </summary>
+                  <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
+                    {Array.from(province.municipalities.values()).map((municipality) => (
+                      <details key={municipality.name} className="group/city border-b border-slate-100 last:border-b-0">
+                        <summary className="grid cursor-pointer list-none grid-cols-[minmax(276px,1fr)_140px_220px] items-center px-4 py-3 hover:bg-blue-50">
+                          <span className="font-semibold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/city:before:rotate-90">{municipality.name}</span>
+                          <span className="text-right font-bold text-brand-blue">{municipality.customers.size.toLocaleString("en-US")}</span>
+                          <span className="text-right font-bold text-red-700">{municipality.principalBalance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</span>
+                        </summary>
+                        <div className="border-t border-slate-100 bg-white pl-8">
+                          {municipality.barangays.map((barangay) => (
+                            <details key={barangay.barangay} className="group/barangay border-b border-slate-100 last:border-b-0">
+                              <summary className="grid cursor-pointer list-none grid-cols-[minmax(244px,1fr)_140px_220px] px-4 py-3 text-slate-700 hover:bg-blue-50">
+                                <span className="before:mr-2 before:inline-block before:text-[10px] before:content-['▶'] group-open/barangay:before:rotate-90">{barangay.barangay}</span>
+                                <span className="text-right font-bold text-brand-blue">{barangay.customerCount.toLocaleString("en-US")}</span>
+                                <span className="text-right font-bold text-red-700">{barangay.principalBalance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</span>
+                              </summary>
+                              <div className="overflow-x-auto border-t border-slate-200 bg-slate-50 px-4 py-3">
+                                <table className="w-full min-w-[820px] text-left text-xs">
+                                  <thead className="uppercase tracking-wide text-slate-500">
+                                    <tr>
+                                      <th className="px-3 py-2">Client</th>
+                                      <th className="px-3 py-2">Loan</th>
+                                      <th className="px-3 py-2">Branch</th>
+                                      <th className="px-3 py-2">Product</th>
+                                      <th className="px-3 py-2">Maturity</th>
+                                      <th className="px-3 py-2">Status</th>
+                                      <th className="px-3 py-2 text-right">Principal Balance</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-200 bg-white">
+                                    {barangay.loans.map((loan) => (
+                                      <tr key={loan.id}>
+                                        <td className="px-3 py-2">
+                                          <p className="font-bold text-slate-950">{loan.clientName}</p>
+                                          <p className="text-slate-500">{loan.clientId || "-"}</p>
+                                        </td>
+                                        <td className="px-3 py-2 font-bold text-brand-blue">
+                                          <LoanDetailLink loan={loan.loanDetail} label={loan.loanNumber} />
+                                        </td>
+                                        <td className="px-3 py-2">{loan.branchName}</td>
+                                        <td className="px-3 py-2">{loan.loanProduct || "-"}</td>
+                                        <td className="px-3 py-2">{dateOnly(loan.maturityAt)}</td>
+                                        <td className="px-3 py-2">{loan.sourceStatusName || "-"}</td>
+                                        <td className="px-3 py-2 text-right font-bold text-red-700">
+                                          {loan.principalBalance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </details>
+                          ))}
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                </details>
+              ))}
+              {!locationHierarchy.length ? <p className="px-4 py-8 text-center font-semibold text-slate-500">No accounts found.</p> : null}
+            </div>
+            {locationHierarchy.length ? (
+              <div className="grid min-w-[700px] grid-cols-[minmax(300px,1fr)_140px_220px] border-t-2 border-slate-300 bg-slate-50 px-4 py-3 font-extrabold text-slate-950">
+                <span>Grand Total</span>
+                <span className="text-right">{new Set(portfolioLoans.map((loan) => loan.clientId)).size.toLocaleString("en-US")}</span>
+                <span className="text-right">{portfolioTotals.principal.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</span>
+              </div>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
       {viewTagging ? (
         <section className="space-y-3 no-print">
           <div>
@@ -831,7 +1026,7 @@ export default async function AccountTaggingPage({
         </section>
       ) : null}
 
-      {viewDistribution || viewProvinceDistribution || (viewTagging && !selectedOfficer) ? null : (
+      {viewDistribution || viewProvinceDistribution || locationReport || (viewTagging && !selectedOfficer) ? null : (
       <AccountTaggingWorkspace
         branches={branches}
         officers={officers}
