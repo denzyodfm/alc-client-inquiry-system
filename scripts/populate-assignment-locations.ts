@@ -75,9 +75,28 @@ function municipalityMatch(addressValue: string, rows: PsgcMunicipality[]) {
 
 function locationMatch(municipality: PsgcMunicipality, addressValue: string, barangays: PsgcBarangay[]): LocationMatch {
   const address = normalized(addressValue);
+  const labeledAddress = ` ${addressValue
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()} `;
+  const explicitBarangayIndex = labeledAddress.search(/\s(?:BARANGAY|BRGY)\s+\d+\s/);
   const barangayMatches = barangays
     .map((barangay) => ({ barangay, phrase: normalizedBarangay(barangay.name) }))
-    .filter(({ phrase }) => phrase.trim().length >= 3 && containsPhrase(address, phrase))
+    .filter(({ phrase }) => {
+      const name = phrase.trim();
+      if (name.length < 3 || !containsPhrase(address, phrase)) return false;
+      if (new RegExp(`\\s${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s+(?:ST|STREET|AVE|AVENUE|RD|ROAD)\\s`).test(labeledAddress)) {
+        return false;
+      }
+      if (explicitBarangayIndex >= 0) {
+        const nameIndex = labeledAddress.indexOf(` ${name} `);
+        if (nameIndex >= 0 && nameIndex < explicitBarangayIndex) return false;
+      }
+      return true;
+    })
     .sort((a, b) => b.phrase.length - a.phrase.length);
   const longest = barangayMatches[0];
   const tiedLongest = longest
