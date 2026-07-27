@@ -497,6 +497,17 @@ export function AccountTaggingWorkspace({
             <p className="mt-2 text-[11px] font-semibold text-slate-500">Blank fields keep their current values.</p>
           </div>
           <label className="block">
+            <span className="mb-2 block text-sm font-semibold text-slate-700">Account Officer</span>
+            <select name="assignedToId" className="field" disabled={!officers.length || isPending}>
+              <option value="">Select Account Officer</option>
+              {officers.map((officer) => (
+                <option key={officer.id} value={officer.id}>
+                  {officer.name} - {officer.email}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
             <span className="mb-2 block text-sm font-semibold text-slate-700">Area TL</span>
             <select name="areaTeamLeaderId" className="field" disabled={!areaTeamLeaders.length || isPending}>
               <option value="">Select Area TL</option>
