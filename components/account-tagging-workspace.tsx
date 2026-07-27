@@ -644,11 +644,11 @@ export function AccountTaggingWorkspace({
         </div>
         <div
           ref={topScrollRef}
-          className="sticky top-20 z-10 overflow-x-auto border-b border-slate-100 bg-white no-print"
+          className="sticky top-20 z-10 h-7 overflow-x-auto border-b border-slate-200 bg-white no-print"
           onScroll={() => syncHorizontalScroll("top")}
           aria-label="Account tagging horizontal scroll"
         >
-          <div style={{ width: `${tableMinWidth}px`, height: 12 }} />
+          <div style={{ width: `${tableMinWidth}px`, height: 1 }} />
         </div>
         <div ref={tableScrollRef} className="overflow-x-auto" onScroll={() => syncHorizontalScroll("table")}>
           {canAssign
@@ -685,7 +685,7 @@ export function AccountTaggingWorkspace({
               <col className="w-[196px]" />
             </colgroup>
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-              <tr>
+              <tr className="h-12 leading-tight">
                 <th className="px-2 py-2">No.</th>
                 <th className="px-2 py-2">Client</th>
                 <th className="px-2 py-2">Address</th>
