@@ -179,7 +179,7 @@ function distributionPrincipalBalance(loan: {
 export default async function AccountTaggingPage({
   searchParams
 }: {
-  searchParams?: Promise<{ branchId?: string; product?: string; address?: string; address2?: string; customer?: string; status?: string; branchAo?: string; resultSearch?: string; page?: string; print?: string; view?: string; officerId?: string; assignmentZone?: string; searched?: string }>;
+  searchParams?: Promise<{ branchId?: string; product?: string; address?: string; address2?: string; customer?: string; status?: string; branchAo?: string; resultSearch?: string; page?: string; print?: string; view?: string; officerId?: string; assignmentZone?: string; searched?: string; report?: string }>;
 }) {
   const user = await requireUser(["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
   const params = await searchParams;
@@ -194,6 +194,7 @@ export default async function AccountTaggingPage({
   const viewTagging = params?.view === "tagging";
   const viewDistribution = params?.view === "distribution";
   const viewProvinceDistribution = params?.view === "province-distribution";
+  const locationReport = params?.report === "location";
   const requestedOfficerId = Number(params?.officerId);
   const requestedAssignmentZone = params?.assignmentZone?.trim() || "";
   const searchSubmitted = params?.searched === "1";
@@ -414,8 +415,8 @@ export default async function AccountTaggingPage({
     selectedOfficer?.breakdowns.some((breakdown) => breakdown.zone === requestedAssignmentZone)
       ? requestedAssignmentZone
       : "";
-  const hasFilters = searchSubmitted || Boolean(selectedOfficer) || selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || selectedBranchAo !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName) || Boolean(resultSearch);
-  const printAllResults = params?.print === "all" && hasFilters;
+  const hasFilters = locationReport || searchSubmitted || Boolean(selectedOfficer) || selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || selectedBranchAo !== "ALL" || Boolean(address) || Boolean(address2) || Boolean(customerName) || Boolean(resultSearch);
+  const printAllResults = (locationReport || params?.print === "all") && hasFilters;
   const where: Prisma.LoanWhereInput = {
     AND: [
       branchAccessFilter,
@@ -549,11 +550,19 @@ export default async function AccountTaggingPage({
         skip: printAllResults ? 0 : (safePage - 1) * pageSize,
         take: printAllResults ? undefined : pageSize,
         where,
-        orderBy: [
-          { client: { fullName: "asc" } },
-          { branch: { branchName: "asc" } },
-          { loanNumber: "asc" }
-        ],
+        orderBy: locationReport
+          ? [
+              { remedialAssignment: { province: "asc" } },
+              { remedialAssignment: { municipality: "asc" } },
+              { remedialAssignment: { barangay: "asc" } },
+              { client: { fullName: "asc" } },
+              { loanNumber: "asc" }
+            ]
+          : [
+              { client: { fullName: "asc" } },
+              { branch: { branchName: "asc" } },
+              { loanNumber: "asc" }
+            ],
         include: {
           branch: true,
           client: true,
@@ -622,6 +631,7 @@ export default async function AccountTaggingPage({
   if (resultSearch) exportParams.set("resultSearch", resultSearch);
   if (selectedOfficer) exportParams.set("officerId", String(selectedOfficer.id));
   if (selectedAssignmentZone) exportParams.set("assignmentZone", selectedAssignmentZone);
+  if (locationReport) exportParams.set("report", "location");
   const excelHref = `/api/account-tagging/export${exportParams.toString() ? `?${exportParams.toString()}` : ""}`;
   const visiblePages = Array.from({ length: totalPages }, (_, index) => index + 1)
     .filter((page) => page === 1 || page === totalPages || Math.abs(page - safePage) <= 2);
@@ -636,7 +646,7 @@ export default async function AccountTaggingPage({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
         <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Portfolio assignment</p>
-        <h2 className="mt-2 text-3xl font-bold text-slate-950">{user.role === "ACCOUNT_OFFICER" ? "Account View" : "Account Tagging"}</h2>
+        <h2 className="mt-2 text-3xl font-bold text-slate-950">{locationReport ? "Location Report" : user.role === "ACCOUNT_OFFICER" ? "Account View" : "Account Tagging"}</h2>
         <p className="mt-2 text-sm font-semibold text-slate-600">
           {user.role === "ACCOUNT_OFFICER"
             ? "View the accounts assigned to you by zone."
@@ -645,12 +655,13 @@ export default async function AccountTaggingPage({
         </div>
         {user.role !== "ACCOUNT_OFFICER" ? (
           <div className="flex flex-wrap gap-2 no-print">
-            <Link className="btn-secondary" href={viewTagging || viewDistribution || viewProvinceDistribution ? "/account-tagging" : "/account-tagging?view=tagging"}>
-              {viewTagging || viewDistribution || viewProvinceDistribution ? "Back to Tagging" : "View Tagging"}
+            <Link className="btn-secondary" href={viewTagging || viewDistribution || viewProvinceDistribution || locationReport ? "/account-tagging" : "/account-tagging?view=tagging"}>
+              {viewTagging || viewDistribution || viewProvinceDistribution || locationReport ? "Back to Tagging" : "View Tagging"}
             </Link>
             {(viewDistribution || viewProvinceDistribution) ? <Link className="btn-secondary" href="/account-tagging?view=tagging">View Tagging</Link> : null}
             {!viewDistribution ? <Link className="btn-secondary" href="/account-tagging?view=distribution">AO Distribution</Link> : null}
             {!viewProvinceDistribution ? <Link className="btn-secondary" href="/account-tagging?view=province-distribution">Province Distribution</Link> : null}
+            {!locationReport ? <Link className="btn-secondary" href="/account-tagging?report=location&searched=1">Location Report</Link> : null}
           </div>
         ) : null}
       </div>
@@ -871,11 +882,12 @@ export default async function AccountTaggingPage({
         printableHref={printableHref}
         excelHref={excelHref}
         paginatedHref={pageHref(1)}
-        canAssign={canAssignRemedial(user.role)}
+        canAssign={!locationReport && canAssignRemedial(user.role)}
         reportDate={new Date().toISOString()}
         currentUserRole={user.role}
-        reportOnly={viewTagging}
-        forceHasFilters={searchSubmitted || Boolean(selectedOfficer)}
+        reportTitle={locationReport ? "Account Report by Province, City/Municipality and Barangay" : undefined}
+        reportOnly={viewTagging || locationReport}
+        forceHasFilters={locationReport || searchSubmitted || Boolean(selectedOfficer)}
       />
       )}
     </div>

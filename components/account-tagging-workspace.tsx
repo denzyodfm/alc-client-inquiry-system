@@ -117,6 +117,7 @@ type AccountTaggingWorkspaceProps = {
   reportOnly?: boolean;
   forceHasFilters?: boolean;
   currentUserRole: string;
+  reportTitle?: string;
 };
 
 export function AccountTaggingWorkspace({
@@ -155,7 +156,8 @@ export function AccountTaggingWorkspace({
   reportDate,
   reportOnly = false,
   forceHasFilters = false,
-  currentUserRole
+  currentUserRole,
+  reportTitle = "Account Tagging Report"
 }: AccountTaggingWorkspaceProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -578,7 +580,7 @@ export function AccountTaggingWorkspace({
           <div>
             <div className="mb-3 hidden print:block">
               <h1 className="text-lg font-bold text-slate-950">Agusan Lending Corporation</h1>
-              <p className="mt-1 text-sm font-semibold uppercase tracking-wide text-brand-green">Account Tagging Report</p>
+              <p className="mt-1 text-sm font-semibold uppercase tracking-wide text-brand-green">{reportTitle}</p>
               <div className="mt-2 grid gap-1 text-xs text-slate-700">
                 <p><span className="font-semibold">Branch:</span> {branchLabel}</p>
                 <p><span className="font-semibold">Loan product:</span> {selectedProduct === "ALL" ? "All" : selectedProduct}</p>

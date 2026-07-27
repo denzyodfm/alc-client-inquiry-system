@@ -92,6 +92,7 @@ export async function GET(request: Request) {
   const selectedStatus = searchParams.get("status")?.trim() || "ALL";
   const selectedBranchAo = searchParams.get("branchAo")?.trim() || "ALL";
   const resultSearch = searchParams.get("resultSearch")?.trim() || "";
+  const locationReport = searchParams.get("report") === "location";
   const officerId = Number(searchParams.get("officerId"));
   const effectiveOfficerId = user.role === "ACCOUNT_OFFICER" ? user.id : officerId;
   const assignmentZone = searchParams.get("assignmentZone")?.trim() || "";
@@ -129,11 +130,19 @@ export async function GET(request: Request) {
   const [loans, branch] = await Promise.all([
     prisma.loan.findMany({
       where,
-      orderBy: [
-        { client: { fullName: "asc" } },
-        { branch: { branchName: "asc" } },
-        { loanNumber: "asc" }
-      ],
+      orderBy: locationReport
+        ? [
+            { remedialAssignment: { province: "asc" } },
+            { remedialAssignment: { municipality: "asc" } },
+            { remedialAssignment: { barangay: "asc" } },
+            { client: { fullName: "asc" } },
+            { loanNumber: "asc" }
+          ]
+        : [
+            { client: { fullName: "asc" } },
+            { branch: { branchName: "asc" } },
+            { loanNumber: "asc" }
+          ],
       include: {
         branch: true,
         client: true,
