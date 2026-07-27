@@ -69,6 +69,7 @@ export function accountTaggingSearchWhere(filters: AccountTaggingFilters): Prism
         balance: { gt: 0 },
         NOT: [
           { loanNumber: "" },
+          { loanProduct: { contains: "employee" } },
           { sourceStatusName: { contains: "not yet open" } }
         ]
       },
