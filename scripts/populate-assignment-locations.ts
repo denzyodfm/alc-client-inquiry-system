@@ -103,7 +103,7 @@ async function main() {
   async function barangaysFor(municipality: PsgcMunicipality) {
     const cached = barangayCache.get(municipality.code);
     if (cached) return cached;
-    const url = `${PSGC_API_URL}/cities-municipalities/${encodeURIComponent(municipality.name.trim())}/barangays`;
+    const url = `${PSGC_API_URL}/cities-municipalities/${encodeURIComponent(municipality.code)}/barangays`;
     const barangayResponse = await fetch(url, { headers: { Accept: "application/json" } });
     if (!barangayResponse.ok) throw new Error(`PSGC barangay request failed for ${municipality.name} with HTTP ${barangayResponse.status}.`);
     const barangayPayload = await barangayResponse.json() as { data?: PsgcBarangay[] };
