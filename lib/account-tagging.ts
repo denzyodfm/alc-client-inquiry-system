@@ -82,8 +82,7 @@ export function accountTaggingSearchWhere(filters: AccountTaggingFilters): Prism
             OR: [
               { remedialAssignment: { is: null } },
               { remedialAssignment: { is: { clientCondition: null } } },
-              { remedialAssignment: { is: { clientCondition: "" } } },
-              { remedialAssignment: { is: { clientCondition: { notIn: ["UNLOCATED", "DORMANT", "RIP"] } } } }
+              { remedialAssignment: { is: { clientCondition: "" } } }
             ]
           }
         : {},

@@ -1,11 +1,11 @@
 import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
+import { getClientConditionOptions } from "@/lib/client-condition-options";
 import { dateOnly } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
-const CONDITIONS = ["UNLOCATED", "DORMANT", "RIP"];
 
 function cell(value: unknown) {
   return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -39,7 +39,8 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q")?.trim() || "";
   const requested = searchParams.get("condition")?.trim().toUpperCase() || "ALL";
-  const condition = CONDITIONS.includes(requested) ? requested : "ALL";
+  const conditionOptions = await getClientConditionOptions();
+  const condition = conditionOptions.includes(requested) ? requested : "ALL";
   const branchIds = user.role === "ACCOUNT_OFFICER" ? null : await getAccessibleBranchIds(user);
   const access: Prisma.RemedialAssignmentWhereInput =
     user.role === "ACCOUNT_OFFICER"
@@ -51,7 +52,8 @@ export async function GET(request: Request) {
         { status: "ACTIVE" },
         access,
         searchFilter(query),
-        { clientCondition: condition === "ALL" ? { in: CONDITIONS } : condition }
+        { clientCondition: condition === "ALL" ? { not: null } : condition },
+        { clientCondition: { not: "" } }
       ]
     },
     orderBy: [{ clientCondition: "asc" }, { loan: { client: { fullName: "asc" } } }],

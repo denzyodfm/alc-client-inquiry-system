@@ -1,11 +1,10 @@
 import type { Prisma } from "@prisma/client";
 import { ClientConditionList, type ClientConditionRow } from "@/components/client-condition-list";
 import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
+import { getClientConditionOptions } from "@/lib/client-condition-options";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
-
-const CONDITIONS = ["UNLOCATED", "DORMANT", "RIP"];
 
 function href(params: { q: string; condition: string; page?: number; print?: boolean }) {
   const search = new URLSearchParams();
@@ -26,7 +25,8 @@ export default async function ClientConditionsPage({
   const params = await searchParams;
   const query = params?.q?.trim() || "";
   const requestedCondition = params?.condition?.trim().toUpperCase() || "ALL";
-  const selectedCondition = CONDITIONS.includes(requestedCondition) ? requestedCondition : "ALL";
+  const conditionOptions = await getClientConditionOptions();
+  const selectedCondition = conditionOptions.includes(requestedCondition) ? requestedCondition : "ALL";
   const currentPage = Math.max(1, Number(params?.page) || 1);
   const pageSize = 100;
   const printAll = params?.print === "all";
@@ -65,7 +65,8 @@ export default async function ClientConditionsPage({
       { status: "ACTIVE" },
       accessWhere,
       searchWhere,
-      { clientCondition: selectedCondition === "ALL" ? { in: CONDITIONS } : selectedCondition }
+      { clientCondition: selectedCondition === "ALL" ? { not: null } : selectedCondition },
+      { clientCondition: { not: "" } }
     ]
   };
 
@@ -117,12 +118,13 @@ export default async function ClientConditionsPage({
       <div>
         <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Customer monitoring</p>
         <h2 className="mt-2 text-3xl font-bold text-slate-950">Client Condition</h2>
-        <p className="mt-2 text-sm text-slate-600">Review, update, or clear customers marked Unlocated, Dormant, or RIP.</p>
+        <p className="mt-2 text-sm text-slate-600">Review, update, or clear customers with a saved condition.</p>
       </div>
       <ClientConditionList
         rows={rows}
         query={query}
         selectedCondition={selectedCondition}
+        conditionOptions={conditionOptions}
         totalRows={totalRows}
         firstResult={firstResult}
         lastResult={lastResult}

@@ -28,6 +28,7 @@ export function ClientConditionList({
   rows,
   query,
   selectedCondition,
+  conditionOptions,
   totalRows,
   firstResult,
   lastResult,
@@ -44,6 +45,7 @@ export function ClientConditionList({
   rows: ClientConditionRow[];
   query: string;
   selectedCondition: string;
+  conditionOptions: string[];
   totalRows: number;
   firstResult: number;
   lastResult: number;
@@ -97,9 +99,7 @@ export function ClientConditionList({
           <span className="mb-2 block text-sm font-semibold text-slate-700">Condition</span>
           <select className="field" name="condition" defaultValue={selectedCondition}>
             <option value="ALL">All conditions</option>
-            <option value="UNLOCATED">Unlocated</option>
-            <option value="DORMANT">Dormant</option>
-            <option value="RIP">RIP</option>
+            {conditionOptions.map((condition) => <option key={condition} value={condition}>{condition}</option>)}
           </select>
         </label>
         <button className="btn-primary self-end"><Search className="h-4 w-4" />Search</button>
@@ -154,7 +154,7 @@ export function ClientConditionList({
                     <form onSubmit={updateCondition} className="flex items-center gap-2">
                       <input type="hidden" name="assignmentId" value={row.id} />
                       <select name="condition" className="field h-9 w-32 text-xs" defaultValue={row.condition}>
-                        <option value="UNLOCATED">Unlocated</option><option value="DORMANT">Dormant</option><option value="RIP">RIP</option>
+                        {conditionOptions.map((condition) => <option key={condition} value={condition}>{condition}</option>)}
                       </select>
                       <button name="action" value="report" className="btn-secondary h-9 px-3" disabled={isPending}>Update</button>
                       <button name="action" value="clear" className="h-9 rounded-md border border-red-200 px-3 font-semibold text-red-600 hover:bg-red-50" disabled={isPending}>Clear</button>
