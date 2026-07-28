@@ -179,6 +179,16 @@ function distributionPrincipalBalance(loan: {
   return Math.min(scheduleBalance, balance);
 }
 
+function normalizedLocationKey(value: string) {
+  return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("en");
+}
+
+function preferredLocationLabel(current: string, candidate: string) {
+  const currentHasLowercase = /[a-z]/.test(current);
+  const candidateHasLowercase = /[a-z]/.test(candidate);
+  return !currentHasLowercase && candidateHasLowercase ? candidate : current;
+}
+
 export default async function AccountTaggingPage({
   searchParams
 }: {
@@ -629,7 +639,7 @@ export default async function AccountTaggingPage({
     const province = activeAssignment?.province?.trim() || "Province not set";
     const municipality = activeAssignment?.municipality?.trim() || "City/Municipality not set";
     const barangay = activeAssignment?.barangay?.trim() || "Barangay not set";
-    const key = `${province}\u0000${municipality}\u0000${barangay}`;
+    const key = [province, municipality, barangay].map(normalizedLocationKey).join("\u0000");
     const summary = locationSummaryMap.get(key) ?? {
       province,
       municipality,
@@ -640,6 +650,9 @@ export default async function AccountTaggingPage({
       balance: 0,
       loans: []
     };
+    summary.province = preferredLocationLabel(summary.province, province);
+    summary.municipality = preferredLocationLabel(summary.municipality, municipality);
+    summary.barangay = preferredLocationLabel(summary.barangay, barangay);
     summary.accounts += 1;
     summary.customers.add(loan.clientId);
     summary.principalBalance += loanAmountBreakdown(loan).principalBalance;
@@ -656,7 +669,8 @@ export default async function AccountTaggingPage({
     );
   const locationHierarchy = Array.from(
     locationSummary.reduce((provinces, barangay) => {
-      const province = provinces.get(barangay.province) ?? {
+      const provinceKey = normalizedLocationKey(barangay.province);
+      const province = provinces.get(provinceKey) ?? {
         name: barangay.province,
         accounts: 0,
         customers: new Set<number>(),
@@ -671,11 +685,13 @@ export default async function AccountTaggingPage({
           barangays: typeof locationSummary;
         }>()
       };
+      province.name = preferredLocationLabel(province.name, barangay.province);
       province.accounts += barangay.accounts;
       barangay.customers.forEach((customerId) => province.customers.add(customerId));
       province.principalBalance += barangay.principalBalance;
       province.balance += barangay.balance;
-      const municipality = province.municipalities.get(barangay.municipality) ?? {
+      const municipalityKey = normalizedLocationKey(barangay.municipality);
+      const municipality = province.municipalities.get(municipalityKey) ?? {
         name: barangay.municipality,
         accounts: 0,
         customers: new Set<number>(),
@@ -683,13 +699,14 @@ export default async function AccountTaggingPage({
         balance: 0,
         barangays: []
       };
+      municipality.name = preferredLocationLabel(municipality.name, barangay.municipality);
       municipality.accounts += barangay.accounts;
       barangay.customers.forEach((customerId) => municipality.customers.add(customerId));
       municipality.principalBalance += barangay.principalBalance;
       municipality.balance += barangay.balance;
       municipality.barangays.push(barangay);
-      province.municipalities.set(municipality.name, municipality);
-      provinces.set(province.name, province);
+      province.municipalities.set(municipalityKey, municipality);
+      provinces.set(provinceKey, province);
       return provinces;
     }, new Map<string, {
       name: string;

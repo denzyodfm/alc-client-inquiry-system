@@ -27,6 +27,16 @@ function statusLabel(code: number | null, name: string | null) {
   return [code ?? "-", name].filter(Boolean).join(" - ");
 }
 
+function normalizedLocationKey(value: string) {
+  return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("en");
+}
+
+function preferredLocationLabel(current: string, candidate: string) {
+  const currentHasLowercase = /[a-z]/.test(current);
+  const candidateHasLowercase = /[a-z]/.test(candidate);
+  return !currentHasLowercase && candidateHasLowercase ? candidate : current;
+}
+
 function loanAmountBreakdown(loan: {
   principalAmount: unknown;
   interestAmount: unknown;
@@ -242,7 +252,7 @@ export async function GET(request: Request) {
       const province = assignment?.province?.trim() || "Province not set";
       const municipality = assignment?.municipality?.trim() || "City/Municipality not set";
       const barangay = assignment?.barangay?.trim() || "Barangay not set";
-      const key = `${province}\u0000${municipality}\u0000${barangay}`;
+      const key = [province, municipality, barangay].map(normalizedLocationKey).join("\u0000");
       const group = locationGroups.get(key) ?? {
         province,
         municipality,
@@ -252,6 +262,9 @@ export async function GET(request: Request) {
         principalBalance: 0,
         balance: 0
       };
+      group.province = preferredLocationLabel(group.province, province);
+      group.municipality = preferredLocationLabel(group.municipality, municipality);
+      group.barangay = preferredLocationLabel(group.barangay, barangay);
       group.accounts += 1;
       group.customers.add(loan.clientId);
       group.principalBalance += loanAmountBreakdown(loan).principalBalance;
@@ -266,38 +279,50 @@ export async function GET(request: Request) {
       a.barangay.localeCompare(b.barangay, "en", { sensitivity: "base" })
     );
   const provinceExportMap = new Map<string, {
+    name: string;
     customers: Set<number>;
     principalBalance: number;
-    municipalities: Map<string, { customers: Set<number>; principalBalance: number; barangays: typeof sortedLocationGroups }>;
+    municipalities: Map<string, {
+      name: string;
+      customers: Set<number>;
+      principalBalance: number;
+      barangays: typeof sortedLocationGroups;
+    }>;
   }>();
   for (const barangay of sortedLocationGroups) {
-    const province = provinceExportMap.get(barangay.province) ?? {
+    const provinceKey = normalizedLocationKey(barangay.province);
+    const province = provinceExportMap.get(provinceKey) ?? {
+      name: barangay.province,
       customers: new Set<number>(),
       principalBalance: 0,
       municipalities: new Map()
     };
+    province.name = preferredLocationLabel(province.name, barangay.province);
     barangay.customers.forEach((customerId) => province.customers.add(customerId));
     province.principalBalance += barangay.principalBalance;
-    const municipality = province.municipalities.get(barangay.municipality) ?? {
+    const municipalityKey = normalizedLocationKey(barangay.municipality);
+    const municipality = province.municipalities.get(municipalityKey) ?? {
+      name: barangay.municipality,
       customers: new Set<number>(),
       principalBalance: 0,
       barangays: []
     };
+    municipality.name = preferredLocationLabel(municipality.name, barangay.municipality);
     barangay.customers.forEach((customerId) => municipality.customers.add(customerId));
     municipality.principalBalance += barangay.principalBalance;
     municipality.barangays.push(barangay);
-    province.municipalities.set(barangay.municipality, municipality);
-    provinceExportMap.set(barangay.province, province);
+    province.municipalities.set(municipalityKey, municipality);
+    provinceExportMap.set(provinceKey, province);
   }
   let locationRowNumber = 0;
-  const locationRows = Array.from(provinceExportMap.entries()).map(([provinceName, province]) => {
+  const locationRows = Array.from(provinceExportMap.values()).map((province) => {
     const provinceRow = `<tr style="font-weight:700;background:#e8f0fb">
-      <td>${++locationRowNumber}</td><td>Province</td><td>${cell(provinceName)}</td>
+      <td>${++locationRowNumber}</td><td>Province</td><td>${cell(province.name)}</td>
       <td>${province.customers.size}</td><td style="mso-number-format:'#,##0.00';">${province.principalBalance.toFixed(2)}</td>
     </tr>`;
-    const municipalityRows = Array.from(province.municipalities.entries()).map(([municipalityName, municipality]) => {
+    const municipalityRows = Array.from(province.municipalities.values()).map((municipality) => {
       const municipalityRow = `<tr style="font-weight:700;background:#f3f6fa">
-        <td>${++locationRowNumber}</td><td>City/Municipality</td><td>${cell(municipalityName)}</td>
+        <td>${++locationRowNumber}</td><td>City/Municipality</td><td>${cell(municipality.name)}</td>
         <td>${municipality.customers.size}</td><td style="mso-number-format:'#,##0.00';">${municipality.principalBalance.toFixed(2)}</td>
       </tr>`;
       const barangayRows = municipality.barangays.map((barangay) => `<tr>
