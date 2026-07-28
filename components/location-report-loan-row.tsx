@@ -59,7 +59,6 @@ export function LocationReportLoanRow({
         <p className="font-bold text-slate-950">{loan.clientName}</p>
         <p className="text-slate-500">{loan.clientId || "-"}</p>
       </td>
-      <td className="max-w-[300px] whitespace-normal px-3 py-2 text-slate-700">{loan.address || "-"}</td>
       <td className="px-3 py-2 font-bold text-brand-blue">
         <LoanDetailLink loan={loan.loanDetail} label={loan.loanNumber} />
       </td>
@@ -70,6 +69,7 @@ export function LocationReportLoanRow({
       <td className="px-3 py-2 text-right font-bold text-red-700">
         {loan.principalBalance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}
       </td>
+      <td className="max-w-[300px] whitespace-normal px-3 py-2 text-slate-700">{loan.address || "-"}</td>
       {canEdit ? (
         <>
           <td className="px-2 py-2">

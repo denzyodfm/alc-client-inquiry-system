@@ -951,13 +951,13 @@ export default async function AccountTaggingPage({
                                   <thead className="uppercase tracking-wide text-slate-500">
                                     <tr>
                                       <th className="px-3 py-2">Client</th>
-                                      <th className="px-3 py-2">Address</th>
                                       <th className="px-3 py-2">Loan</th>
                                       <th className="px-3 py-2">Branch</th>
                                       <th className="px-3 py-2">Product</th>
                                       <th className="px-3 py-2">Maturity</th>
                                       <th className="px-3 py-2">Status</th>
                                       <th className="px-3 py-2 text-right">Principal Balance</th>
+                                      <th className="px-3 py-2">Address</th>
                                       <th className="px-3 py-2">Province</th>
                                       <th className="px-3 py-2">City/Municipality</th>
                                       <th className="px-3 py-2">Barangay</th>
