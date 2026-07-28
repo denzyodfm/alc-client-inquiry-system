@@ -2,12 +2,11 @@ import type { Prisma } from "@prisma/client";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AccountTaggingWorkspace, type AccountTaggingLoanRow } from "@/components/account-tagging-workspace";
-import { LoanDetailLink } from "@/components/loan-detail-link";
 import type { LoanDetailLoan } from "@/components/loan-detail-window";
+import { LocationReportLoanRow } from "@/components/location-report-loan-row";
 import { PrintReportButton } from "@/components/print-report-button";
 import { accountTaggingHref, accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { canAssignRemedial, getAccessibleBranchIds, requireUser } from "@/lib/auth";
-import { dateOnly } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -181,6 +180,10 @@ function distributionPrincipalBalance(loan: {
 
 function normalizedLocationKey(value: string) {
   return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("en");
+}
+
+function normalizedMunicipalityKey(value: string) {
+  return normalizedLocationKey(value).replace(/^city of\s+/, "");
 }
 
 function preferredLocationLabel(current: string, candidate: string) {
@@ -639,7 +642,11 @@ export default async function AccountTaggingPage({
     const province = activeAssignment?.province?.trim() || "Province not set";
     const municipality = activeAssignment?.municipality?.trim() || "City/Municipality not set";
     const barangay = activeAssignment?.barangay?.trim() || "Barangay not set";
-    const key = [province, municipality, barangay].map(normalizedLocationKey).join("\u0000");
+    const key = [
+      normalizedLocationKey(province),
+      normalizedMunicipalityKey(municipality),
+      normalizedLocationKey(barangay)
+    ].join("\u0000");
     const summary = locationSummaryMap.get(key) ?? {
       province,
       municipality,
@@ -690,7 +697,7 @@ export default async function AccountTaggingPage({
       barangay.customers.forEach((customerId) => province.customers.add(customerId));
       province.principalBalance += barangay.principalBalance;
       province.balance += barangay.balance;
-      const municipalityKey = normalizedLocationKey(barangay.municipality);
+      const municipalityKey = normalizedMunicipalityKey(barangay.municipality);
       const municipality = province.municipalities.get(municipalityKey) ?? {
         name: barangay.municipality,
         accounts: 0,
@@ -940,36 +947,30 @@ export default async function AccountTaggingPage({
                                 <span className="text-right font-bold text-red-700">{barangay.principalBalance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</span>
                               </summary>
                               <div className="overflow-x-auto border-t border-slate-200 bg-slate-50 px-4 py-3">
-                                <table className="w-full min-w-[820px] text-left text-xs">
+                                <table className="w-full min-w-[1680px] text-left text-xs">
                                   <thead className="uppercase tracking-wide text-slate-500">
                                     <tr>
                                       <th className="px-3 py-2">Client</th>
+                                      <th className="px-3 py-2">Address</th>
                                       <th className="px-3 py-2">Loan</th>
                                       <th className="px-3 py-2">Branch</th>
                                       <th className="px-3 py-2">Product</th>
                                       <th className="px-3 py-2">Maturity</th>
                                       <th className="px-3 py-2">Status</th>
                                       <th className="px-3 py-2 text-right">Principal Balance</th>
+                                      <th className="px-3 py-2">Province</th>
+                                      <th className="px-3 py-2">City/Municipality</th>
+                                      <th className="px-3 py-2">Barangay</th>
+                                      <th className="px-3 py-2">Action</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-slate-200 bg-white">
                                     {barangay.loans.map((loan) => (
-                                      <tr key={loan.id}>
-                                        <td className="px-3 py-2">
-                                          <p className="font-bold text-slate-950">{loan.clientName}</p>
-                                          <p className="text-slate-500">{loan.clientId || "-"}</p>
-                                        </td>
-                                        <td className="px-3 py-2 font-bold text-brand-blue">
-                                          <LoanDetailLink loan={loan.loanDetail} label={loan.loanNumber} />
-                                        </td>
-                                        <td className="px-3 py-2">{loan.branchName}</td>
-                                        <td className="px-3 py-2">{loan.loanProduct || "-"}</td>
-                                        <td className="px-3 py-2">{dateOnly(loan.maturityAt)}</td>
-                                        <td className="px-3 py-2">{loan.sourceStatusName || "-"}</td>
-                                        <td className="px-3 py-2 text-right font-bold text-red-700">
-                                          {loan.principalBalance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}
-                                        </td>
-                                      </tr>
+                                      <LocationReportLoanRow
+                                        key={loan.id}
+                                        loan={loan}
+                                        canEdit={canAssignRemedial(user.role)}
+                                      />
                                     ))}
                                   </tbody>
                                 </table>

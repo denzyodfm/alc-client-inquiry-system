@@ -31,6 +31,10 @@ function normalizedLocationKey(value: string) {
   return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("en");
 }
 
+function normalizedMunicipalityKey(value: string) {
+  return normalizedLocationKey(value).replace(/^city of\s+/, "");
+}
+
 function preferredLocationLabel(current: string, candidate: string) {
   const currentHasLowercase = /[a-z]/.test(current);
   const candidateHasLowercase = /[a-z]/.test(candidate);
@@ -252,7 +256,11 @@ export async function GET(request: Request) {
       const province = assignment?.province?.trim() || "Province not set";
       const municipality = assignment?.municipality?.trim() || "City/Municipality not set";
       const barangay = assignment?.barangay?.trim() || "Barangay not set";
-      const key = [province, municipality, barangay].map(normalizedLocationKey).join("\u0000");
+      const key = [
+        normalizedLocationKey(province),
+        normalizedMunicipalityKey(municipality),
+        normalizedLocationKey(barangay)
+      ].join("\u0000");
       const group = locationGroups.get(key) ?? {
         province,
         municipality,
@@ -300,7 +308,7 @@ export async function GET(request: Request) {
     province.name = preferredLocationLabel(province.name, barangay.province);
     barangay.customers.forEach((customerId) => province.customers.add(customerId));
     province.principalBalance += barangay.principalBalance;
-    const municipalityKey = normalizedLocationKey(barangay.municipality);
+    const municipalityKey = normalizedMunicipalityKey(barangay.municipality);
     const municipality = province.municipalities.get(municipalityKey) ?? {
       name: barangay.municipality,
       customers: new Set<number>(),
