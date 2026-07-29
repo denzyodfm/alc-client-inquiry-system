@@ -213,7 +213,7 @@ model RemedialAssignment {
   id           Int      @id @default(autoincrement())
   loanId       Int      @unique @map("loan_id")
   branchId     Int      @map("branch_id")
-  assignedToId Int      @map("assigned_to_id")
+  assignedToId Int?     @map("assigned_to_id")
   assignedById Int?     @map("assigned_by_id")
   areaTeamLeaderId Int? @map("area_team_leader_id")
   status       RemedialAssignmentStatus @default(ACTIVE)
@@ -233,7 +233,7 @@ model RemedialAssignment {
   updatedAt    DateTime @updatedAt @map("updated_at")
   loan         Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
   branch       Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  assignedTo   User     @relation("RemedialAssignedOfficer", fields: [assignedToId], references: [id], onDelete: Restrict)
+  assignedTo   User?    @relation("RemedialAssignedOfficer", fields: [assignedToId], references: [id], onDelete: Restrict)
   assignedBy   User?    @relation("RemedialAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
   areaTeamLeader User? @relation("RemedialAreaTeamLeader", fields: [areaTeamLeaderId], references: [id], onDelete: SetNull)
   visits       RemedialVisit[]

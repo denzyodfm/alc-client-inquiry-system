@@ -92,7 +92,7 @@ export default async function ClientConditionsPage({
     address: assignment.loan.client.address,
     branch: `${assignment.branch.branchName} (${assignment.branch.branchCode})`,
     loanNumber: assignment.loan.loanNumber ?? assignment.loan.remoteId,
-    accountOfficer: assignment.assignedTo.name,
+    accountOfficer: assignment.assignedTo?.name ?? "Unassigned",
     areaTeamLeader: assignment.areaTeamLeader?.name ?? null,
     zone: assignment.zone,
     condition: assignment.clientCondition ?? "",

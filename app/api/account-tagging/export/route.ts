@@ -31,8 +31,38 @@ function normalizedLocationKey(value: string) {
   return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("en");
 }
 
+const provinceAliases: Record<string, string> = {
+  adn: "agusan del norte",
+  ads: "agusan del sur",
+  sds: "surigao del sur",
+  sdn: "surigao del norte"
+};
+
+const provinceLabels: Record<string, string> = {
+  "agusan del norte": "Agusan del Norte",
+  "agusan del sur": "Agusan del Sur",
+  "surigao del sur": "Surigao del Sur",
+  "surigao del norte": "Surigao del Norte"
+};
+
+function normalizedProvinceKey(value: string) {
+  const key = normalizedLocationKey(value);
+  return provinceAliases[key] ?? key;
+}
+
 function normalizedMunicipalityKey(value: string) {
-  return normalizedLocationKey(value).replace(/^city of\s+/, "");
+  const key = normalizedLocationKey(value);
+  if (key === "btc") return "butuan";
+  return key.replace(/^city of\s+/, "").replace(/\s+city$/, "");
+}
+
+function canonicalProvinceLabel(value: string) {
+  const key = normalizedProvinceKey(value);
+  return provinceLabels[key] ?? value;
+}
+
+function canonicalMunicipalityLabel(value: string) {
+  return normalizedMunicipalityKey(value) === "butuan" ? "Butuan City" : value;
 }
 
 function preferredLocationLabel(current: string, candidate: string) {
@@ -194,7 +224,7 @@ export async function GET(request: Request) {
   const branchLabel = branch ? `${branch.branchName} (${branch.branchCode})` : "All branches";
   const detailRows = loans
     .map((loan, index) => {
-      const assignedOfficer = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.assignedTo.name : "Unassigned";
+      const assignedOfficer = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.assignedTo?.name ?? "Unassigned" : "Unassigned";
       const zone = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.zone ?? "-" : "-";
       const division = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.division ?? "-" : "-";
       const province = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.province ?? "-" : "-";
@@ -253,11 +283,11 @@ export async function GET(request: Request) {
   if (locationReport) {
     for (const loan of loans) {
       const assignment = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment : null;
-      const province = assignment?.province?.trim() || "Province not set";
-      const municipality = assignment?.municipality?.trim() || "City/Municipality not set";
+      const province = canonicalProvinceLabel(assignment?.province?.trim() || "Province not set");
+      const municipality = canonicalMunicipalityLabel(assignment?.municipality?.trim() || "City/Municipality not set");
       const barangay = assignment?.barangay?.trim() || "Barangay not set";
       const key = [
-        normalizedLocationKey(province),
+        normalizedProvinceKey(province),
         normalizedMunicipalityKey(municipality),
         normalizedLocationKey(barangay)
       ].join("\u0000");
@@ -298,7 +328,7 @@ export async function GET(request: Request) {
     }>;
   }>();
   for (const barangay of sortedLocationGroups) {
-    const provinceKey = normalizedLocationKey(barangay.province);
+    const provinceKey = normalizedProvinceKey(barangay.province);
     const province = provinceExportMap.get(provinceKey) ?? {
       name: barangay.province,
       customers: new Set<number>(),

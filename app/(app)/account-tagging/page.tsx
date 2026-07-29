@@ -136,9 +136,9 @@ function toAccountTaggingRow(loan: AccountTaggingLoan): AccountTaggingLoanRow {
     sourceStatusName: loan.sourceStatusName,
     sourceStatusCode: loan.sourceStatusCode,
     ...amounts,
-    assignedOfficerId: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.assignedTo.id : null,
+    assignedOfficerId: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.assignedTo?.id ?? null : null,
     assignmentId: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.id : null,
-    assignedOfficer: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.assignedTo.name : null,
+    assignedOfficer: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.assignedTo?.name ?? null : null,
     areaTeamLeaderId: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.areaTeamLeader?.id ?? null : null,
     areaTeamLeader: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.areaTeamLeader?.name ?? null : null,
     zone: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.zone : null,
@@ -182,8 +182,38 @@ function normalizedLocationKey(value: string) {
   return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("en");
 }
 
+const provinceAliases: Record<string, string> = {
+  adn: "agusan del norte",
+  ads: "agusan del sur",
+  sds: "surigao del sur",
+  sdn: "surigao del norte"
+};
+
+const provinceLabels: Record<string, string> = {
+  "agusan del norte": "Agusan del Norte",
+  "agusan del sur": "Agusan del Sur",
+  "surigao del sur": "Surigao del Sur",
+  "surigao del norte": "Surigao del Norte"
+};
+
+function normalizedProvinceKey(value: string) {
+  const key = normalizedLocationKey(value);
+  return provinceAliases[key] ?? key;
+}
+
 function normalizedMunicipalityKey(value: string) {
-  return normalizedLocationKey(value).replace(/^city of\s+/, "");
+  const key = normalizedLocationKey(value);
+  if (key === "btc") return "butuan";
+  return key.replace(/^city of\s+/, "").replace(/\s+city$/, "");
+}
+
+function canonicalProvinceLabel(value: string) {
+  const key = normalizedProvinceKey(value);
+  return provinceLabels[key] ?? value;
+}
+
+function canonicalMunicipalityLabel(value: string) {
+  return normalizedMunicipalityKey(value) === "butuan" ? "Butuan City" : value;
 }
 
 function preferredLocationLabel(current: string, candidate: string) {
@@ -293,6 +323,7 @@ export default async function AccountTaggingPage({
     breakdowns: Map<string, { assignments: number; balance: number; payments: number; customerIds: Set<number> }>;
   }>();
   for (const assignment of assignmentRows) {
+    if (!assignment.assignedTo) continue;
     const current = summaryMap.get(assignment.assignedTo.id) ?? {
       ...assignment.assignedTo,
       count: 0,
@@ -639,11 +670,11 @@ export default async function AccountTaggingPage({
   }>();
   for (const loan of portfolioLoans) {
     const activeAssignment = loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment : null;
-    const province = activeAssignment?.province?.trim() || "Province not set";
-    const municipality = activeAssignment?.municipality?.trim() || "City/Municipality not set";
+    const province = canonicalProvinceLabel(activeAssignment?.province?.trim() || "Province not set");
+    const municipality = canonicalMunicipalityLabel(activeAssignment?.municipality?.trim() || "City/Municipality not set");
     const barangay = activeAssignment?.barangay?.trim() || "Barangay not set";
     const key = [
-      normalizedLocationKey(province),
+      normalizedProvinceKey(province),
       normalizedMunicipalityKey(municipality),
       normalizedLocationKey(barangay)
     ].join("\u0000");
@@ -676,7 +707,7 @@ export default async function AccountTaggingPage({
     );
   const locationHierarchy = Array.from(
     locationSummary.reduce((provinces, barangay) => {
-      const provinceKey = normalizedLocationKey(barangay.province);
+      const provinceKey = normalizedProvinceKey(barangay.province);
       const province = provinces.get(provinceKey) ?? {
         name: barangay.province,
         accounts: 0,

@@ -114,9 +114,6 @@ export async function POST(request: Request) {
     }
 
     const nextAssignedToId = hasAssignedOfficer ? assignedToId : loan.remedialAssignment?.assignedToId;
-    if (!nextAssignedToId) {
-      return NextResponse.json({ error: "Select an Account Officer before updating Zone or Division on an unassigned loan." }, { status: 400 });
-    }
 
     if (hasAssignedOfficer) {
       const officer = await validateOfficer(assignedToId, [loan.branchId]);
@@ -133,7 +130,7 @@ export async function POST(request: Request) {
       create: {
         loanId: loan.id,
         branchId: loan.branchId,
-        assignedToId: nextAssignedToId,
+        assignedToId: nextAssignedToId ?? null,
         assignedById: user.id,
         ...(hasAreaTeamLeader ? { areaTeamLeaderId } : {}),
         ...(zone ? { zone } : {}),
@@ -255,7 +252,6 @@ export async function POST(request: Request) {
 
     for (const loan of loans) {
       const nextAssignedToId = hasAssignedOfficer ? assignedToId : loan.remedialAssignment?.assignedToId;
-      if (!nextAssignedToId) continue;
 
       saved.push(
         await tx.remedialAssignment.upsert({
@@ -263,7 +259,7 @@ export async function POST(request: Request) {
           create: {
             loanId: loan.id,
             branchId: loan.branchId,
-            assignedToId: nextAssignedToId,
+            assignedToId: nextAssignedToId ?? null,
             assignedById: user.id,
             ...(hasAreaTeamLeader ? { areaTeamLeaderId } : {}),
             ...(zone ? { zone } : {}),
@@ -293,10 +289,6 @@ export async function POST(request: Request) {
 
     return saved;
   });
-
-  if (!assignments.length) {
-    return NextResponse.json({ error: "No currently tagged loans found. Select an Account Officer when assigning Zone or Division to unassigned loans." }, { status: 400 });
-  }
 
   return NextResponse.json({ ok: true, count: assignments.length });
 }

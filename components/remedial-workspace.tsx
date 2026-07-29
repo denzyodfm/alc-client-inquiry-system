@@ -44,7 +44,7 @@ export type RemedialLoanRow = {
     id: number;
     status: string;
     assignmentNotes: string | null;
-    assignedTo: { id: number; name: string; email: string };
+    assignedTo: { id: number; name: string; email: string } | null;
     visits: RemedialVisitRow[];
   } | null;
 };
@@ -168,7 +168,7 @@ export function RemedialWorkspace({
     itineraryBranchSummaries.find((summary) => summary.branch.id === selectedItineraryBranchId) ?? null;
   const myFollowUps = loans
     .flatMap((loan) =>
-      loan.assignment?.assignedTo.id === currentUserId
+      loan.assignment?.assignedTo?.id === currentUserId
         ? loan.assignment.visits
             .filter((visit) => visit.status !== "REJECTED")
             .map((visit) => ({ loan, visit }))
@@ -182,7 +182,7 @@ export function RemedialWorkspace({
         .map((visit) => ({ loan, visit }))
     )
     .sort((a, b) => new Date(a.visit.scheduledDate).getTime() - new Date(b.visit.scheduledDate).getTime());
-  const assignedLoans = loans.filter((loan) => loan.assignment?.assignedTo.id === currentUserId && loan.assignment.status === "ACTIVE");
+  const assignedLoans = loans.filter((loan) => loan.assignment?.assignedTo?.id === currentUserId && loan.assignment.status === "ACTIVE");
   const unassignedLoans = loans.filter((loan) => !loan.assignment || loan.assignment.status !== "ACTIVE");
   const assignmentSearchTerms = assignmentSearch
     .toLowerCase()
@@ -200,8 +200,8 @@ export function RemedialWorkspace({
           loan.remoteId,
           loan.branch.branchName,
           loan.branch.branchCode,
-          loan.assignment?.assignedTo.name,
-          loan.assignment?.assignedTo.email
+          loan.assignment?.assignedTo?.name,
+          loan.assignment?.assignedTo?.email
         ]
           .filter(Boolean)
           .join(" ")
@@ -545,7 +545,7 @@ export function RemedialWorkspace({
                     <td className="px-2 py-2">
                       {loan.assignment ? (
                         <div>
-                          <p className="truncate font-bold text-slate-950" title={loan.assignment.assignedTo.name}>{loan.assignment.assignedTo.name}</p>
+                          <p className="truncate font-bold text-slate-950" title={loan.assignment.assignedTo?.name ?? "Unassigned"}>{loan.assignment.assignedTo?.name ?? "Unassigned"}</p>
                           {currentVisit ? (
                             <span className="mt-1 inline-flex rounded-md bg-blue-50 px-1.5 py-0.5 text-[11px] font-bold text-brand-blue">
                               {statusLabel(currentVisit.status)} · {dateOnly(currentVisit.scheduledDate)}
@@ -660,8 +660,8 @@ export function RemedialWorkspace({
                         <p className="text-xs text-slate-500">{loan.sourceStatusCode ?? "-"} - {loan.sourceStatusName ?? "Past due"}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="font-semibold text-slate-950">{loan.assignment?.assignedTo.name ?? "Unassigned"}</p>
-                        <p className="text-xs text-slate-500">{loan.assignment?.assignedTo.email ?? "-"}</p>
+                        <p className="font-semibold text-slate-950">{loan.assignment?.assignedTo?.name ?? "Unassigned"}</p>
+                        <p className="text-xs text-slate-500">{loan.assignment?.assignedTo?.email ?? "-"}</p>
                       </td>
                       <td className="px-4 py-3">{loan.client.contactNumber ?? "-"}</td>
                       <td className="px-4 py-3 font-bold text-red-700">{money(loan.due)}</td>
@@ -777,7 +777,7 @@ export function RemedialWorkspace({
                       <span className="font-bold text-red-700">{money(loan.balance)}</span>
                       <span className="font-semibold text-red-700">{dateOnly(loan.pastDueDate)}</span>
                       <span className="font-bold text-red-700">{loan.daysPastDue.toLocaleString("en-US")}</span>
-                      <span>{loan.assignment?.assignedTo.name ?? "Unassigned"}</span>
+                      <span>{loan.assignment?.assignedTo?.name ?? "Unassigned"}</span>
                     </label>
                   ))}
                   {!filteredUnassignedLoans.length ? (

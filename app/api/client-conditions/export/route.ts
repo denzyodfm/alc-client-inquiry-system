@@ -67,7 +67,7 @@ export async function GET(request: Request) {
   const rows = assignments.map((item, index) => `<tr>
     <td>${index + 1}</td><td>${cell(item.loan.client.fullName)}</td><td>${cell(item.loan.client.clientId)}</td>
     <td>${cell(item.loan.client.address)}</td><td>${cell(item.branch.branchName)}</td><td>${cell(item.branch.branchCode)}</td>
-    <td>${cell(item.loan.loanNumber ?? item.loan.remoteId)}</td><td>${cell(item.assignedTo.name)}</td>
+    <td>${cell(item.loan.loanNumber ?? item.loan.remoteId)}</td><td>${cell(item.assignedTo?.name ?? "Unassigned")}</td>
     <td>${cell(item.areaTeamLeader?.name ?? "Unassigned")}</td><td>${cell(item.zone ?? "-")}</td>
     <td>${cell(item.province ?? "-")}</td><td>${cell(item.municipality ?? "-")}</td><td>${cell(item.barangay ?? "-")}</td>
     <td>${cell(item.clientCondition)}</td><td>${cell(item.conditionApprovalStatus ?? "Pending")}</td>
