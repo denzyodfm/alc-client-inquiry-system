@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AccountTaggingWorkspace, type AccountTaggingLoanRow } from "@/components/account-tagging-workspace";
 import type { LoanDetailLoan } from "@/components/loan-detail-window";
-import { LocationReportLoanRow } from "@/components/location-report-loan-row";
+import { LocationReportLoanList } from "@/components/location-report-loan-row";
 import { PrintReportButton } from "@/components/print-report-button";
 import { accountTaggingHref, accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { canAssignRemedial, getAccessibleBranchIds, requireUser } from "@/lib/auth";
@@ -978,33 +978,7 @@ export default async function AccountTaggingPage({
                                 <span className="text-right font-bold text-red-700">{barangay.principalBalance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</span>
                               </summary>
                               <div className="overflow-x-auto border-t border-slate-200 bg-slate-50 px-4 py-3">
-                                <table className="w-full min-w-[1680px] text-left text-xs">
-                                  <thead className="uppercase tracking-wide text-slate-500">
-                                    <tr>
-                                      <th className="px-3 py-2">Client</th>
-                                      <th className="px-3 py-2">Loan</th>
-                                      <th className="px-3 py-2">Branch</th>
-                                      <th className="px-3 py-2">Product</th>
-                                      <th className="px-3 py-2">Maturity</th>
-                                      <th className="px-3 py-2">Status</th>
-                                      <th className="px-3 py-2 text-right">Principal Balance</th>
-                                      <th className="px-3 py-2">Address</th>
-                                      <th className="px-3 py-2">Province</th>
-                                      <th className="px-3 py-2">City/Municipality</th>
-                                      <th className="px-3 py-2">Barangay</th>
-                                      <th className="px-3 py-2">Action</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-200 bg-white">
-                                    {barangay.loans.map((loan) => (
-                                      <LocationReportLoanRow
-                                        key={loan.id}
-                                        loan={loan}
-                                        canEdit={canAssignRemedial(user.role)}
-                                      />
-                                    ))}
-                                  </tbody>
-                                </table>
+                                <LocationReportLoanList loans={barangay.loans} canEdit={canAssignRemedial(user.role)} />
                               </div>
                             </details>
                           ))}

@@ -1,10 +1,85 @@
 "use client";
 
-import { FormEvent, useState, useTransition } from "react";
+import { FormEvent, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { AccountTaggingLoanRow } from "@/components/account-tagging-workspace";
 import { LoanDetailLink } from "@/components/loan-detail-link";
 import { dateOnly } from "@/lib/format";
+
+export function LocationReportLoanList({
+  loans,
+  canEdit
+}: {
+  loans: AccountTaggingLoanRow[];
+  canEdit: boolean;
+}) {
+  const [query, setQuery] = useState("");
+  const filteredLoans = useMemo(() => {
+    const term = query.trim().toLocaleLowerCase("en");
+    if (!term) return loans;
+    return loans.filter((loan) =>
+      [
+        loan.clientName,
+        loan.clientId,
+        loan.loanNumber,
+        loan.branchName,
+        loan.branchCode,
+        loan.loanProduct,
+        loan.sourceStatusName,
+        loan.address,
+        loan.province,
+        loan.municipality,
+        loan.barangay
+      ].some((value) => value?.toLocaleLowerCase("en").includes(term))
+    );
+  }, [loans, query]);
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <input
+          className="field h-9 max-w-md text-xs"
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search client, loan, address, branch, or location"
+          aria-label="Search loans in this barangay"
+        />
+        <span className="text-xs font-semibold text-slate-500">
+          {filteredLoans.length.toLocaleString("en-US")} of {loans.length.toLocaleString("en-US")} loan(s)
+        </span>
+      </div>
+      <table className="w-full min-w-[1680px] text-left text-xs">
+        <thead className="uppercase tracking-wide text-slate-500">
+          <tr>
+            <th className="px-3 py-2">Client</th>
+            <th className="px-3 py-2">Loan</th>
+            <th className="px-3 py-2">Branch</th>
+            <th className="px-3 py-2">Product</th>
+            <th className="px-3 py-2">Maturity</th>
+            <th className="px-3 py-2">Status</th>
+            <th className="px-3 py-2 text-right">Principal Balance</th>
+            <th className="px-3 py-2">Address</th>
+            <th className="px-3 py-2">Province</th>
+            <th className="px-3 py-2">City/Municipality</th>
+            <th className="px-3 py-2">Barangay</th>
+            <th className="px-3 py-2">Action</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-200 bg-white">
+          {filteredLoans.map((loan) => <LocationReportLoanRow key={loan.id} loan={loan} canEdit={canEdit} />)}
+          {!filteredLoans.length ? (
+            <tr>
+              <td className="px-3 py-8 text-center font-semibold text-slate-500" colSpan={12}>
+                No matching clients or loans found.
+              </td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export function LocationReportLoanRow({
   loan,
