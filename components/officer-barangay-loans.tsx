@@ -43,17 +43,17 @@ function date(value: string | null) {
   return value ? new Date(value).toLocaleDateString("en-US") : "-";
 }
 
-export function OfficerBarangayLoans({
+export function BarangayLoanReport({
   officerId,
   locationId,
   clientCount,
   officerName,
   locationName
 }: {
-  officerId: number;
+  officerId?: number;
   locationId: number;
   clientCount: number;
-  officerName: string;
+  officerName?: string;
   locationName: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -61,7 +61,7 @@ export function OfficerBarangayLoans({
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const baseUrl = `/api/location-masterlist/officer-loans?officerId=${officerId}&locationId=${locationId}`;
+  const baseUrl = `/api/location-masterlist/officer-loans?locationId=${locationId}${officerId ? `&officerId=${officerId}` : ""}`;
 
   useEffect(() => {
     if (!open) return;
@@ -88,7 +88,9 @@ export function OfficerBarangayLoans({
         type="button"
         className="font-bold text-brand-blue underline decoration-dotted underline-offset-2 hover:text-blue-800"
         title="View complete loan details"
-        onClick={() => {
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
           setPage(1);
           setOpen(true);
         }}
@@ -100,9 +102,9 @@ export function OfficerBarangayLoans({
           <div className="flex max-h-[92vh] w-full max-w-[96vw] flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-brand-green">Account Officer Loan Details</p>
-                <h3 className="mt-1 text-xl font-bold text-slate-950">{officerName}</h3>
-                <p className="mt-1 text-sm font-semibold text-slate-600">{locationName}</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-brand-green">{officerId ? "Account Officer Loan Details" : "Location Loan Details"}</p>
+                {officerName ? <h3 className="mt-1 text-xl font-bold text-slate-950">{officerName}</h3> : null}
+                <p className={`${officerName ? "mt-1 text-sm" : "mt-1 text-xl"} font-semibold text-slate-600`}>{locationName}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <a className="btn-secondary" href={`${baseUrl}&format=excel`}>Export to Excel</a>

@@ -4,7 +4,7 @@ import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
 import { getLocationLinkSchedule } from "@/lib/location-link-scheduler";
 import { prisma } from "@/lib/prisma";
 import { LocationLinkControl } from "@/components/location-link-control";
-import { OfficerBarangayLoans } from "@/components/officer-barangay-loans";
+import { BarangayLoanReport } from "@/components/officer-barangay-loans";
 import { AccountOfficerSummary, type AccountOfficerSummaryRow } from "./account-officer-summary";
 
 export const dynamic = "force-dynamic";
@@ -254,7 +254,8 @@ function money(value: number | null) {
   return value === null ? "—" : value.toLocaleString("en-US", { style: "currency", currency: "PHP" });
 }
 
-const rowGrid = "grid min-w-[1350px] grid-cols-[minmax(300px,1fr)_100px_160px_repeat(4,150px)] items-center";
+const locationRowGrid = "grid min-w-[1480px] grid-cols-[minmax(300px,1fr)_100px_130px_160px_repeat(4,150px)] items-center";
+const officerRowGrid = "grid min-w-[1350px] grid-cols-[minmax(300px,1fr)_100px_160px_repeat(4,150px)] items-center";
 
 export default async function LocationMasterlistPage() {
   const user = await requireUser(["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
@@ -463,27 +464,27 @@ export default async function LocationMasterlistPage() {
           </p>
         </div>
         <div className="overflow-x-auto text-sm">
-          <div className={`${rowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500`}>
+          <div className={`${locationRowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500`}>
             <span>Location</span><span className="text-right">No. of Clients</span>
-            <span className="text-right">Portfolio</span>
+            <span className="text-right">With Account Officer</span><span className="text-right">Portfolio</span>
             <StatusHeader label="Current" /><StatusHeader label="Delayed" />
             <StatusHeader label="Past Due" /><StatusHeader label="Litigated" />
           </div>
-          <div className="min-w-[1350px] divide-y divide-slate-200">
+          <div className="min-w-[1480px] divide-y divide-slate-200">
             {provinceList.map((province) => (
               <details key={province.name} className="group">
-                <summary className={`${rowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
+                <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
                   <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open:before:rotate-90">
                     {province.name}
                     <AccountOfficerSummary locationName={province.name} rows={accountOfficerRows(province.officers)} />
                   </span>
                   <span className="text-right font-bold text-brand-blue">{count(province.metrics.numberOfClients)}</span>
-                  <MetricCells metrics={province.metrics} showClients={false} />
+                  <MetricCells metrics={province.metrics} showClients={false} showWithAccountOfficer />
                 </summary>
                 <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
                   {Array.from(province.municipalities.values()).map((municipality) => (
                     <details key={municipality.name} className="group/city border-b border-slate-100 last:border-b-0">
-                      <summary className={`${rowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
+                      <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
                         <span className="font-semibold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/city:before:rotate-90">
                           {municipality.name}
                           <AccountOfficerSummary
@@ -492,26 +493,33 @@ export default async function LocationMasterlistPage() {
                           />
                         </span>
                         <span className="text-right font-bold text-brand-blue">{count(municipality.metrics.numberOfClients)}</span>
-                        <MetricCells metrics={municipality.metrics} showClients={false} />
+                        <MetricCells metrics={municipality.metrics} showClients={false} showWithAccountOfficer />
                       </summary>
                       <div className="border-t border-slate-100 bg-white pl-8">
                         {municipality.barangays.map((barangay) => (
                           <details key={barangay.id} className="group/barangay border-b border-slate-100 last:border-b-0">
-                            <summary className={`${rowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
+                            <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
                             <span className="before:mr-2 before:inline-block before:text-[10px] before:content-['▶'] group-open/barangay:before:rotate-90">
                               <span className="text-slate-700">{barangay.name}</span>
                               {(barangay.zone || barangay.region) ? <span className="ml-2 text-xs text-slate-400">{[barangay.zone, barangay.region].filter(Boolean).join(" • ")}</span> : null}
                             </span>
-                              <MetricCells metrics={barangay.metrics} />
+                              <span className="text-right">
+                                <BarangayLoanReport
+                                  locationId={barangay.id}
+                                  clientCount={barangay.metrics.numberOfClients ?? 0}
+                                  locationName={`${barangay.name}, ${municipality.name}, ${province.name}`}
+                                />
+                              </span>
+                              <MetricCells metrics={barangay.metrics} showClients={false} showWithAccountOfficer />
                             </summary>
                             <div className="border-t border-slate-100 bg-blue-50/40 pl-8">
                               {barangay.officers.map((officer) => (
-                                <div key={officer.key} className={`${rowGrid} border-b border-blue-100 px-4 py-3 last:border-b-0`}>
+                                <div key={officer.key} className={`${locationRowGrid} border-b border-blue-100 px-4 py-3 last:border-b-0`}>
                                   <span>
                                     <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Account Officer</span>
                                     <span className="ml-3 font-semibold text-slate-800">{officer.name}</span>
                                   </span>
-                                  <MetricCells metrics={officer.metrics} />
+                                  <MetricCells metrics={officer.metrics} showWithAccountOfficer />
                                 </div>
                               ))}
                               {!barangay.officers.length ? (
@@ -529,8 +537,8 @@ export default async function LocationMasterlistPage() {
             {!provinceList.length ? <p className="px-4 py-10 text-center font-semibold text-slate-500">No masterlist locations imported.</p> : null}
           </div>
           {provinceList.length ? (
-            <div className={`${rowGrid} border-t-2 border-slate-300 bg-slate-50 px-4 py-3 font-extrabold text-slate-950`}>
-              <span>Grand Total</span><MetricCells metrics={grandTotal} />
+            <div className={`${locationRowGrid} border-t-2 border-slate-300 bg-slate-50 px-4 py-3 font-extrabold text-slate-950`}>
+              <span>Grand Total</span><MetricCells metrics={grandTotal} showWithAccountOfficer />
             </div>
           ) : null}
         </div>
@@ -544,7 +552,7 @@ export default async function LocationMasterlistPage() {
           </p>
         </div>
         <div className="overflow-x-auto text-sm">
-          <div className={`${rowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500`}>
+          <div className={`${officerRowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500`}>
             <span>Account Officer / Location</span><span className="text-right">No. of Clients</span>
             <span className="text-right">Portfolio</span>
             <StatusHeader label="Current" /><StatusHeader label="Delayed" />
@@ -553,30 +561,30 @@ export default async function LocationMasterlistPage() {
           <div className="min-w-[1350px] divide-y divide-slate-200">
             {accountOfficers.map((officer) => (
               <details key={officer.key} className="group/ao">
-                <summary className={`${rowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
+                <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
                   <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open/ao:before:rotate-90">{officer.name}</span>
                   <MetricCells metrics={officer.metrics} />
                 </summary>
                 <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
                   {Array.from(officer.provinces.values()).map((province) => (
                     <details key={province.name} className="group/ao-province border-b border-slate-100 last:border-b-0">
-                      <summary className={`${rowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
+                      <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
                         <span className="font-bold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/ao-province:before:rotate-90">{province.name}</span>
                         <MetricCells metrics={province.metrics} />
                       </summary>
                       <div className="border-t border-slate-100 bg-white/70 pl-6">
                         {Array.from(province.municipalities.values()).map((municipality) => (
                           <details key={municipality.name} className="group/ao-city border-b border-slate-100 last:border-b-0">
-                            <summary className={`${rowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
+                            <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
                               <span className="font-semibold text-slate-700 before:mr-2 before:inline-block before:content-['▶'] group-open/ao-city:before:rotate-90">{municipality.name}</span>
                               <MetricCells metrics={municipality.metrics} />
                             </summary>
                             <div className="border-t border-slate-100 bg-white pl-8">
                               {municipality.barangays.map((barangay) => (
-                                <div key={barangay.id} className={`${rowGrid} border-b border-slate-100 px-4 py-3 last:border-b-0`}>
+                                <div key={barangay.id} className={`${officerRowGrid} border-b border-slate-100 px-4 py-3 last:border-b-0`}>
                                   <span className="text-slate-700">{barangay.name}</span>
                                   <span className="text-right">
-                                    <OfficerBarangayLoans
+                                    <BarangayLoanReport
                                       officerId={Number(officer.key)}
                                       locationId={barangay.id}
                                       clientCount={barangay.metrics.numberOfClients ?? 0}
@@ -599,7 +607,7 @@ export default async function LocationMasterlistPage() {
             {!accountOfficers.length ? <p className="px-4 py-8 text-center font-semibold text-slate-500">No linked Account Officer assignments found.</p> : null}
           </div>
           {accountOfficers.length ? (
-            <div className={`${rowGrid} border-t-2 border-slate-300 bg-slate-50 px-4 py-3 font-extrabold text-slate-950`}>
+            <div className={`${officerRowGrid} border-t-2 border-slate-300 bg-slate-50 px-4 py-3 font-extrabold text-slate-950`}>
               <span>Account Officer Total</span><MetricCells metrics={accountOfficerTotal} />
             </div>
           ) : null}
@@ -648,10 +656,19 @@ export default async function LocationMasterlistPage() {
   );
 }
 
-function MetricCells({ metrics, showClients = true }: { metrics: Metrics; showClients?: boolean }) {
+function MetricCells({
+  metrics,
+  showClients = true,
+  showWithAccountOfficer = false
+}: {
+  metrics: Metrics;
+  showClients?: boolean;
+  showWithAccountOfficer?: boolean;
+}) {
   return (
     <>
       {showClients ? <span className="text-right font-bold text-brand-blue">{count(metrics.numberOfClients)}</span> : null}
+      {showWithAccountOfficer ? <span className="text-right font-bold text-emerald-700">{count(metrics.withAccountOfficer)}</span> : null}
       <span className="text-right font-bold text-red-700">{money(metrics.portfolio)}</span>
       <StatusMetric countValue={metrics.current} balance={metrics.currentBalance} />
       <StatusMetric countValue={metrics.delayed} balance={metrics.delayedBalance} />

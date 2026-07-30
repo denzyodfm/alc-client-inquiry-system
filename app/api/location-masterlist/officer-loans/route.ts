@@ -38,16 +38,18 @@ export async function GET(request: NextRequest) {
   const { user, response } = await requireApiUser(allowedRoles);
   if (response) return response;
 
-  const officerId = Number(request.nextUrl.searchParams.get("officerId"));
+  const officerParam = request.nextUrl.searchParams.get("officerId");
+  const officerId = officerParam ? Number(officerParam) : null;
   const locationId = Number(request.nextUrl.searchParams.get("locationId"));
   const requestedPage = Math.max(1, Number(request.nextUrl.searchParams.get("page")) || 1);
   const format = request.nextUrl.searchParams.get("format");
-  if (!Number.isInteger(officerId) || officerId <= 0 || !Number.isInteger(locationId) || locationId <= 0) {
-    return NextResponse.json({ error: "A valid Account Officer and barangay are required." }, { status: 400 });
+  if ((officerId !== null && (!Number.isInteger(officerId) || officerId <= 0)) || !Number.isInteger(locationId) || locationId <= 0) {
+    return NextResponse.json({ error: "A valid barangay report scope is required." }, { status: 400 });
   }
-  if (user.role === "ACCOUNT_OFFICER" && officerId !== user.id) {
+  if (user.role === "ACCOUNT_OFFICER" && officerId !== null && officerId !== user.id) {
     return NextResponse.json({ error: "You can view only your assigned loans." }, { status: 403 });
   }
+  const effectiveOfficerId = officerId ?? (user.role === "ACCOUNT_OFFICER" ? user.id : null);
 
   const accessibleBranchIds = user.role === "ACCOUNT_OFFICER" ? null : await getAccessibleBranchIds(user);
   const branchWhere: Prisma.LoanWhereInput =
@@ -57,7 +59,7 @@ export async function GET(request: NextRequest) {
       branchWhere,
       accountTaggingSearchWhere({}),
       { locationLinked: true, locationMasterlistId: locationId },
-      { remedialAssignment: { is: { status: "ACTIVE", assignedToId: officerId } } }
+      { remedialAssignment: { is: { status: "ACTIVE", ...(effectiveOfficerId ? { assignedToId: effectiveOfficerId } : {}) } } }
     ]
   };
 
@@ -117,7 +119,7 @@ export async function GET(request: NextRequest) {
 
   if (format === "excel" || format === "print") {
     const title = rows[0]
-      ? `${rows[0].accountOfficer} - ${rows[0].barangay}, ${rows[0].municipality}, ${rows[0].province}`
+      ? `${officerId ? `${rows[0].accountOfficer} - ` : ""}${rows[0].barangay}, ${rows[0].municipality}, ${rows[0].province}`
       : "Account Officer Barangay Loan Report";
     const body = rows.map((row, index) => `<tr>
       <td>${index + 1}</td><td>${escapeHtml(row.clientName)}</td><td>${escapeHtml(row.clientNumber || "-")}</td>
