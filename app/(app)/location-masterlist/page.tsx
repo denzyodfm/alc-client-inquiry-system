@@ -1,4 +1,6 @@
-import { requireUser } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
+import { accountTaggingSearchWhere } from "@/lib/account-tagging";
+import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +34,154 @@ type ProvinceNode = {
   municipalities: Map<string, MunicipalityNode>;
 };
 
+type MetricAccumulator = {
+  clients: Set<number>;
+  portfolio: number;
+  currentClients: Set<number>;
+  delayedClients: Set<number>;
+  pastDueClients: Set<number>;
+  litigatedClients: Set<number>;
+};
+
+const provinceAliases: Record<string, string> = {
+  adn: "agusan del norte",
+  ads: "agusan del sur",
+  sdn: "surigao del norte",
+  sds: "surigao del sur"
+};
+
+function normalizedText(value: string) {
+  return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("en");
+}
+
+function normalizedProvince(value: string) {
+  const key = normalizedText(value);
+  return provinceAliases[key] ?? key;
+}
+
+function normalizedMunicipality(value: string) {
+  const key = normalizedText(value);
+  if (key === "btc") return "butuan";
+  return key.replace(/^city of\s+/, "").replace(/\s+city$/, "");
+}
+
+function normalizedBarangay(value: string) {
+  return normalizedText(value)
+    .replace(/\s*\(\s*barangay\s+\d+[^)]*\)\s*$/i, "")
+    .replace(/\s+pob\.?$/i, "")
+    .replace(/^(?:barangay|brgy)\.?\s+/, "");
+}
+
+function barangayAliases(value: string) {
+  const aliases = new Set([normalizedBarangay(value)]);
+  const numberedBarangay = normalizedText(value).match(/\(\s*barangay\s+(\d+)[^)]*\)\s*$/i);
+  if (numberedBarangay) aliases.add(numberedBarangay[1]);
+  return Array.from(aliases).filter(Boolean);
+}
+
+function locationKey(province: string, municipality: string, barangay: string) {
+  return `${normalizedProvince(province)}\u0000${normalizedMunicipality(municipality)}\u0000${normalizedBarangay(barangay)}`;
+}
+
+function municipalityBarangayKey(municipality: string, barangay: string) {
+  return `${normalizedMunicipality(municipality)}\u0000${normalizedBarangay(barangay)}`;
+}
+
+type MasterlistLocation = {
+  province: string;
+  municipality: string;
+  barangay: string;
+};
+
+function resolveMasterlistLocation(
+  assignment: { province: string | null; municipality: string | null; barangay: string | null },
+  address: string | null,
+  masterlistByKey: Map<string, MasterlistLocation>,
+  masterlistByMunicipalityBarangay: Map<string, MasterlistLocation[]>,
+  masterlistByBarangay: Map<string, MasterlistLocation[]>
+) {
+  if (!assignment.barangay) return null;
+  if (assignment.province && assignment.municipality) {
+    const exact = masterlistByKey.get(locationKey(assignment.province, assignment.municipality, assignment.barangay));
+    if (exact) return exact;
+  }
+
+  if (assignment.municipality) {
+    const municipalityCandidates = barangayAliases(assignment.barangay).flatMap(
+      (barangay) => masterlistByMunicipalityBarangay.get(municipalityBarangayKey(assignment.municipality!, barangay)) ?? []
+    );
+    const uniqueMunicipalityCandidates = Array.from(
+      new Map(municipalityCandidates.map((candidate) => [locationKey(candidate.province, candidate.municipality, candidate.barangay), candidate])).values()
+    );
+    if (uniqueMunicipalityCandidates.length === 1) return uniqueMunicipalityCandidates[0];
+  }
+
+  const candidates = barangayAliases(assignment.barangay).flatMap(
+    (barangay) => masterlistByBarangay.get(barangay) ?? []
+  );
+  const uniqueCandidates = Array.from(
+    new Map(candidates.map((candidate) => [locationKey(candidate.province, candidate.municipality, candidate.barangay), candidate])).values()
+  );
+  if (uniqueCandidates.length === 1) return uniqueCandidates[0];
+  if (!uniqueCandidates.length) return null;
+
+  const normalizedAddress = normalizedText(address ?? "");
+  const scored = uniqueCandidates.map((candidate) => {
+    let score = 0;
+    if (assignment.municipality && normalizedMunicipality(assignment.municipality) === normalizedMunicipality(candidate.municipality)) score += 8;
+    if (assignment.province && normalizedProvince(assignment.province) === normalizedProvince(candidate.province)) score += 6;
+    const municipality = normalizedMunicipality(candidate.municipality);
+    const province = normalizedProvince(candidate.province);
+    if (municipality && normalizedAddress.includes(municipality)) score += 4;
+    if (province && normalizedAddress.includes(province)) score += 3;
+    return { candidate, score };
+  }).sort((a, b) => b.score - a.score);
+
+  if (scored[0].score > 0 && scored[0].score > (scored[1]?.score ?? -1)) return scored[0].candidate;
+  return null;
+}
+
+function emptyAccumulator(): MetricAccumulator {
+  return {
+    clients: new Set(),
+    portfolio: 0,
+    currentClients: new Set(),
+    delayedClients: new Set(),
+    pastDueClients: new Set(),
+    litigatedClients: new Set()
+  };
+}
+
+function accumulatedMetrics(accumulator?: MetricAccumulator): Metrics {
+  if (!accumulator) {
+    return { numberOfClients: 0, portfolio: 0, current: 0, delayed: 0, pastDue: 0, litigated: 0 };
+  }
+  return {
+    numberOfClients: accumulator.clients.size,
+    portfolio: accumulator.portfolio,
+    current: accumulator.currentClients.size,
+    delayed: accumulator.delayedClients.size,
+    pastDue: accumulator.pastDueClients.size,
+    litigated: accumulator.litigatedClients.size
+  };
+}
+
+function addLoanMetrics(
+  target: Map<string, MetricAccumulator>,
+  key: string,
+  loan: { clientId: number; balance: unknown; sourceStatusName: string | null }
+) {
+  const accumulator = target.get(key) ?? emptyAccumulator();
+  accumulator.clients.add(loan.clientId);
+  accumulator.portfolio += Number(loan.balance);
+  const status = normalizedText(loan.sourceStatusName ?? "");
+  if (status.includes("litig")) accumulator.litigatedClients.add(loan.clientId);
+  else if (status.includes("past") || status.includes("overdue") || status.includes("arrears")) accumulator.pastDueClients.add(loan.clientId);
+  else if (status.includes("delay")) accumulator.delayedClients.add(loan.clientId);
+  else if (status.includes("current")) accumulator.currentClients.add(loan.clientId);
+  target.set(key, accumulator);
+}
+
 function aggregateMetrics(items: Metrics[]): Metrics {
   const total = (field: keyof Metrics) => {
     const values = items.map((item) => item[field]).filter((value): value is number => value !== null);
@@ -58,10 +208,80 @@ function money(value: number | null) {
 const rowGrid = "grid min-w-[1080px] grid-cols-[minmax(300px,1fr)_100px_160px_repeat(4,90px)] items-center";
 
 export default async function LocationMasterlistPage() {
-  await requireUser(["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
-  const locations = await prisma.locationMasterlist.findMany({
-    orderBy: [{ province: "asc" }, { municipality: "asc" }, { barangay: "asc" }]
-  });
+  const user = await requireUser(["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
+  const accessibleBranchIds = user.role === "ACCOUNT_OFFICER" ? null : await getAccessibleBranchIds(user);
+  const branchWhere: Prisma.LoanWhereInput =
+    accessibleBranchIds === null ? {} : accessibleBranchIds.length ? { branchId: { in: accessibleBranchIds } } : { branchId: -1 };
+  const [locations, loans] = await Promise.all([
+    prisma.locationMasterlist.findMany({
+      orderBy: [{ province: "asc" }, { municipality: "asc" }, { barangay: "asc" }]
+    }),
+    prisma.loan.findMany({
+      where: {
+        AND: [
+          branchWhere,
+          accountTaggingSearchWhere({}),
+          {
+            remedialAssignment: {
+              is: {
+                status: "ACTIVE",
+                ...(user.role === "ACCOUNT_OFFICER" ? { assignedToId: user.id } : {}),
+                barangay: { not: null }
+              }
+            }
+          }
+        ]
+      },
+      select: {
+        clientId: true,
+        balance: true,
+        sourceStatusName: true,
+        client: { select: { address: true } },
+        remedialAssignment: {
+          select: { province: true, municipality: true, barangay: true }
+        }
+      }
+    })
+  ]);
+
+  const metricsByProvince = new Map<string, MetricAccumulator>();
+  const metricsByMunicipality = new Map<string, MetricAccumulator>();
+  const metricsByLocation = new Map<string, MetricAccumulator>();
+  const masterlistByKey = new Map<string, MasterlistLocation>();
+  const masterlistByMunicipalityBarangay = new Map<string, MasterlistLocation[]>();
+  const masterlistByBarangay = new Map<string, MasterlistLocation[]>();
+  for (const location of locations) {
+    const item = { province: location.province, municipality: location.municipality, barangay: location.barangay };
+    masterlistByKey.set(locationKey(item.province, item.municipality, item.barangay), item);
+    for (const barangayKey of barangayAliases(item.barangay)) {
+      const municipalityKey = municipalityBarangayKey(item.municipality, barangayKey);
+      masterlistByMunicipalityBarangay.set(
+        municipalityKey,
+        [...(masterlistByMunicipalityBarangay.get(municipalityKey) ?? []), item]
+      );
+      masterlistByBarangay.set(barangayKey, [...(masterlistByBarangay.get(barangayKey) ?? []), item]);
+    }
+  }
+  let matchedLoanCount = 0;
+  for (const loan of loans) {
+    const assignment = loan.remedialAssignment;
+    if (!assignment) continue;
+    const matchedLocation = resolveMasterlistLocation(
+      assignment,
+      loan.client.address,
+      masterlistByKey,
+      masterlistByMunicipalityBarangay,
+      masterlistByBarangay
+    );
+    if (!matchedLocation) continue;
+    matchedLoanCount += 1;
+    const barangayKey = locationKey(matchedLocation.province, matchedLocation.municipality, matchedLocation.barangay);
+    const provinceKey = normalizedProvince(matchedLocation.province);
+    const municipalityKey = `${provinceKey}\u0000${normalizedMunicipality(matchedLocation.municipality)}`;
+    addLoanMetrics(metricsByProvince, provinceKey, loan);
+    addLoanMetrics(metricsByMunicipality, municipalityKey, loan);
+    addLoanMetrics(metricsByLocation, barangayKey, loan);
+  }
 
   const provinces = new Map<string, ProvinceNode>();
   for (const location of locations) {
@@ -80,18 +300,13 @@ export default async function LocationMasterlistPage() {
       name: location.barangay,
       zone: location.zone,
       region: location.region,
-      metrics: {
-        numberOfClients: location.numberOfClients,
-        portfolio: location.portfolio === null ? null : Number(location.portfolio),
-        current: location.current,
-        delayed: location.delayed,
-        pastDue: location.pastDue,
-        litigated: location.litigated
-      }
+      metrics: accumulatedMetrics(metricsByLocation.get(locationKey(location.province, location.municipality, location.barangay)))
     });
-    municipality.metrics = aggregateMetrics(municipality.barangays.map((item) => item.metrics));
+    const provinceKey = normalizedProvince(location.province);
+    const municipalityKey = `${provinceKey}\u0000${normalizedMunicipality(location.municipality)}`;
+    municipality.metrics = accumulatedMetrics(metricsByMunicipality.get(municipalityKey));
     province.municipalities.set(location.municipality, municipality);
-    province.metrics = aggregateMetrics(Array.from(province.municipalities.values()).map((item) => item.metrics));
+    province.metrics = accumulatedMetrics(metricsByProvince.get(provinceKey));
     provinces.set(location.province, province);
   }
   const provinceList = Array.from(provinces.values());
@@ -103,7 +318,7 @@ export default async function LocationMasterlistPage() {
         <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Location reference</p>
         <h2 className="mt-2 text-3xl font-bold text-slate-950">Location Masterlist</h2>
         <p className="mt-2 text-sm font-semibold text-slate-600">
-          Province, city/municipality, and barangay hierarchy prepared for future loan matching and pivot reporting.
+          Live outstanding-loan portfolio grouped by tagged province, city/municipality, and barangay.
         </p>
       </div>
 
@@ -111,7 +326,7 @@ export default async function LocationMasterlistPage() {
         <div className="border-b border-slate-200 p-5">
           <h3 className="text-lg font-bold text-slate-950">Location Pivot</h3>
           <p className="mt-1 text-sm text-slate-600">
-            {locations.length.toLocaleString("en-US")} barangay location(s). Metrics remain blank until loan matching is enabled.
+            {locations.length.toLocaleString("en-US")} barangay location(s), linked to {matchedLoanCount.toLocaleString("en-US")} of {loans.length.toLocaleString("en-US")} tagged outstanding loan(s).
           </p>
         </div>
         <div className="overflow-x-auto text-sm">
