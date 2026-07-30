@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 
 type Metrics = {
   numberOfClients: number | null;
+  withAccountOfficer: number | null;
   portfolio: number | null;
   current: number | null;
   delayed: number | null;
@@ -51,6 +52,7 @@ type ProvinceNode = {
 
 type MetricAccumulator = {
   clients: Set<number>;
+  assignedClients: Set<number>;
   portfolio: number;
   currentClients: Set<number>;
   delayedClients: Set<number>;
@@ -159,6 +161,7 @@ function resolveMasterlistLocation(
 function emptyAccumulator(): MetricAccumulator {
   return {
     clients: new Set(),
+    assignedClients: new Set(),
     portfolio: 0,
     currentClients: new Set(),
     delayedClients: new Set(),
@@ -169,10 +172,11 @@ function emptyAccumulator(): MetricAccumulator {
 
 function accumulatedMetrics(accumulator?: MetricAccumulator): Metrics {
   if (!accumulator) {
-    return { numberOfClients: 0, portfolio: 0, current: 0, delayed: 0, pastDue: 0, litigated: 0 };
+    return { numberOfClients: 0, withAccountOfficer: 0, portfolio: 0, current: 0, delayed: 0, pastDue: 0, litigated: 0 };
   }
   return {
     numberOfClients: accumulator.clients.size,
+    withAccountOfficer: accumulator.assignedClients.size,
     portfolio: accumulator.portfolio,
     current: accumulator.currentClients.size,
     delayed: accumulator.delayedClients.size,
@@ -219,10 +223,12 @@ function accountOfficerRows(officers: OfficerNode[]): AccountOfficerSummaryRow[]
 function addLoanMetrics(
   target: Map<string, MetricAccumulator>,
   key: string,
-  loan: { clientId: number; balance: unknown; sourceStatusName: string | null }
+  loan: { clientId: number; balance: unknown; sourceStatusName: string | null },
+  hasAssignedOfficer: boolean
 ) {
   const accumulator = target.get(key) ?? emptyAccumulator();
   accumulator.clients.add(loan.clientId);
+  if (hasAssignedOfficer) accumulator.assignedClients.add(loan.clientId);
   accumulator.portfolio += Number(loan.balance);
   const status = normalizedText(loan.sourceStatusName ?? "");
   if (status.includes("litig")) accumulator.litigatedClients.add(loan.clientId);
@@ -239,6 +245,7 @@ function aggregateMetrics(items: Metrics[]): Metrics {
   };
   return {
     numberOfClients: total("numberOfClients"),
+    withAccountOfficer: total("withAccountOfficer"),
     portfolio: total("portfolio"),
     current: total("current"),
     delayed: total("delayed"),
@@ -255,7 +262,7 @@ function money(value: number | null) {
   return value === null ? "—" : value.toLocaleString("en-US", { style: "currency", currency: "PHP" });
 }
 
-const rowGrid = "grid min-w-[1080px] grid-cols-[minmax(300px,1fr)_100px_160px_repeat(4,90px)] items-center";
+const rowGrid = "grid min-w-[1200px] grid-cols-[minmax(300px,1fr)_100px_130px_160px_repeat(4,90px)] items-center";
 
 export default async function LocationMasterlistPage() {
   const user = await requireUser(["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
@@ -342,14 +349,15 @@ export default async function LocationMasterlistPage() {
     const barangayKey = locationKey(matchedLocation.province, matchedLocation.municipality, matchedLocation.barangay);
     const provinceKey = normalizedProvince(matchedLocation.province);
     const municipalityKey = `${provinceKey}\u0000${normalizedMunicipality(matchedLocation.municipality)}`;
-    addLoanMetrics(metricsByProvince, provinceKey, loan);
-    addLoanMetrics(metricsByMunicipality, municipalityKey, loan);
-    addLoanMetrics(metricsByLocation, barangayKey, loan);
+    const hasAssignedOfficer = assignment.assignedToId !== null;
+    addLoanMetrics(metricsByProvince, provinceKey, loan, hasAssignedOfficer);
+    addLoanMetrics(metricsByMunicipality, municipalityKey, loan, hasAssignedOfficer);
+    addLoanMetrics(metricsByLocation, barangayKey, loan, hasAssignedOfficer);
     const officerKey = assignment.assignedToId === null ? "unassigned" : String(assignment.assignedToId);
     officerNames.set(officerKey, assignment.assignedTo?.name ?? "Unassigned");
-    addLoanMetrics(metricsByProvinceOfficer, `${provinceKey}\u0000${officerKey}`, loan);
-    addLoanMetrics(metricsByMunicipalityOfficer, `${municipalityKey}\u0000${officerKey}`, loan);
-    addLoanMetrics(metricsByLocationOfficer, `${barangayKey}\u0000${officerKey}`, loan);
+    addLoanMetrics(metricsByProvinceOfficer, `${provinceKey}\u0000${officerKey}`, loan, hasAssignedOfficer);
+    addLoanMetrics(metricsByMunicipalityOfficer, `${municipalityKey}\u0000${officerKey}`, loan, hasAssignedOfficer);
+    addLoanMetrics(metricsByLocationOfficer, `${barangayKey}\u0000${officerKey}`, loan, hasAssignedOfficer);
     customerRecords.push({
       loanId: loan.id,
       provinceKey,
@@ -422,7 +430,8 @@ export default async function LocationMasterlistPage() {
         <LocationDetailsProvider records={customerRecords}>
         <div className="overflow-x-auto text-sm">
           <div className={`${rowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500`}>
-            <span>Location</span><span className="text-right">No. of Clients</span><span className="text-right">Portfolio</span>
+            <span>Location</span><span className="text-right">No. of Clients</span>
+            <span className="text-right">With Account Officer</span><span className="text-right">Portfolio</span>
             <span className="text-right">Current</span><span className="text-right">Delayed</span>
             <span className="text-right">Past Due</span><span className="text-right">Litigated</span>
           </div>
@@ -521,6 +530,7 @@ function MetricCells({ metrics, showClients = true }: { metrics: Metrics; showCl
   return (
     <>
       {showClients ? <span className="text-right font-bold text-brand-blue">{count(metrics.numberOfClients)}</span> : null}
+      <span className="text-right font-bold text-emerald-700">{count(metrics.withAccountOfficer)}</span>
       <span className="text-right font-bold text-red-700">{money(metrics.portfolio)}</span>
       <span className="text-right">{count(metrics.current)}</span>
       <span className="text-right">{count(metrics.delayed)}</span>
