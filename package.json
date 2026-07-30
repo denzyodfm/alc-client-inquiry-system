@@ -13,7 +13,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
     "sync:branches": "tsx scripts/sync-branches.ts",
-    "locations:populate": "tsx scripts/populate-assignment-locations.ts"
+    "locations:populate": "tsx scripts/populate-assignment-locations.ts",
+    "locations:masterlist:import": "tsx scripts/import-location-masterlist.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

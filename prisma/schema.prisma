@@ -398,3 +398,24 @@ model SyncLog {
   @@index([startedAt])
   @@map("sync_logs")
 }
+
+model LocationMasterlist {
+  id               Int      @id @default(autoincrement())
+  province         String   @db.VarChar(120)
+  municipality     String   @db.VarChar(120)
+  barangay         String   @db.VarChar(160)
+  zone             String?  @db.VarChar(120)
+  region           String?  @db.VarChar(120)
+  numberOfClients  Int?     @map("number_of_clients")
+  portfolio        Decimal? @db.Decimal(16, 2)
+  current          Int?
+  delayed          Int?
+  pastDue          Int?     @map("past_due")
+  litigated        Int?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([province, municipality, barangay])
+  @@index([province, municipality, barangay])
+  @@map("location_masterlist")
+}

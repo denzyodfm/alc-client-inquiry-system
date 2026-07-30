@@ -23,6 +23,7 @@ const nav: NavConfig[] = [
   { href: "/co-makers", label: "Co Makers", icon: "UserRoundCheck", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "AREA_TEAM_LEADER"] },
   { href: "/remedial", label: "Remedial", icon: "MapPinned", roles: ["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
   { href: "/account-tagging", label: "Account Tagging", icon: "Tag", roles: ["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
+  { href: "/location-masterlist", label: "Location Masterlist", icon: "MapPinned", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
   { href: "/client-conditions", label: "Client Condition", icon: "UserRoundCheck", roles: ["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER"] },
   { href: "/sync-logs", label: "Sync Logs", icon: "History", roles: ["ADMIN", "AUDITOR"] },
   { href: "/users", label: "Users", icon: "Users", roles: ["ADMIN", "AREA_TEAM_LEADER"] },
@@ -37,11 +38,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .filter((item) => item.roles.includes(user.role))
     .filter((item) =>
       user.role !== "ACCOUNT_OFFICER" ||
-      ["/inquiry", "/client-logs", "/loans", "/account-tagging", "/client-conditions"].includes(item.href)
+      ["/inquiry", "/client-logs", "/loans", "/account-tagging", "/location-masterlist", "/client-conditions"].includes(item.href)
     )
     .filter((item) =>
       user.role !== "AREA_TEAM_LEADER" ||
-      ["/inquiry", "/client-logs", "/loans", "/co-makers", "/account-tagging", "/client-conditions", "/users"].includes(item.href)
+      ["/inquiry", "/client-logs", "/loans", "/co-makers", "/account-tagging", "/location-masterlist", "/client-conditions", "/users"].includes(item.href)
     )
     .map((item) =>
       user.role === "ACCOUNT_OFFICER" && item.href === "/account-tagging"
