@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { AccountOfficerSummary, type AccountOfficerSummaryRow } from "./account-officer-summary";
 
 export const dynamic = "force-dynamic";
 
@@ -32,12 +33,14 @@ type OfficerNode = {
 type MunicipalityNode = {
   name: string;
   metrics: Metrics;
+  officers: OfficerNode[];
   barangays: BarangayNode[];
 };
 
 type ProvinceNode = {
   name: string;
   metrics: Metrics;
+  officers: OfficerNode[];
   municipalities: Map<string, MunicipalityNode>;
 };
 
@@ -173,6 +176,41 @@ function accumulatedMetrics(accumulator?: MetricAccumulator): Metrics {
   };
 }
 
+function officerNodesForLocation(
+  locationPrefix: string,
+  metricsByOfficer: Map<string, MetricAccumulator>,
+  officerNames: Map<string, string>
+): OfficerNode[] {
+  return Array.from(metricsByOfficer.entries())
+    .filter(([key]) => key.startsWith(`${locationPrefix}\u0000`))
+    .map(([key, accumulator]) => {
+      const officerKey = key.slice(key.lastIndexOf("\u0000") + 1);
+      return {
+        key: officerKey,
+        name: officerNames.get(officerKey) ?? "Unassigned",
+        metrics: accumulatedMetrics(accumulator)
+      };
+    })
+    .sort((a, b) => {
+      if (a.key === "unassigned") return 1;
+      if (b.key === "unassigned") return -1;
+      return a.name.localeCompare(b.name);
+    });
+}
+
+function accountOfficerRows(officers: OfficerNode[]): AccountOfficerSummaryRow[] {
+  return officers.map((officer) => ({
+    key: officer.key,
+    name: officer.name,
+    numberOfClients: officer.metrics.numberOfClients ?? 0,
+    portfolio: officer.metrics.portfolio ?? 0,
+    current: officer.metrics.current ?? 0,
+    delayed: officer.metrics.delayed ?? 0,
+    pastDue: officer.metrics.pastDue ?? 0,
+    litigated: officer.metrics.litigated ?? 0
+  }));
+}
+
 function addLoanMetrics(
   target: Map<string, MetricAccumulator>,
   key: string,
@@ -260,6 +298,8 @@ export default async function LocationMasterlistPage() {
   const metricsByProvince = new Map<string, MetricAccumulator>();
   const metricsByMunicipality = new Map<string, MetricAccumulator>();
   const metricsByLocation = new Map<string, MetricAccumulator>();
+  const metricsByProvinceOfficer = new Map<string, MetricAccumulator>();
+  const metricsByMunicipalityOfficer = new Map<string, MetricAccumulator>();
   const metricsByLocationOfficer = new Map<string, MetricAccumulator>();
   const officerNames = new Map<string, string>();
   const masterlistByKey = new Map<string, MasterlistLocation>();
@@ -298,6 +338,8 @@ export default async function LocationMasterlistPage() {
     addLoanMetrics(metricsByLocation, barangayKey, loan);
     const officerKey = assignment.assignedToId === null ? "unassigned" : String(assignment.assignedToId);
     officerNames.set(officerKey, assignment.assignedTo?.name ?? "Unassigned");
+    addLoanMetrics(metricsByProvinceOfficer, `${provinceKey}\u0000${officerKey}`, loan);
+    addLoanMetrics(metricsByMunicipalityOfficer, `${municipalityKey}\u0000${officerKey}`, loan);
     addLoanMetrics(metricsByLocationOfficer, `${barangayKey}\u0000${officerKey}`, loan);
   }
 
@@ -306,11 +348,13 @@ export default async function LocationMasterlistPage() {
     const province: ProvinceNode = provinces.get(location.province) ?? {
       name: location.province,
       metrics: aggregateMetrics([]),
+      officers: [],
       municipalities: new Map<string, MunicipalityNode>()
     };
     const municipality: MunicipalityNode = province.municipalities.get(location.municipality) ?? {
       name: location.municipality,
       metrics: aggregateMetrics([]),
+      officers: [],
       barangays: []
     };
     municipality.barangays.push({
@@ -319,27 +363,19 @@ export default async function LocationMasterlistPage() {
       zone: location.zone,
       region: location.region,
       metrics: accumulatedMetrics(metricsByLocation.get(locationKey(location.province, location.municipality, location.barangay))),
-      officers: Array.from(metricsByLocationOfficer.entries())
-        .filter(([key]) => key.startsWith(`${locationKey(location.province, location.municipality, location.barangay)}\u0000`))
-        .map(([key, accumulator]) => {
-          const officerKey = key.slice(key.lastIndexOf("\u0000") + 1);
-          return {
-            key: officerKey,
-            name: officerNames.get(officerKey) ?? "Unassigned",
-            metrics: accumulatedMetrics(accumulator)
-          };
-        })
-        .sort((a, b) => {
-          if (a.key === "unassigned") return 1;
-          if (b.key === "unassigned") return -1;
-          return a.name.localeCompare(b.name);
-        })
+      officers: officerNodesForLocation(
+        locationKey(location.province, location.municipality, location.barangay),
+        metricsByLocationOfficer,
+        officerNames
+      )
     });
     const provinceKey = normalizedProvince(location.province);
     const municipalityKey = `${provinceKey}\u0000${normalizedMunicipality(location.municipality)}`;
     municipality.metrics = accumulatedMetrics(metricsByMunicipality.get(municipalityKey));
+    municipality.officers = officerNodesForLocation(municipalityKey, metricsByMunicipalityOfficer, officerNames);
     province.municipalities.set(location.municipality, municipality);
     province.metrics = accumulatedMetrics(metricsByProvince.get(provinceKey));
+    province.officers = officerNodesForLocation(provinceKey, metricsByProvinceOfficer, officerNames);
     provinces.set(location.province, province);
   }
   const provinceList = Array.from(provinces.values());
@@ -372,14 +408,23 @@ export default async function LocationMasterlistPage() {
             {provinceList.map((province) => (
               <details key={province.name} className="group">
                 <summary className={`${rowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
-                  <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open:before:rotate-90">{province.name}</span>
+                  <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open:before:rotate-90">
+                    {province.name}
+                    <AccountOfficerSummary locationName={province.name} rows={accountOfficerRows(province.officers)} />
+                  </span>
                   <MetricCells metrics={province.metrics} />
                 </summary>
                 <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
                   {Array.from(province.municipalities.values()).map((municipality) => (
                     <details key={municipality.name} className="group/city border-b border-slate-100 last:border-b-0">
                       <summary className={`${rowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
-                        <span className="font-semibold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/city:before:rotate-90">{municipality.name}</span>
+                        <span className="font-semibold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/city:before:rotate-90">
+                          {municipality.name}
+                          <AccountOfficerSummary
+                            locationName={`${municipality.name}, ${province.name}`}
+                            rows={accountOfficerRows(municipality.officers)}
+                          />
+                        </span>
                         <MetricCells metrics={municipality.metrics} />
                       </summary>
                       <div className="border-t border-slate-100 bg-white pl-8">
