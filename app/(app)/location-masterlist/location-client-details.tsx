@@ -15,12 +15,6 @@ export type LocationCustomerRecord = {
   address: string | null;
 };
 
-export type LocationHoverSummary = {
-  name: string;
-  clients: number;
-  portfolio: number;
-};
-
 type DetailScope = {
   type: "province" | "municipality";
   key: string;
@@ -105,17 +99,15 @@ export function LocationDetailsProvider({
 
 export function LocationClientCount({
   value,
-  scope,
-  summaries
+  scope
 }: {
   value: number;
   scope: DetailScope;
-  summaries: LocationHoverSummary[];
 }) {
   const context = useContext(LocationDetailsContext);
 
   return (
-    <span className="group/count relative text-right">
+    <span className="text-right">
       <button
         type="button"
         className="font-bold text-brand-blue underline decoration-dotted underline-offset-2"
@@ -128,23 +120,6 @@ export function LocationClientCount({
       >
         {value.toLocaleString("en-US")}
       </button>
-      <span className="pointer-events-none absolute right-0 top-full z-20 mt-2 hidden w-[390px] overflow-hidden rounded-lg border border-slate-200 bg-white text-left shadow-xl group-hover/count:block">
-        <span className="grid grid-cols-[1fr_75px_130px] bg-slate-50 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-          <span>{scope.type === "province" ? "City/Municipality" : "Barangay"}</span>
-          <span className="text-right">Clients</span>
-          <span className="text-right">Portfolio</span>
-        </span>
-        <span className="block max-h-72 overflow-y-auto">
-          {summaries.map((summary) => (
-            <span key={summary.name} className="grid grid-cols-[1fr_75px_130px] border-t border-slate-100 px-3 py-2">
-              <span className="truncate font-semibold text-slate-700">{summary.name}</span>
-              <span className="text-right font-bold text-brand-blue">{summary.clients.toLocaleString("en-US")}</span>
-              <span className="text-right font-bold text-red-700">{money(summary.portfolio)}</span>
-            </span>
-          ))}
-          {!summaries.length ? <span className="block px-3 py-4 text-center text-slate-500">No location breakdown.</span> : null}
-        </span>
-      </span>
     </span>
   );
 }

@@ -446,11 +446,6 @@ export default async function LocationMasterlistPage() {
                   <LocationClientCount
                     value={province.metrics.numberOfClients ?? 0}
                     scope={{ type: "province", key: normalizedProvince(province.name), name: province.name }}
-                    summaries={Array.from(province.municipalities.values()).map((municipality) => ({
-                      name: municipality.name,
-                      clients: municipality.metrics.numberOfClients ?? 0,
-                      portfolio: municipality.metrics.portfolio ?? 0
-                    }))}
                   />
                   <MetricCells metrics={province.metrics} showClients={false} />
                 </summary>
@@ -472,11 +467,6 @@ export default async function LocationMasterlistPage() {
                             key: `${normalizedProvince(province.name)}\u0000${normalizedMunicipality(municipality.name)}`,
                             name: `${municipality.name}, ${province.name}`
                           }}
-                          summaries={municipality.barangays.map((barangay) => ({
-                            name: barangay.name,
-                            clients: barangay.metrics.numberOfClients ?? 0,
-                            portfolio: barangay.metrics.portfolio ?? 0
-                          }))}
                         />
                         <MetricCells metrics={municipality.metrics} showClients={false} />
                       </summary>
