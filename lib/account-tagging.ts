@@ -25,13 +25,13 @@ function normalizedSearchPhrase(value?: string) {
   return String(value ?? "").trim().replace(/\s+/g, " ");
 }
 
-function addressDetailWhere(value?: string): Prisma.LoanWhereInput[] {
+function addressDetailWhere(value?: string): Prisma.ClientWhereInput[] {
   const detail = normalizedSearchPhrase(value);
   if (!detail) return [];
 
   const barangay = detail.match(/^(?:barangay|brgy)\.?\s*0*(\d+)\s*$/i);
   if (!barangay) {
-    return [{ client: { address: { contains: detail } } }];
+    return [{ address: { contains: detail } }];
   }
 
   const barangayNumber = String(Number(barangay[1]));
@@ -39,18 +39,11 @@ function addressDetailWhere(value?: string): Prisma.LoanWhereInput[] {
   // only create duplicate relation joins. Keeping one form of each spelling
   // prevents Barangay-number searches from exceeding MySQL's 61-table limit.
   const prefixes = ["barangay", "brgy", "brgy."];
-  const suffixes = [" ", ",", ".", "-", "/", ")"];
-  const variants = Array.from(
-    new Set(prefixes.flatMap((prefix) => suffixes.map((suffix) => `${prefix} ${barangayNumber}${suffix}`)))
-  );
+  const variants = prefixes.map((prefix) => `${prefix} ${barangayNumber}`);
 
   return [
     {
-      client: {
-        is: {
-          OR: variants.map((term) => ({ address: { contains: term } }))
-        }
-      }
+      OR: variants.map((term) => ({ address: { contains: term } }))
     }
   ];
 }
@@ -60,6 +53,11 @@ export function accountTaggingSearchWhere(filters: AccountTaggingFilters): Prism
   const address2Where = addressDetailWhere(filters.address2);
   const customerTerms = accountTaggingTerms(filters.customerName);
   const resultTerms = accountTaggingTerms(filters.resultSearch);
+  const clientTerms: Prisma.ClientWhereInput[] = [
+    ...addressTerms.map((term) => ({ address: { contains: term } })),
+    ...address2Where,
+    ...customerTerms.map((term) => ({ fullName: { contains: term } }))
+  ];
   const branchId = filters.branchId === "ALL" ? "" : String(filters.branchId ?? "").trim();
   const product = filters.product === "ALL" ? "" : String(filters.product ?? "").trim();
   const loanStatus = filters.loanStatus === "ALL" ? "" : String(filters.loanStatus ?? "").trim();
@@ -93,9 +91,7 @@ export function accountTaggingSearchWhere(filters: AccountTaggingFilters): Prism
             ]
           }
         : {},
-      ...addressTerms.map((term) => ({ client: { address: { contains: term } } })),
-      ...address2Where,
-      ...customerTerms.map((term) => ({ client: { fullName: { contains: term } } })),
+      clientTerms.length ? { client: { is: { AND: clientTerms } } } : {},
       ...resultTerms.map((term) => ({
         OR: [
           { loanNumber: { contains: term } },
