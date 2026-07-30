@@ -35,7 +35,10 @@ function addressDetailWhere(value?: string): Prisma.LoanWhereInput[] {
   }
 
   const barangayNumber = String(Number(barangay[1]));
-  const prefixes = ["barangay", "Barangay", "BARANGAY", "brgy", "Brgy", "BRGY", "brgy.", "Brgy.", "BRGY."];
+  // MySQL's configured text collation is case-insensitive, so casing variants
+  // only create duplicate relation joins. Keeping one form of each spelling
+  // prevents Barangay-number searches from exceeding MySQL's 61-table limit.
+  const prefixes = ["barangay", "brgy", "brgy."];
   const suffixes = [" ", ",", ".", "-", "/", ")"];
   const variants = Array.from(
     new Set(prefixes.flatMap((prefix) => suffixes.map((suffix) => `${prefix} ${barangayNumber}${suffix}`)))
@@ -43,9 +46,11 @@ function addressDetailWhere(value?: string): Prisma.LoanWhereInput[] {
 
   return [
     {
-      OR: variants.map((term) => ({
-        client: { address: { contains: term } }
-      }))
+      client: {
+        is: {
+          OR: variants.map((term) => ({ address: { contains: term } }))
+        }
+      }
     }
   ];
 }
