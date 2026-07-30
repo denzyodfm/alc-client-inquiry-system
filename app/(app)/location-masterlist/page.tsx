@@ -13,9 +13,13 @@ type Metrics = {
   withAccountOfficer: number | null;
   portfolio: number | null;
   current: number | null;
+  currentBalance: number | null;
   delayed: number | null;
+  delayedBalance: number | null;
   pastDue: number | null;
+  pastDueBalance: number | null;
   litigated: number | null;
+  litigatedBalance: number | null;
 };
 
 type BarangayNode = {
@@ -47,14 +51,25 @@ type ProvinceNode = {
   municipalities: Map<string, MunicipalityNode>;
 };
 
+type AccountOfficerNode = {
+  key: string;
+  name: string;
+  metrics: Metrics;
+  provinces: Map<string, ProvinceNode>;
+};
+
 type MetricAccumulator = {
   clients: Set<number>;
   assignedClients: Set<number>;
   portfolio: number;
   currentClients: Set<number>;
+  currentBalance: number;
   delayedClients: Set<number>;
+  delayedBalance: number;
   pastDueClients: Set<number>;
+  pastDueBalance: number;
   litigatedClients: Set<number>;
+  litigatedBalance: number;
 };
 
 const provinceAliases: Record<string, string> = {
@@ -96,24 +111,36 @@ function emptyAccumulator(): MetricAccumulator {
     assignedClients: new Set(),
     portfolio: 0,
     currentClients: new Set(),
+    currentBalance: 0,
     delayedClients: new Set(),
+    delayedBalance: 0,
     pastDueClients: new Set(),
-    litigatedClients: new Set()
+    pastDueBalance: 0,
+    litigatedClients: new Set(),
+    litigatedBalance: 0
   };
 }
 
 function accumulatedMetrics(accumulator?: MetricAccumulator): Metrics {
   if (!accumulator) {
-    return { numberOfClients: 0, withAccountOfficer: 0, portfolio: 0, current: 0, delayed: 0, pastDue: 0, litigated: 0 };
+    return {
+      numberOfClients: 0, withAccountOfficer: 0, portfolio: 0,
+      current: 0, currentBalance: 0, delayed: 0, delayedBalance: 0,
+      pastDue: 0, pastDueBalance: 0, litigated: 0, litigatedBalance: 0
+    };
   }
   return {
     numberOfClients: accumulator.clients.size,
     withAccountOfficer: accumulator.assignedClients.size,
     portfolio: accumulator.portfolio,
     current: accumulator.currentClients.size,
+    currentBalance: accumulator.currentBalance,
     delayed: accumulator.delayedClients.size,
+    delayedBalance: accumulator.delayedBalance,
     pastDue: accumulator.pastDueClients.size,
-    litigated: accumulator.litigatedClients.size
+    pastDueBalance: accumulator.pastDueBalance,
+    litigated: accumulator.litigatedClients.size,
+    litigatedBalance: accumulator.litigatedBalance
   };
 }
 
@@ -146,9 +173,13 @@ function accountOfficerRows(officers: OfficerNode[]): AccountOfficerSummaryRow[]
     numberOfClients: officer.metrics.numberOfClients ?? 0,
     portfolio: officer.metrics.portfolio ?? 0,
     current: officer.metrics.current ?? 0,
+    currentBalance: officer.metrics.currentBalance ?? 0,
     delayed: officer.metrics.delayed ?? 0,
+    delayedBalance: officer.metrics.delayedBalance ?? 0,
     pastDue: officer.metrics.pastDue ?? 0,
-    litigated: officer.metrics.litigated ?? 0
+    pastDueBalance: officer.metrics.pastDueBalance ?? 0,
+    litigated: officer.metrics.litigated ?? 0,
+    litigatedBalance: officer.metrics.litigatedBalance ?? 0
   }));
 }
 
@@ -178,10 +209,19 @@ function addLoanMetrics(
   if (hasAssignedOfficer) accumulator.assignedClients.add(loan.clientId);
   accumulator.portfolio += principalBalance;
   const status = normalizedText(loan.sourceStatusName ?? "");
-  if (status.includes("litig")) accumulator.litigatedClients.add(loan.clientId);
-  else if (status.includes("past") || status.includes("overdue") || status.includes("arrears")) accumulator.pastDueClients.add(loan.clientId);
-  else if (status.includes("delay")) accumulator.delayedClients.add(loan.clientId);
-  else if (status.includes("current")) accumulator.currentClients.add(loan.clientId);
+  if (status.includes("litig")) {
+    accumulator.litigatedClients.add(loan.clientId);
+    accumulator.litigatedBalance += principalBalance;
+  } else if (status.includes("past") || status.includes("overdue") || status.includes("arrears")) {
+    accumulator.pastDueClients.add(loan.clientId);
+    accumulator.pastDueBalance += principalBalance;
+  } else if (status.includes("delay")) {
+    accumulator.delayedClients.add(loan.clientId);
+    accumulator.delayedBalance += principalBalance;
+  } else if (status.includes("current")) {
+    accumulator.currentClients.add(loan.clientId);
+    accumulator.currentBalance += principalBalance;
+  }
   target.set(key, accumulator);
 }
 
@@ -195,9 +235,13 @@ function aggregateMetrics(items: Metrics[]): Metrics {
     withAccountOfficer: total("withAccountOfficer"),
     portfolio: total("portfolio"),
     current: total("current"),
+    currentBalance: total("currentBalance"),
     delayed: total("delayed"),
+    delayedBalance: total("delayedBalance"),
     pastDue: total("pastDue"),
-    litigated: total("litigated")
+    pastDueBalance: total("pastDueBalance"),
+    litigated: total("litigated"),
+    litigatedBalance: total("litigatedBalance")
   };
 }
 
@@ -209,7 +253,7 @@ function money(value: number | null) {
   return value === null ? "—" : value.toLocaleString("en-US", { style: "currency", currency: "PHP" });
 }
 
-const rowGrid = "grid min-w-[1200px] grid-cols-[minmax(300px,1fr)_100px_130px_160px_repeat(4,90px)] items-center";
+const rowGrid = "grid min-w-[1480px] grid-cols-[minmax(300px,1fr)_100px_130px_160px_repeat(4,150px)] items-center";
 
 export default async function LocationMasterlistPage() {
   const user = await requireUser(["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
@@ -283,6 +327,7 @@ export default async function LocationMasterlistPage() {
   const metricsByProvince = new Map<string, MetricAccumulator>();
   const metricsByMunicipality = new Map<string, MetricAccumulator>();
   const metricsByLocation = new Map<string, MetricAccumulator>();
+  const metricsByOfficer = new Map<string, MetricAccumulator>();
   const metricsByProvinceOfficer = new Map<string, MetricAccumulator>();
   const metricsByMunicipalityOfficer = new Map<string, MetricAccumulator>();
   const metricsByLocationOfficer = new Map<string, MetricAccumulator>();
@@ -302,6 +347,7 @@ export default async function LocationMasterlistPage() {
     addLoanMetrics(metricsByLocation, barangayKey, loan, hasAssignedOfficer, principalBalance);
     const officerKey = assignment.assignedToId === null ? "unassigned" : String(assignment.assignedToId);
     officerNames.set(officerKey, assignment.assignedTo?.name ?? "Unassigned");
+    addLoanMetrics(metricsByOfficer, officerKey, loan, hasAssignedOfficer, principalBalance);
     addLoanMetrics(metricsByProvinceOfficer, `${provinceKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance);
     addLoanMetrics(metricsByMunicipalityOfficer, `${municipalityKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance);
     addLoanMetrics(metricsByLocationOfficer, `${barangayKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance);
@@ -344,6 +390,49 @@ export default async function LocationMasterlistPage() {
   }
   const provinceList = Array.from(provinces.values());
   const grandTotal = aggregateMetrics(provinceList.map((province) => province.metrics));
+  const accountOfficers: AccountOfficerNode[] = Array.from(officerNames.entries())
+    .filter(([officerKey]) => officerKey !== "unassigned")
+    .map(([officerKey, officerName]) => {
+      const officer: AccountOfficerNode = {
+        key: officerKey,
+        name: officerName,
+        metrics: accumulatedMetrics(metricsByOfficer.get(officerKey)),
+        provinces: new Map<string, ProvinceNode>()
+      };
+      for (const location of locations) {
+        const provinceKey = normalizedProvince(location.province);
+        const municipalityKey = `${provinceKey}\u0000${normalizedMunicipality(location.municipality)}`;
+        const barangayKey = locationKey(location.province, location.municipality, location.barangay);
+        const barangayMetrics = metricsByLocationOfficer.get(`${barangayKey}\u0000${officerKey}`);
+        if (!barangayMetrics) continue;
+
+        const province = officer.provinces.get(location.province) ?? {
+          name: location.province,
+          metrics: accumulatedMetrics(metricsByProvinceOfficer.get(`${provinceKey}\u0000${officerKey}`)),
+          officers: [],
+          municipalities: new Map<string, MunicipalityNode>()
+        };
+        const municipality = province.municipalities.get(location.municipality) ?? {
+          name: location.municipality,
+          metrics: accumulatedMetrics(metricsByMunicipalityOfficer.get(`${municipalityKey}\u0000${officerKey}`)),
+          officers: [],
+          barangays: []
+        };
+        municipality.barangays.push({
+          id: location.id,
+          name: location.barangay,
+          zone: location.zone,
+          region: location.region,
+          metrics: accumulatedMetrics(barangayMetrics),
+          officers: []
+        });
+        province.municipalities.set(location.municipality, municipality);
+        officer.provinces.set(location.province, province);
+      }
+      return officer;
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const accountOfficerTotal = aggregateMetrics(accountOfficers.map((officer) => officer.metrics));
   const linkSchedule = getLocationLinkSchedule();
 
   return (
@@ -370,8 +459,8 @@ export default async function LocationMasterlistPage() {
           <div className={`${rowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500`}>
             <span>Location</span><span className="text-right">No. of Clients</span>
             <span className="text-right">With Account Officer</span><span className="text-right">Portfolio</span>
-            <span className="text-right">Current</span><span className="text-right">Delayed</span>
-            <span className="text-right">Past Due</span><span className="text-right">Litigated</span>
+            <StatusHeader label="Current" /><StatusHeader label="Delayed" />
+            <StatusHeader label="Past Due" /><StatusHeader label="Litigated" />
           </div>
           <div className="min-w-[1080px] divide-y divide-slate-200">
             {provinceList.map((province) => (
@@ -441,6 +530,67 @@ export default async function LocationMasterlistPage() {
       </section>
 
       <section className="panel overflow-hidden">
+        <div className="border-b border-slate-200 p-5">
+          <h3 className="text-lg font-bold text-slate-950">Account Officer Location Pivot</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Click an Account Officer to view assigned province, city/municipality, and barangay.
+          </p>
+        </div>
+        <div className="overflow-x-auto text-sm">
+          <div className={`${rowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500`}>
+            <span>Account Officer / Location</span><span className="text-right">No. of Clients</span>
+            <span className="text-right">With Account Officer</span><span className="text-right">Portfolio</span>
+            <StatusHeader label="Current" /><StatusHeader label="Delayed" />
+            <StatusHeader label="Past Due" /><StatusHeader label="Litigated" />
+          </div>
+          <div className="min-w-[1480px] divide-y divide-slate-200">
+            {accountOfficers.map((officer) => (
+              <details key={officer.key} className="group/ao">
+                <summary className={`${rowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
+                  <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open/ao:before:rotate-90">{officer.name}</span>
+                  <MetricCells metrics={officer.metrics} />
+                </summary>
+                <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
+                  {Array.from(officer.provinces.values()).map((province) => (
+                    <details key={province.name} className="group/ao-province border-b border-slate-100 last:border-b-0">
+                      <summary className={`${rowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
+                        <span className="font-bold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/ao-province:before:rotate-90">{province.name}</span>
+                        <MetricCells metrics={province.metrics} />
+                      </summary>
+                      <div className="border-t border-slate-100 bg-white/70 pl-6">
+                        {Array.from(province.municipalities.values()).map((municipality) => (
+                          <details key={municipality.name} className="group/ao-city border-b border-slate-100 last:border-b-0">
+                            <summary className={`${rowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
+                              <span className="font-semibold text-slate-700 before:mr-2 before:inline-block before:content-['▶'] group-open/ao-city:before:rotate-90">{municipality.name}</span>
+                              <MetricCells metrics={municipality.metrics} />
+                            </summary>
+                            <div className="border-t border-slate-100 bg-white pl-8">
+                              {municipality.barangays.map((barangay) => (
+                                <div key={barangay.id} className={`${rowGrid} border-b border-slate-100 px-4 py-3 last:border-b-0`}>
+                                  <span className="text-slate-700">{barangay.name}</span>
+                                  <MetricCells metrics={barangay.metrics} />
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        ))}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              </details>
+            ))}
+            {!accountOfficers.length ? <p className="px-4 py-8 text-center font-semibold text-slate-500">No linked Account Officer assignments found.</p> : null}
+          </div>
+          {accountOfficers.length ? (
+            <div className={`${rowGrid} border-t-2 border-slate-300 bg-slate-50 px-4 py-3 font-extrabold text-slate-950`}>
+              <span>Account Officer Total</span><MetricCells metrics={accountOfficerTotal} />
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="panel overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-5">
           <div>
             <h3 className="text-lg font-bold text-slate-950">Location Linking Log</h3>
@@ -488,10 +638,23 @@ function MetricCells({ metrics, showClients = true }: { metrics: Metrics; showCl
       {showClients ? <span className="text-right font-bold text-brand-blue">{count(metrics.numberOfClients)}</span> : null}
       <span className="text-right font-bold text-emerald-700">{count(metrics.withAccountOfficer)}</span>
       <span className="text-right font-bold text-red-700">{money(metrics.portfolio)}</span>
-      <span className="text-right">{count(metrics.current)}</span>
-      <span className="text-right">{count(metrics.delayed)}</span>
-      <span className="text-right">{count(metrics.pastDue)}</span>
-      <span className="text-right">{count(metrics.litigated)}</span>
+      <StatusMetric countValue={metrics.current} balance={metrics.currentBalance} />
+      <StatusMetric countValue={metrics.delayed} balance={metrics.delayedBalance} />
+      <StatusMetric countValue={metrics.pastDue} balance={metrics.pastDueBalance} />
+      <StatusMetric countValue={metrics.litigated} balance={metrics.litigatedBalance} />
     </>
+  );
+}
+
+function StatusHeader({ label }: { label: string }) {
+  return <span className="text-right"><span className="block">{label}</span><span className="block text-[9px] font-semibold normal-case tracking-normal">Clients / Principal</span></span>;
+}
+
+function StatusMetric({ countValue, balance }: { countValue: number | null; balance: number | null }) {
+  return (
+    <span className="text-right">
+      <span className="block font-bold text-slate-900">{count(countValue)}</span>
+      <span className="mt-0.5 block text-[11px] font-bold text-red-700">{money(balance)}</span>
+    </span>
   );
 }
