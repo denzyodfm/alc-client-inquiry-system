@@ -473,7 +473,7 @@ export default async function LocationMasterlistPage() {
           <div className="min-w-[1480px] divide-y divide-slate-200">
             {provinceList.map((province) => (
               <details key={province.name} className="group">
-                <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
+                <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open:bg-blue-100`}>
                   <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open:before:rotate-90">
                     {province.name}
                     <AccountOfficerSummary locationName={province.name} rows={accountOfficerRows(province.officers)} />
@@ -484,7 +484,7 @@ export default async function LocationMasterlistPage() {
                 <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
                   {Array.from(province.municipalities.values()).map((municipality) => (
                     <details key={municipality.name} className="group/city border-b border-slate-100 last:border-b-0">
-                      <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
+                      <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/city:bg-blue-100`}>
                         <span className="font-semibold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/city:before:rotate-90">
                           {municipality.name}
                           <AccountOfficerSummary
@@ -498,7 +498,7 @@ export default async function LocationMasterlistPage() {
                       <div className="border-t border-slate-100 bg-white pl-8">
                         {municipality.barangays.map((barangay) => (
                           <details key={barangay.id} className="group/barangay border-b border-slate-100 last:border-b-0">
-                            <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
+                            <summary className={`${locationRowGrid} selected-report-row cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/barangay:bg-blue-100`}>
                             <span className="before:mr-2 before:inline-block before:text-[10px] before:content-['▶'] group-open/barangay:before:rotate-90">
                               <span className="text-slate-700">{barangay.name}</span>
                               {(barangay.zone || barangay.region) ? <span className="ml-2 text-xs text-slate-400">{[barangay.zone, barangay.region].filter(Boolean).join(" • ")}</span> : null}
@@ -561,27 +561,27 @@ export default async function LocationMasterlistPage() {
           <div className="min-w-[1350px] divide-y divide-slate-200">
             {accountOfficers.map((officer) => (
               <details key={officer.key} className="group/ao">
-                <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
+                <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/ao:bg-blue-100`}>
                   <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open/ao:before:rotate-90">{officer.name}</span>
                   <MetricCells metrics={officer.metrics} />
                 </summary>
                 <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
                   {Array.from(officer.provinces.values()).map((province) => (
                     <details key={province.name} className="group/ao-province border-b border-slate-100 last:border-b-0">
-                      <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
+                      <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/ao-province:bg-blue-100`}>
                         <span className="font-bold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/ao-province:before:rotate-90">{province.name}</span>
                         <MetricCells metrics={province.metrics} />
                       </summary>
                       <div className="border-t border-slate-100 bg-white/70 pl-6">
                         {Array.from(province.municipalities.values()).map((municipality) => (
                           <details key={municipality.name} className="group/ao-city border-b border-slate-100 last:border-b-0">
-                            <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
+                            <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/ao-city:bg-blue-100`}>
                               <span className="font-semibold text-slate-700 before:mr-2 before:inline-block before:content-['▶'] group-open/ao-city:before:rotate-90">{municipality.name}</span>
                               <MetricCells metrics={municipality.metrics} />
                             </summary>
                             <div className="border-t border-slate-100 bg-white pl-8">
                               {municipality.barangays.map((barangay) => (
-                                <div key={barangay.id} className={`${officerRowGrid} border-b border-slate-100 px-4 py-3 last:border-b-0`}>
+                                <div key={barangay.id} className={`${officerRowGrid} selected-report-row border-b border-slate-100 px-4 py-3 last:border-b-0`}>
                                   <span className="text-slate-700">{barangay.name}</span>
                                   <span className="text-right">
                                     <BarangayLoanReport

@@ -88,6 +88,8 @@ export function BarangayLoanReport({
         type="button"
         className="font-bold text-brand-blue underline decoration-dotted underline-offset-2 hover:text-blue-800"
         title="View complete loan details"
+        data-report-open={open ? "true" : "false"}
+        aria-expanded={open}
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();

@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+.selected-report-row:has(button[data-report-open="true"]) {
+  background-color: rgb(219 234 254);
+}
+
 :root {
   color-scheme: light;
 }
