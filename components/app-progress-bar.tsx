@@ -9,11 +9,13 @@ export function AppProgressBar() {
   const pendingRequests = useRef(0);
   const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idleFinishTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     function clearTimers() {
       if (fallbackTimer.current) clearTimeout(fallbackTimer.current);
       if (hideTimer.current) clearTimeout(hideTimer.current);
+      if (idleFinishTimer.current) clearTimeout(idleFinishTimer.current);
     }
 
     function start() {
@@ -29,20 +31,34 @@ export function AppProgressBar() {
       hideTimer.current = setTimeout(() => setProgress(0), 350);
     }
 
+    function finishWhenIdle() {
+      if (idleFinishTimer.current) clearTimeout(idleFinishTimer.current);
+      idleFinishTimer.current = setTimeout(() => {
+        if (pendingRequests.current === 0) finish();
+      }, 900);
+    }
+
     function handleClick(event: MouseEvent) {
       const target = event.target;
       if (!(target instanceof Element)) return;
 
       const link = target.closest<HTMLAnchorElement>("a[href]");
-      if (link && !link.target && link.origin === window.location.origin && link.href !== window.location.href) {
+      if (link && link.origin === window.location.origin && link.href !== window.location.href) {
         start();
+        finishWhenIdle();
         return;
       }
 
+      const button = target.closest<HTMLButtonElement>("button");
+      if (button && !button.disabled) {
+        start();
+        finishWhenIdle();
+      }
     }
 
     function handleSubmit() {
       start();
+      finishWhenIdle();
     }
 
     const originalFetch = window.fetch;
