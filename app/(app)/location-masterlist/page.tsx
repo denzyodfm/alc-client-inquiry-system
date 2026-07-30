@@ -327,6 +327,8 @@ export default async function LocationMasterlistPage() {
   const metricsByProvince = new Map<string, MetricAccumulator>();
   const metricsByMunicipality = new Map<string, MetricAccumulator>();
   const metricsByLocation = new Map<string, MetricAccumulator>();
+  const metricsByOverall = new Map<string, MetricAccumulator>();
+  const metricsByAssignedOverall = new Map<string, MetricAccumulator>();
   const metricsByOfficer = new Map<string, MetricAccumulator>();
   const metricsByProvinceOfficer = new Map<string, MetricAccumulator>();
   const metricsByMunicipalityOfficer = new Map<string, MetricAccumulator>();
@@ -342,11 +344,15 @@ export default async function LocationMasterlistPage() {
     const municipalityKey = `${provinceKey}\u0000${normalizedMunicipality(matchedLocation.municipality)}`;
     const hasAssignedOfficer = assignment.assignedToId !== null;
     const principalBalance = outstandingPrincipalBalance(loan);
+    addLoanMetrics(metricsByOverall, "all", loan, hasAssignedOfficer, principalBalance);
     addLoanMetrics(metricsByProvince, provinceKey, loan, hasAssignedOfficer, principalBalance);
     addLoanMetrics(metricsByMunicipality, municipalityKey, loan, hasAssignedOfficer, principalBalance);
     addLoanMetrics(metricsByLocation, barangayKey, loan, hasAssignedOfficer, principalBalance);
     const officerKey = assignment.assignedToId === null ? "unassigned" : String(assignment.assignedToId);
     officerNames.set(officerKey, assignment.assignedTo?.name ?? "Unassigned");
+    if (hasAssignedOfficer) {
+      addLoanMetrics(metricsByAssignedOverall, "assigned", loan, true, principalBalance);
+    }
     addLoanMetrics(metricsByOfficer, officerKey, loan, hasAssignedOfficer, principalBalance);
     addLoanMetrics(metricsByProvinceOfficer, `${provinceKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance);
     addLoanMetrics(metricsByMunicipalityOfficer, `${municipalityKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance);
@@ -389,7 +395,7 @@ export default async function LocationMasterlistPage() {
     provinces.set(location.province, province);
   }
   const provinceList = Array.from(provinces.values());
-  const grandTotal = aggregateMetrics(provinceList.map((province) => province.metrics));
+  const grandTotal = accumulatedMetrics(metricsByOverall.get("all"));
   const accountOfficers: AccountOfficerNode[] = Array.from(officerNames.entries())
     .filter(([officerKey]) => officerKey !== "unassigned")
     .map(([officerKey, officerName]) => {
@@ -432,7 +438,7 @@ export default async function LocationMasterlistPage() {
       return officer;
     })
     .sort((a, b) => a.name.localeCompare(b.name));
-  const accountOfficerTotal = aggregateMetrics(accountOfficers.map((officer) => officer.metrics));
+  const accountOfficerTotal = accumulatedMetrics(metricsByAssignedOverall.get("assigned"));
   const linkSchedule = getLocationLinkSchedule();
 
   return (
@@ -533,7 +539,7 @@ export default async function LocationMasterlistPage() {
         <div className="border-b border-slate-200 p-5">
           <h3 className="text-lg font-bold text-slate-950">Account Officer Location Pivot</h3>
           <p className="mt-1 text-sm text-slate-600">
-            Click an Account Officer to view assigned province, city/municipality, and barangay.
+            Click an Account Officer to view assigned province, city/municipality, and barangay. The total counts each client only once across all officers.
           </p>
         </div>
         <div className="overflow-x-auto text-sm">
