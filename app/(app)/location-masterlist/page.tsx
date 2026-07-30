@@ -4,6 +4,7 @@ import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
 import { getLocationLinkSchedule } from "@/lib/location-link-scheduler";
 import { prisma } from "@/lib/prisma";
 import { LocationLinkControl } from "@/components/location-link-control";
+import { OfficerBarangayLoans } from "@/components/officer-barangay-loans";
 import { AccountOfficerSummary, type AccountOfficerSummaryRow } from "./account-officer-summary";
 
 export const dynamic = "force-dynamic";
@@ -253,7 +254,7 @@ function money(value: number | null) {
   return value === null ? "—" : value.toLocaleString("en-US", { style: "currency", currency: "PHP" });
 }
 
-const rowGrid = "grid min-w-[1480px] grid-cols-[minmax(300px,1fr)_100px_130px_160px_repeat(4,150px)] items-center";
+const rowGrid = "grid min-w-[1350px] grid-cols-[minmax(300px,1fr)_100px_160px_repeat(4,150px)] items-center";
 
 export default async function LocationMasterlistPage() {
   const user = await requireUser(["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
@@ -349,7 +350,7 @@ export default async function LocationMasterlistPage() {
     addLoanMetrics(metricsByMunicipality, municipalityKey, loan, hasAssignedOfficer, principalBalance);
     addLoanMetrics(metricsByLocation, barangayKey, loan, hasAssignedOfficer, principalBalance);
     const officerKey = assignment.assignedToId === null ? "unassigned" : String(assignment.assignedToId);
-    officerNames.set(officerKey, assignment.assignedTo?.name ?? "Unassigned");
+    officerNames.set(officerKey, (assignment.assignedTo?.name ?? "Unassigned").toLocaleUpperCase("en"));
     if (hasAssignedOfficer) {
       addLoanMetrics(metricsByAssignedOverall, "assigned", loan, true, principalBalance);
     }
@@ -464,11 +465,11 @@ export default async function LocationMasterlistPage() {
         <div className="overflow-x-auto text-sm">
           <div className={`${rowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500`}>
             <span>Location</span><span className="text-right">No. of Clients</span>
-            <span className="text-right">With Account Officer</span><span className="text-right">Portfolio</span>
+            <span className="text-right">Portfolio</span>
             <StatusHeader label="Current" /><StatusHeader label="Delayed" />
             <StatusHeader label="Past Due" /><StatusHeader label="Litigated" />
           </div>
-          <div className="min-w-[1080px] divide-y divide-slate-200">
+          <div className="min-w-[1350px] divide-y divide-slate-200">
             {provinceList.map((province) => (
               <details key={province.name} className="group">
                 <summary className={`${rowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
@@ -545,11 +546,11 @@ export default async function LocationMasterlistPage() {
         <div className="overflow-x-auto text-sm">
           <div className={`${rowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500`}>
             <span>Account Officer / Location</span><span className="text-right">No. of Clients</span>
-            <span className="text-right">With Account Officer</span><span className="text-right">Portfolio</span>
+            <span className="text-right">Portfolio</span>
             <StatusHeader label="Current" /><StatusHeader label="Delayed" />
             <StatusHeader label="Past Due" /><StatusHeader label="Litigated" />
           </div>
-          <div className="min-w-[1480px] divide-y divide-slate-200">
+          <div className="min-w-[1350px] divide-y divide-slate-200">
             {accountOfficers.map((officer) => (
               <details key={officer.key} className="group/ao">
                 <summary className={`${rowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
@@ -574,7 +575,16 @@ export default async function LocationMasterlistPage() {
                               {municipality.barangays.map((barangay) => (
                                 <div key={barangay.id} className={`${rowGrid} border-b border-slate-100 px-4 py-3 last:border-b-0`}>
                                   <span className="text-slate-700">{barangay.name}</span>
-                                  <MetricCells metrics={barangay.metrics} />
+                                  <span className="text-right">
+                                    <OfficerBarangayLoans
+                                      officerId={Number(officer.key)}
+                                      locationId={barangay.id}
+                                      clientCount={barangay.metrics.numberOfClients ?? 0}
+                                      officerName={officer.name}
+                                      locationName={`${barangay.name}, ${municipality.name}, ${province.name}`}
+                                    />
+                                  </span>
+                                  <MetricCells metrics={barangay.metrics} showClients={false} />
                                 </div>
                               ))}
                             </div>
@@ -642,7 +652,6 @@ function MetricCells({ metrics, showClients = true }: { metrics: Metrics; showCl
   return (
     <>
       {showClients ? <span className="text-right font-bold text-brand-blue">{count(metrics.numberOfClients)}</span> : null}
-      <span className="text-right font-bold text-emerald-700">{count(metrics.withAccountOfficer)}</span>
       <span className="text-right font-bold text-red-700">{money(metrics.portfolio)}</span>
       <StatusMetric countValue={metrics.current} balance={metrics.currentBalance} />
       <StatusMetric countValue={metrics.delayed} balance={metrics.delayedBalance} />

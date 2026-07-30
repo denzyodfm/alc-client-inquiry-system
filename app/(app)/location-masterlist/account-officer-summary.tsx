@@ -76,7 +76,7 @@ export function AccountOfficerSummary({
             </span>
             {rows.map((row) => (
               <span key={row.key} className="grid min-w-[940px] grid-cols-[minmax(180px,1fr)_80px_130px_repeat(4,125px)] gap-2 border-b border-slate-100 px-4 py-2 last:border-b-0">
-                <span className="font-semibold text-slate-800">{row.name}</span>
+                <span className="font-semibold text-slate-800">{row.name.toLocaleUpperCase("en")}</span>
                 <span className="text-right font-bold text-brand-blue">{row.numberOfClients.toLocaleString("en-US")}</span>
                 <span className="text-right font-bold text-red-700">{money(row.portfolio)}</span>
                 <SummaryMetric count={row.current} balance={row.currentBalance} />
