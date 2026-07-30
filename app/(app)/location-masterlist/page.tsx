@@ -215,16 +215,31 @@ function accountOfficerRows(officers: OfficerNode[]): AccountOfficerSummaryRow[]
   }));
 }
 
+function outstandingPrincipalBalance(loan: {
+  principalAmount: unknown;
+  balance: unknown;
+  amortizationSchedules: Array<{ principalAmort: unknown; paidPrincipal: unknown }>;
+}) {
+  const totalBalance = Number(loan.balance);
+  if (!loan.amortizationSchedules.length) return Math.min(Number(loan.principalAmount), totalBalance);
+  const schedulePrincipalBalance = loan.amortizationSchedules.reduce(
+    (sum, schedule) => sum + Math.max(0, Number(schedule.principalAmort) - Number(schedule.paidPrincipal)),
+    0
+  );
+  return Math.min(schedulePrincipalBalance, totalBalance);
+}
+
 function addLoanMetrics(
   target: Map<string, MetricAccumulator>,
   key: string,
   loan: { clientId: number; balance: unknown; sourceStatusName: string | null },
-  hasAssignedOfficer: boolean
+  hasAssignedOfficer: boolean,
+  principalBalance: number
 ) {
   const accumulator = target.get(key) ?? emptyAccumulator();
   accumulator.clients.add(loan.clientId);
   if (hasAssignedOfficer) accumulator.assignedClients.add(loan.clientId);
-  accumulator.portfolio += Number(loan.balance);
+  accumulator.portfolio += principalBalance;
   const status = normalizedText(loan.sourceStatusName ?? "");
   if (status.includes("litig")) accumulator.litigatedClients.add(loan.clientId);
   else if (status.includes("past") || status.includes("overdue") || status.includes("arrears")) accumulator.pastDueClients.add(loan.clientId);
@@ -287,7 +302,9 @@ export default async function LocationMasterlistPage() {
       select: {
         clientId: true,
         balance: true,
+        principalAmount: true,
         sourceStatusName: true,
+        amortizationSchedules: { select: { principalAmort: true, paidPrincipal: true } },
         client: { select: { address: true } },
         remedialAssignment: {
           select: {
@@ -341,14 +358,15 @@ export default async function LocationMasterlistPage() {
     const provinceKey = normalizedProvince(matchedLocation.province);
     const municipalityKey = `${provinceKey}\u0000${normalizedMunicipality(matchedLocation.municipality)}`;
     const hasAssignedOfficer = assignment.assignedToId !== null;
-    addLoanMetrics(metricsByProvince, provinceKey, loan, hasAssignedOfficer);
-    addLoanMetrics(metricsByMunicipality, municipalityKey, loan, hasAssignedOfficer);
-    addLoanMetrics(metricsByLocation, barangayKey, loan, hasAssignedOfficer);
+    const principalBalance = outstandingPrincipalBalance(loan);
+    addLoanMetrics(metricsByProvince, provinceKey, loan, hasAssignedOfficer, principalBalance);
+    addLoanMetrics(metricsByMunicipality, municipalityKey, loan, hasAssignedOfficer, principalBalance);
+    addLoanMetrics(metricsByLocation, barangayKey, loan, hasAssignedOfficer, principalBalance);
     const officerKey = assignment.assignedToId === null ? "unassigned" : String(assignment.assignedToId);
     officerNames.set(officerKey, assignment.assignedTo?.name ?? "Unassigned");
-    addLoanMetrics(metricsByProvinceOfficer, `${provinceKey}\u0000${officerKey}`, loan, hasAssignedOfficer);
-    addLoanMetrics(metricsByMunicipalityOfficer, `${municipalityKey}\u0000${officerKey}`, loan, hasAssignedOfficer);
-    addLoanMetrics(metricsByLocationOfficer, `${barangayKey}\u0000${officerKey}`, loan, hasAssignedOfficer);
+    addLoanMetrics(metricsByProvinceOfficer, `${provinceKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance);
+    addLoanMetrics(metricsByMunicipalityOfficer, `${municipalityKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance);
+    addLoanMetrics(metricsByLocationOfficer, `${barangayKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance);
   }
 
   const provinces = new Map<string, ProvinceNode>();
