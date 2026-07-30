@@ -1,7 +1,9 @@
 import type { Prisma } from "@prisma/client";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
+import { getLocationLinkSchedule } from "@/lib/location-link-scheduler";
 import { prisma } from "@/lib/prisma";
+import { LocationLinkControl } from "@/components/location-link-control";
 import { AccountOfficerSummary, type AccountOfficerSummaryRow } from "./account-officer-summary";
 
 export const dynamic = "force-dynamic";
@@ -84,73 +86,8 @@ function normalizedBarangay(value: string) {
     .replace(/^(?:barangay|brgy)\.?\s+/, "");
 }
 
-function barangayAliases(value: string) {
-  const aliases = new Set([normalizedBarangay(value)]);
-  const numberedBarangay = normalizedText(value).match(/\(\s*barangay\s+(\d+)[^)]*\)\s*$/i);
-  if (numberedBarangay) aliases.add(numberedBarangay[1]);
-  return Array.from(aliases).filter(Boolean);
-}
-
 function locationKey(province: string, municipality: string, barangay: string) {
   return `${normalizedProvince(province)}\u0000${normalizedMunicipality(municipality)}\u0000${normalizedBarangay(barangay)}`;
-}
-
-function municipalityBarangayKey(municipality: string, barangay: string) {
-  return `${normalizedMunicipality(municipality)}\u0000${normalizedBarangay(barangay)}`;
-}
-
-type MasterlistLocation = {
-  province: string;
-  municipality: string;
-  barangay: string;
-};
-
-function resolveMasterlistLocation(
-  assignment: { province: string | null; municipality: string | null; barangay: string | null },
-  address: string | null,
-  masterlistByKey: Map<string, MasterlistLocation>,
-  masterlistByMunicipalityBarangay: Map<string, MasterlistLocation[]>,
-  masterlistByBarangay: Map<string, MasterlistLocation[]>
-) {
-  if (!assignment.barangay) return null;
-  if (assignment.province && assignment.municipality) {
-    const exact = masterlistByKey.get(locationKey(assignment.province, assignment.municipality, assignment.barangay));
-    if (exact) return exact;
-  }
-
-  if (assignment.municipality) {
-    const municipalityCandidates = barangayAliases(assignment.barangay).flatMap(
-      (barangay) => masterlistByMunicipalityBarangay.get(municipalityBarangayKey(assignment.municipality!, barangay)) ?? []
-    );
-    const uniqueMunicipalityCandidates = Array.from(
-      new Map(municipalityCandidates.map((candidate) => [locationKey(candidate.province, candidate.municipality, candidate.barangay), candidate])).values()
-    );
-    if (uniqueMunicipalityCandidates.length === 1) return uniqueMunicipalityCandidates[0];
-  }
-
-  const candidates = barangayAliases(assignment.barangay).flatMap(
-    (barangay) => masterlistByBarangay.get(barangay) ?? []
-  );
-  const uniqueCandidates = Array.from(
-    new Map(candidates.map((candidate) => [locationKey(candidate.province, candidate.municipality, candidate.barangay), candidate])).values()
-  );
-  if (uniqueCandidates.length === 1) return uniqueCandidates[0];
-  if (!uniqueCandidates.length) return null;
-
-  const normalizedAddress = normalizedText(address ?? "");
-  const scored = uniqueCandidates.map((candidate) => {
-    let score = 0;
-    if (assignment.municipality && normalizedMunicipality(assignment.municipality) === normalizedMunicipality(candidate.municipality)) score += 8;
-    if (assignment.province && normalizedProvince(assignment.province) === normalizedProvince(candidate.province)) score += 6;
-    const municipality = normalizedMunicipality(candidate.municipality);
-    const province = normalizedProvince(candidate.province);
-    if (municipality && normalizedAddress.includes(municipality)) score += 4;
-    if (province && normalizedAddress.includes(province)) score += 3;
-    return { candidate, score };
-  }).sort((a, b) => b.score - a.score);
-
-  if (scored[0].score > 0 && scored[0].score > (scored[1]?.score ?? -1)) return scored[0].candidate;
-  return null;
 }
 
 function emptyAccumulator(): MetricAccumulator {
@@ -279,11 +216,44 @@ export default async function LocationMasterlistPage() {
   const accessibleBranchIds = user.role === "ACCOUNT_OFFICER" ? null : await getAccessibleBranchIds(user);
   const branchWhere: Prisma.LoanWhereInput =
     accessibleBranchIds === null ? {} : accessibleBranchIds.length ? { branchId: { in: accessibleBranchIds } } : { branchId: -1 };
-  const [locations, loans] = await Promise.all([
+  const [locations, loans, eligibleLoanCount, unlinkedLoanCount, recentLinkRuns] = await Promise.all([
     prisma.locationMasterlist.findMany({
       orderBy: [{ province: "asc" }, { municipality: "asc" }, { barangay: "asc" }]
     }),
     prisma.loan.findMany({
+      where: {
+        AND: [
+          branchWhere,
+          accountTaggingSearchWhere({}),
+          { locationLinked: true, locationMasterlistId: { not: null } },
+          {
+            remedialAssignment: {
+              is: {
+                status: "ACTIVE",
+                ...(user.role === "ACCOUNT_OFFICER" ? { assignedToId: user.id } : {})
+              }
+            }
+          }
+        ]
+      },
+      select: {
+        clientId: true,
+        balance: true,
+        principalAmount: true,
+        sourceStatusName: true,
+        amortizationSchedules: { select: { principalAmort: true, paidPrincipal: true } },
+        locationMasterlist: {
+          select: { province: true, municipality: true, barangay: true }
+        },
+        remedialAssignment: {
+          select: {
+            assignedToId: true,
+            assignedTo: { select: { name: true } }
+          }
+        }
+      }
+    }),
+    prisma.loan.count({
       where: {
         AND: [
           branchWhere,
@@ -298,24 +268,15 @@ export default async function LocationMasterlistPage() {
             }
           }
         ]
-      },
-      select: {
-        clientId: true,
-        balance: true,
-        principalAmount: true,
-        sourceStatusName: true,
-        amortizationSchedules: { select: { principalAmort: true, paidPrincipal: true } },
-        client: { select: { address: true } },
-        remedialAssignment: {
-          select: {
-            province: true,
-            municipality: true,
-            barangay: true,
-            assignedToId: true,
-            assignedTo: { select: { name: true } }
-          }
-        }
       }
+    }),
+    user.role === "ADMIN"
+      ? prisma.loan.count({ where: { OR: [{ locationLinked: false }, { locationMasterlistId: null }] } })
+      : Promise.resolve(0),
+    prisma.locationLinkRun.findMany({
+      orderBy: { startedAt: "desc" },
+      take: 8,
+      include: { startedBy: { select: { name: true } } }
     })
   ]);
 
@@ -326,34 +287,11 @@ export default async function LocationMasterlistPage() {
   const metricsByMunicipalityOfficer = new Map<string, MetricAccumulator>();
   const metricsByLocationOfficer = new Map<string, MetricAccumulator>();
   const officerNames = new Map<string, string>();
-  const masterlistByKey = new Map<string, MasterlistLocation>();
-  const masterlistByMunicipalityBarangay = new Map<string, MasterlistLocation[]>();
-  const masterlistByBarangay = new Map<string, MasterlistLocation[]>();
-  for (const location of locations) {
-    const item = { province: location.province, municipality: location.municipality, barangay: location.barangay };
-    masterlistByKey.set(locationKey(item.province, item.municipality, item.barangay), item);
-    for (const barangayKey of barangayAliases(item.barangay)) {
-      const municipalityKey = municipalityBarangayKey(item.municipality, barangayKey);
-      masterlistByMunicipalityBarangay.set(
-        municipalityKey,
-        [...(masterlistByMunicipalityBarangay.get(municipalityKey) ?? []), item]
-      );
-      masterlistByBarangay.set(barangayKey, [...(masterlistByBarangay.get(barangayKey) ?? []), item]);
-    }
-  }
-  let matchedLoanCount = 0;
+  const matchedLoanCount = loans.length;
   for (const loan of loans) {
     const assignment = loan.remedialAssignment;
-    if (!assignment) continue;
-    const matchedLocation = resolveMasterlistLocation(
-      assignment,
-      loan.client.address,
-      masterlistByKey,
-      masterlistByMunicipalityBarangay,
-      masterlistByBarangay
-    );
-    if (!matchedLocation) continue;
-    matchedLoanCount += 1;
+    const matchedLocation = loan.locationMasterlist;
+    if (!assignment || !matchedLocation) continue;
     const barangayKey = locationKey(matchedLocation.province, matchedLocation.municipality, matchedLocation.barangay);
     const provinceKey = normalizedProvince(matchedLocation.province);
     const municipalityKey = `${provinceKey}\u0000${normalizedMunicipality(matchedLocation.municipality)}`;
@@ -406,22 +344,26 @@ export default async function LocationMasterlistPage() {
   }
   const provinceList = Array.from(provinces.values());
   const grandTotal = aggregateMetrics(provinceList.map((province) => province.metrics));
+  const linkSchedule = getLocationLinkSchedule();
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Location reference</p>
-        <h2 className="mt-2 text-3xl font-bold text-slate-950">Location Masterlist</h2>
-        <p className="mt-2 text-sm font-semibold text-slate-600">
-          Live outstanding-loan portfolio grouped by tagged province, city/municipality, and barangay.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Location reference</p>
+          <h2 className="mt-2 text-3xl font-bold text-slate-950">Location Masterlist</h2>
+          <p className="mt-2 text-sm font-semibold text-slate-600">
+            Live outstanding-loan portfolio grouped by linked province, city/municipality, and barangay.
+          </p>
+        </div>
+        {user.role === "ADMIN" ? <LocationLinkControl unlinkedLoans={unlinkedLoanCount} /> : null}
       </div>
 
       <section className="panel overflow-hidden">
         <div className="border-b border-slate-200 p-5">
           <h3 className="text-lg font-bold text-slate-950">Location Pivot</h3>
           <p className="mt-1 text-sm text-slate-600">
-            {locations.length.toLocaleString("en-US")} barangay location(s), linked to {matchedLoanCount.toLocaleString("en-US")} of {loans.length.toLocaleString("en-US")} tagged outstanding loan(s).
+            {locations.length.toLocaleString("en-US")} barangay location(s), linked to {matchedLoanCount.toLocaleString("en-US")} of {eligibleLoanCount.toLocaleString("en-US")} tagged outstanding loan(s).
           </p>
         </div>
         <div className="overflow-x-auto text-sm">
@@ -495,6 +437,45 @@ export default async function LocationMasterlistPage() {
               <span>Grand Total</span><MetricCells metrics={grandTotal} />
             </div>
           ) : null}
+        </div>
+      </section>
+
+      <section className="panel overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-5">
+          <div>
+            <h3 className="text-lg font-bold text-slate-950">Location Linking Log</h3>
+            <p className="mt-1 text-sm text-slate-600">Database run history. Detailed JSON lines are also written to logs/location-link.log.</p>
+          </div>
+          <p className="text-xs font-semibold text-slate-500">
+            Daily automatic link: {linkSchedule.enabled ? (linkSchedule.nextRunAt ? new Date(linkSchedule.nextRunAt).toLocaleString("en-US") : "scheduler starting") : "disabled"}
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[850px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-4 py-3">Started</th><th className="px-4 py-3">Trigger</th>
+                <th className="px-4 py-3">Started by</th><th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3 text-right">Scanned</th><th className="px-4 py-3 text-right">Linked</th>
+                <th className="px-4 py-3 text-right">Unmatched</th><th className="px-4 py-3">Message</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {recentLinkRuns.map((run) => (
+                <tr key={run.id}>
+                  <td className="px-4 py-3">{run.startedAt.toLocaleString("en-US")}</td>
+                  <td className="px-4 py-3 font-semibold">{run.trigger}</td>
+                  <td className="px-4 py-3">{run.startedBy?.name ?? "System"}</td>
+                  <td className={`px-4 py-3 font-bold ${run.status === "SUCCESS" ? "text-green-700" : run.status === "FAILED" ? "text-red-700" : "text-blue-700"}`}>{run.status}</td>
+                  <td className="px-4 py-3 text-right">{run.loansScanned.toLocaleString("en-US")}</td>
+                  <td className="px-4 py-3 text-right font-bold text-green-700">{run.loansLinked.toLocaleString("en-US")}</td>
+                  <td className="px-4 py-3 text-right font-bold text-amber-700">{run.loansUnmatched.toLocaleString("en-US")}</td>
+                  <td className="max-w-sm whitespace-normal px-4 py-3 text-slate-600">{run.message ?? "-"}</td>
+                </tr>
+              ))}
+              {!recentLinkRuns.length ? <tr><td className="px-4 py-8 text-center font-semibold text-slate-500" colSpan={8}>No location-linking runs yet.</td></tr> : null}
+            </tbody>
+          </table>
         </div>
       </section>
     </div>

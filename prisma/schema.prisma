@@ -66,6 +66,7 @@ model User {
   remedialVisitsApproved RemedialVisit[] @relation("RemedialVisitApprovedBy")
   clientLogs   ClientLog[] @relation("ClientLogEncodedBy")
   localPaymentPostings LocalPaymentPosting[] @relation("LocalPaymentPostedBy")
+  locationLinkRuns LocationLinkRun[] @relation("LocationLinkRunStartedBy")
 
   @@map("users")
 }
@@ -180,11 +181,17 @@ model Loan {
   amortizationSchedules AmortizationSchedule[]
   coMakers        CoMaker[]
   remedialAssignment RemedialAssignment?
+  locationMasterlistId Int? @map("location_masterlist_id")
+  locationLinked Boolean @default(false) @map("location_linked")
+  locationLinkedAt DateTime? @map("location_linked_at")
+  locationMasterlist LocationMasterlist? @relation(fields: [locationMasterlistId], references: [id], onDelete: SetNull)
 
   @@unique([branchId, remoteId])
   @@index([balance])
   @@index([loanNumber])
   @@index([loanProduct])
+  @@index([locationLinked])
+  @@index([locationMasterlistId])
   @@map("loans")
 }
 
@@ -414,8 +421,27 @@ model LocationMasterlist {
   litigated        Int?
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
+  loans            Loan[]
 
   @@unique([province, municipality, barangay])
   @@index([province, municipality, barangay])
   @@map("location_masterlist")
+}
+
+model LocationLinkRun {
+  id            Int      @id @default(autoincrement())
+  trigger       String   @db.VarChar(20)
+  status        String   @db.VarChar(20)
+  startedById   Int?     @map("started_by_id")
+  startedAt     DateTime @default(now()) @map("started_at")
+  finishedAt    DateTime? @map("finished_at")
+  loansScanned  Int      @default(0) @map("loans_scanned")
+  loansLinked   Int      @default(0) @map("loans_linked")
+  loansUnmatched Int     @default(0) @map("loans_unmatched")
+  message       String?  @db.Text
+  startedBy     User?    @relation("LocationLinkRunStartedBy", fields: [startedById], references: [id], onDelete: SetNull)
+
+  @@index([startedAt])
+  @@index([status])
+  @@map("location_link_runs")
 }

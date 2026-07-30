@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { startMidnightSyncScheduler } from "@/lib/midnight-sync-scheduler";
+import { startLocationLinkScheduler } from "@/lib/location-link-scheduler";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -9,6 +10,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   startMidnightSyncScheduler();
+  startLocationLinkScheduler();
   return (
     <html lang="en">
       <body>{children}</body>
