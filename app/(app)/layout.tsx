@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { AppShell } from "@/components/app-shell";
+import { AppProgressBar } from "@/components/app-progress-bar";
 
 type NavConfig = {
   href: string;
@@ -52,6 +53,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <AppShell user={{ name: user.name, role: user.role }} nav={allowedNav}>
+      <AppProgressBar />
       {children}
     </AppShell>
   );
