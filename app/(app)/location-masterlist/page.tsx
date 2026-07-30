@@ -3,6 +3,11 @@ import { accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { AccountOfficerSummary, type AccountOfficerSummaryRow } from "./account-officer-summary";
+import {
+  LocationClientCount,
+  LocationDetailsProvider,
+  type LocationCustomerRecord
+} from "./location-client-details";
 
 export const dynamic = "force-dynamic";
 
@@ -278,10 +283,13 @@ export default async function LocationMasterlistPage() {
         ]
       },
       select: {
+        id: true,
         clientId: true,
+        remoteId: true,
+        loanNumber: true,
         balance: true,
         sourceStatusName: true,
-        client: { select: { address: true } },
+        client: { select: { fullName: true, clientId: true, address: true } },
         remedialAssignment: {
           select: {
             province: true,
@@ -318,6 +326,7 @@ export default async function LocationMasterlistPage() {
     }
   }
   let matchedLoanCount = 0;
+  const customerRecords: LocationCustomerRecord[] = [];
   for (const loan of loans) {
     const assignment = loan.remedialAssignment;
     if (!assignment) continue;
@@ -341,6 +350,18 @@ export default async function LocationMasterlistPage() {
     addLoanMetrics(metricsByProvinceOfficer, `${provinceKey}\u0000${officerKey}`, loan);
     addLoanMetrics(metricsByMunicipalityOfficer, `${municipalityKey}\u0000${officerKey}`, loan);
     addLoanMetrics(metricsByLocationOfficer, `${barangayKey}\u0000${officerKey}`, loan);
+    customerRecords.push({
+      loanId: loan.id,
+      provinceKey,
+      municipalityKey,
+      clientName: loan.client.fullName,
+      clientNumber: loan.client.clientId,
+      loanNumber: loan.loanNumber ?? loan.remoteId,
+      accountOfficer: assignment.assignedTo?.name ?? "Unassigned",
+      status: loan.sourceStatusName ?? "-",
+      principalBalance: Number(loan.balance),
+      address: loan.client.address
+    });
   }
 
   const provinces = new Map<string, ProvinceNode>();
@@ -398,6 +419,7 @@ export default async function LocationMasterlistPage() {
             {locations.length.toLocaleString("en-US")} barangay location(s), linked to {matchedLoanCount.toLocaleString("en-US")} of {loans.length.toLocaleString("en-US")} tagged outstanding loan(s).
           </p>
         </div>
+        <LocationDetailsProvider records={customerRecords}>
         <div className="overflow-x-auto text-sm">
           <div className={`${rowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500`}>
             <span>Location</span><span className="text-right">No. of Clients</span><span className="text-right">Portfolio</span>
@@ -412,7 +434,16 @@ export default async function LocationMasterlistPage() {
                     {province.name}
                     <AccountOfficerSummary locationName={province.name} rows={accountOfficerRows(province.officers)} />
                   </span>
-                  <MetricCells metrics={province.metrics} />
+                  <LocationClientCount
+                    value={province.metrics.numberOfClients ?? 0}
+                    scope={{ type: "province", key: normalizedProvince(province.name), name: province.name }}
+                    summaries={Array.from(province.municipalities.values()).map((municipality) => ({
+                      name: municipality.name,
+                      clients: municipality.metrics.numberOfClients ?? 0,
+                      portfolio: municipality.metrics.portfolio ?? 0
+                    }))}
+                  />
+                  <MetricCells metrics={province.metrics} showClients={false} />
                 </summary>
                 <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
                   {Array.from(province.municipalities.values()).map((municipality) => (
@@ -425,7 +456,20 @@ export default async function LocationMasterlistPage() {
                             rows={accountOfficerRows(municipality.officers)}
                           />
                         </span>
-                        <MetricCells metrics={municipality.metrics} />
+                        <LocationClientCount
+                          value={municipality.metrics.numberOfClients ?? 0}
+                          scope={{
+                            type: "municipality",
+                            key: `${normalizedProvince(province.name)}\u0000${normalizedMunicipality(municipality.name)}`,
+                            name: `${municipality.name}, ${province.name}`
+                          }}
+                          summaries={municipality.barangays.map((barangay) => ({
+                            name: barangay.name,
+                            clients: barangay.metrics.numberOfClients ?? 0,
+                            portfolio: barangay.metrics.portfolio ?? 0
+                          }))}
+                        />
+                        <MetricCells metrics={municipality.metrics} showClients={false} />
                       </summary>
                       <div className="border-t border-slate-100 bg-white pl-8">
                         {municipality.barangays.map((barangay) => (
@@ -467,15 +511,16 @@ export default async function LocationMasterlistPage() {
             </div>
           ) : null}
         </div>
+        </LocationDetailsProvider>
       </section>
     </div>
   );
 }
 
-function MetricCells({ metrics }: { metrics: Metrics }) {
+function MetricCells({ metrics, showClients = true }: { metrics: Metrics; showClients?: boolean }) {
   return (
     <>
-      <span className="text-right font-bold text-brand-blue">{count(metrics.numberOfClients)}</span>
+      {showClients ? <span className="text-right font-bold text-brand-blue">{count(metrics.numberOfClients)}</span> : null}
       <span className="text-right font-bold text-red-700">{money(metrics.portfolio)}</span>
       <span className="text-right">{count(metrics.current)}</span>
       <span className="text-right">{count(metrics.delayed)}</span>
