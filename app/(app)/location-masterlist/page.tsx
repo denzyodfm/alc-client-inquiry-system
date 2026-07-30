@@ -20,6 +20,13 @@ type BarangayNode = {
   zone: string | null;
   region: string | null;
   metrics: Metrics;
+  officers: OfficerNode[];
+};
+
+type OfficerNode = {
+  key: string;
+  name: string;
+  metrics: Metrics;
 };
 
 type MunicipalityNode = {
@@ -238,7 +245,13 @@ export default async function LocationMasterlistPage() {
         sourceStatusName: true,
         client: { select: { address: true } },
         remedialAssignment: {
-          select: { province: true, municipality: true, barangay: true }
+          select: {
+            province: true,
+            municipality: true,
+            barangay: true,
+            assignedToId: true,
+            assignedTo: { select: { name: true } }
+          }
         }
       }
     })
@@ -247,6 +260,8 @@ export default async function LocationMasterlistPage() {
   const metricsByProvince = new Map<string, MetricAccumulator>();
   const metricsByMunicipality = new Map<string, MetricAccumulator>();
   const metricsByLocation = new Map<string, MetricAccumulator>();
+  const metricsByLocationOfficer = new Map<string, MetricAccumulator>();
+  const officerNames = new Map<string, string>();
   const masterlistByKey = new Map<string, MasterlistLocation>();
   const masterlistByMunicipalityBarangay = new Map<string, MasterlistLocation[]>();
   const masterlistByBarangay = new Map<string, MasterlistLocation[]>();
@@ -281,6 +296,9 @@ export default async function LocationMasterlistPage() {
     addLoanMetrics(metricsByProvince, provinceKey, loan);
     addLoanMetrics(metricsByMunicipality, municipalityKey, loan);
     addLoanMetrics(metricsByLocation, barangayKey, loan);
+    const officerKey = assignment.assignedToId === null ? "unassigned" : String(assignment.assignedToId);
+    officerNames.set(officerKey, assignment.assignedTo?.name ?? "Unassigned");
+    addLoanMetrics(metricsByLocationOfficer, `${barangayKey}\u0000${officerKey}`, loan);
   }
 
   const provinces = new Map<string, ProvinceNode>();
@@ -300,7 +318,22 @@ export default async function LocationMasterlistPage() {
       name: location.barangay,
       zone: location.zone,
       region: location.region,
-      metrics: accumulatedMetrics(metricsByLocation.get(locationKey(location.province, location.municipality, location.barangay)))
+      metrics: accumulatedMetrics(metricsByLocation.get(locationKey(location.province, location.municipality, location.barangay))),
+      officers: Array.from(metricsByLocationOfficer.entries())
+        .filter(([key]) => key.startsWith(`${locationKey(location.province, location.municipality, location.barangay)}\u0000`))
+        .map(([key, accumulator]) => {
+          const officerKey = key.slice(key.lastIndexOf("\u0000") + 1);
+          return {
+            key: officerKey,
+            name: officerNames.get(officerKey) ?? "Unassigned",
+            metrics: accumulatedMetrics(accumulator)
+          };
+        })
+        .sort((a, b) => {
+          if (a.key === "unassigned") return 1;
+          if (b.key === "unassigned") return -1;
+          return a.name.localeCompare(b.name);
+        })
     });
     const provinceKey = normalizedProvince(location.province);
     const municipalityKey = `${provinceKey}\u0000${normalizedMunicipality(location.municipality)}`;
@@ -351,13 +384,29 @@ export default async function LocationMasterlistPage() {
                       </summary>
                       <div className="border-t border-slate-100 bg-white pl-8">
                         {municipality.barangays.map((barangay) => (
-                          <div key={barangay.id} className={`${rowGrid} border-b border-slate-100 px-4 py-3 last:border-b-0`}>
-                            <span>
+                          <details key={barangay.id} className="group/barangay border-b border-slate-100 last:border-b-0">
+                            <summary className={`${rowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}>
+                            <span className="before:mr-2 before:inline-block before:text-[10px] before:content-['▶'] group-open/barangay:before:rotate-90">
                               <span className="text-slate-700">{barangay.name}</span>
                               {(barangay.zone || barangay.region) ? <span className="ml-2 text-xs text-slate-400">{[barangay.zone, barangay.region].filter(Boolean).join(" • ")}</span> : null}
                             </span>
-                            <MetricCells metrics={barangay.metrics} />
-                          </div>
+                              <MetricCells metrics={barangay.metrics} />
+                            </summary>
+                            <div className="border-t border-slate-100 bg-blue-50/40 pl-8">
+                              {barangay.officers.map((officer) => (
+                                <div key={officer.key} className={`${rowGrid} border-b border-blue-100 px-4 py-3 last:border-b-0`}>
+                                  <span>
+                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Account Officer</span>
+                                    <span className="ml-3 font-semibold text-slate-800">{officer.name}</span>
+                                  </span>
+                                  <MetricCells metrics={officer.metrics} />
+                                </div>
+                              ))}
+                              {!barangay.officers.length ? (
+                                <div className="px-4 py-3 font-semibold text-slate-500">No linked outstanding loans.</div>
+                              ) : null}
+                            </div>
+                          </details>
                         ))}
                       </div>
                     </details>
