@@ -13,7 +13,10 @@ export function LocationReportLoanList({
   loans: AccountTaggingLoanRow[];
   canEdit: boolean;
 }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
+  const [isBulkPending, startBulkTransition] = useTransition();
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
   const filteredLoans = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("en");
     if (!term) return loans;
@@ -34,22 +37,89 @@ export function LocationReportLoanList({
     );
   }, [loans, query]);
 
+  function updateFilteredLocations(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const province = String(form.get("province") ?? "").trim();
+    const municipality = String(form.get("municipality") ?? "").trim();
+    const barangay = String(form.get("barangay") ?? "").trim();
+    if (!filteredLoans.length) {
+      setBulkMessage("No filtered loans to update.");
+      return;
+    }
+    if (!province && !municipality && !barangay) {
+      setBulkMessage("Enter at least one location field.");
+      return;
+    }
+
+    setBulkMessage(null);
+    startBulkTransition(async () => {
+      const response = await fetch("/api/account-tagging/assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "updateLoans",
+          loanIds: filteredLoans.map((loan) => loan.id),
+          province,
+          municipality,
+          barangay
+        })
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        setBulkMessage(data?.error ?? "Unable to update the filtered loans.");
+        return;
+      }
+      setBulkMessage(`${data.count.toLocaleString("en-US")} loan(s) updated.`);
+      router.refresh();
+    });
+  }
+
   return (
-    <div>
-      <div className="mb-3 flex flex-wrap items-center gap-3">
-        <input
-          className="field h-9 max-w-md text-xs"
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search client, loan, address, branch, or location"
-          aria-label="Search loans in this barangay"
-        />
-        <span className="text-xs font-semibold text-slate-500">
-          {filteredLoans.length.toLocaleString("en-US")} of {loans.length.toLocaleString("en-US")} loan(s)
-        </span>
+    <div className="min-w-0">
+      <div className="space-y-3 border-b border-blue-100 bg-blue-50 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="text-xs font-bold uppercase tracking-wide text-slate-700" htmlFor={`location-search-${loans[0]?.id ?? "empty"}`}>
+            Search results
+          </label>
+          <input
+            id={`location-search-${loans[0]?.id ?? "empty"}`}
+            className="field h-9 w-full max-w-lg bg-white text-xs"
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search client, loan, address, branch, or location"
+            aria-label="Search loans in this barangay"
+          />
+          <span className="text-xs font-semibold text-slate-600">
+            Showing {filteredLoans.length.toLocaleString("en-US")} of {loans.length.toLocaleString("en-US")} loan(s)
+          </span>
+        </div>
+        {canEdit ? (
+          <form className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end" onSubmit={updateFilteredLocations}>
+            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">
+              Province
+              <input className="field mt-1 h-9 bg-white text-xs" name="province" placeholder="Keep current if blank" />
+            </label>
+            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">
+              City/Municipality
+              <input className="field mt-1 h-9 bg-white text-xs" name="municipality" placeholder="Keep current if blank" />
+            </label>
+            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">
+              Barangay
+              <input className="field mt-1 h-9 bg-white text-xs" name="barangay" placeholder="Keep current if blank" />
+            </label>
+            <button className="btn-primary h-9 px-4 text-xs" type="submit" disabled={isBulkPending || !filteredLoans.length}>
+              {isBulkPending ? "Updating..." : `Update ${filteredLoans.length.toLocaleString("en-US")} filtered`}
+            </button>
+          </form>
+        ) : null}
+        {bulkMessage ? (
+          <p className={`text-xs font-semibold ${bulkMessage.endsWith("updated.") ? "text-green-700" : "text-red-700"}`}>{bulkMessage}</p>
+        ) : null}
       </div>
-      <table className="w-full min-w-[1680px] text-left text-xs">
+      <div className="overflow-x-auto px-4 py-3">
+        <table className="w-full min-w-[1680px] text-left text-xs">
         <thead className="uppercase tracking-wide text-slate-500">
           <tr>
             <th className="px-3 py-2">Client</th>
@@ -76,7 +146,8 @@ export function LocationReportLoanList({
             </tr>
           ) : null}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 }

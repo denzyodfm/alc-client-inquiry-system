@@ -7,11 +7,12 @@ import { prisma } from "@/lib/prisma";
 const ASSIGNMENT_ROLES = ["ADMIN", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] as const;
 const MAX_BULK_ASSIGNMENT = 5000;
 
-type AssignmentAction = "assignMatching" | "updateLoan";
+type AssignmentAction = "assignMatching" | "updateLoan" | "updateLoans";
 
 function assignmentAction(value: unknown): AssignmentAction {
   const action = String(value ?? "").trim();
   if (action === "updateLoan") return action;
+  if (action === "updateLoans") return action;
   return "assignMatching";
 }
 
@@ -88,6 +89,70 @@ export async function POST(request: Request) {
           conditionApprovedAt: null
         }
     : {};
+
+  if (action === "updateLoans") {
+    const requestedLoanIds: unknown[] = Array.isArray(body.loanIds) ? body.loanIds : [];
+    const loanIds: number[] = Array.from(
+      new Set<number>(
+        requestedLoanIds
+          .map((value) => Number(value))
+          .filter((value) => Number.isInteger(value) && value > 0)
+      )
+    );
+    if (!loanIds.length) {
+      return NextResponse.json({ error: "Select at least one loan to update." }, { status: 400 });
+    }
+    if (loanIds.length > MAX_BULK_ASSIGNMENT) {
+      return NextResponse.json({ error: `Bulk updates are limited to ${MAX_BULK_ASSIGNMENT.toLocaleString("en-US")} loans.` }, { status: 400 });
+    }
+    if (!province && !municipality && !barangay) {
+      return NextResponse.json({ error: "Provide a Province, City/Municipality, or Barangay." }, { status: 400 });
+    }
+
+    const loans = await prisma.loan.findMany({
+      where: { id: { in: loanIds } },
+      select: {
+        id: true,
+        branchId: true,
+        remedialAssignment: { select: { assignedToId: true } }
+      }
+    });
+    if (loans.length !== loanIds.length) {
+      return NextResponse.json({ error: "One or more selected loans were not found." }, { status: 404 });
+    }
+    const accessibleBranchIds = await getAccessibleBranchIds(user);
+    if (accessibleBranchIds !== null && loans.some((loan) => !accessibleBranchIds.includes(loan.branchId))) {
+      return NextResponse.json({ error: "You do not have access to one or more selected loan branches." }, { status: 403 });
+    }
+
+    await prisma.$transaction(
+      loans.map((loan) =>
+        prisma.remedialAssignment.upsert({
+          where: { loanId: loan.id },
+          create: {
+            loanId: loan.id,
+            branchId: loan.branchId,
+            assignedToId: loan.remedialAssignment?.assignedToId ?? null,
+            assignedById: user.id,
+            ...(province ? { province } : {}),
+            ...(municipality ? { municipality } : {}),
+            ...(barangay ? { barangay } : {}),
+            assignmentNotes: "Location corrected from Location Report."
+          },
+          update: {
+            assignedById: user.id,
+            ...(province ? { province } : {}),
+            ...(municipality ? { municipality } : {}),
+            ...(barangay ? { barangay } : {}),
+            status: "ACTIVE",
+            assignmentNotes: "Location corrected from Location Report."
+          }
+        })
+      )
+    );
+
+    return NextResponse.json({ ok: true, count: loans.length });
+  }
 
   if (action === "updateLoan") {
     const loanId = Number(body.loanId);

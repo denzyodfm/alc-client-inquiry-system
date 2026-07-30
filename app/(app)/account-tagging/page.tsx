@@ -977,7 +977,7 @@ export default async function AccountTaggingPage({
                                 <span className="text-right font-bold text-brand-blue">{barangay.customerCount.toLocaleString("en-US")}</span>
                                 <span className="text-right font-bold text-red-700">{barangay.principalBalance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</span>
                               </summary>
-                              <div className="overflow-x-auto border-t border-slate-200 bg-slate-50 px-4 py-3">
+                              <div className="border-t border-slate-200 bg-slate-50">
                                 <LocationReportLoanList loans={barangay.loans} canEdit={canAssignRemedial(user.role)} />
                               </div>
                             </details>
