@@ -1,12 +1,15 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 export function AppProgressBar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const queryString = searchParams.toString();
   const [progress, setProgress] = useState(0);
   const pendingRequests = useRef(0);
+  const navigationPending = useRef(false);
   const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleFinishTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -22,11 +25,15 @@ export function AppProgressBar() {
       clearTimers();
       setProgress((current) => current > 0 ? current : 10);
       fallbackTimer.current = setTimeout(() => setProgress((current) => current > 0 ? 85 : 0), 900);
-      hideTimer.current = setTimeout(() => setProgress(0), 30000);
+      hideTimer.current = setTimeout(() => {
+        navigationPending.current = false;
+        setProgress(0);
+      }, 30000);
     }
 
     function finish() {
       clearTimers();
+      navigationPending.current = false;
       setProgress(100);
       hideTimer.current = setTimeout(() => setProgress(0), 350);
     }
@@ -34,7 +41,7 @@ export function AppProgressBar() {
     function finishWhenIdle() {
       if (idleFinishTimer.current) clearTimeout(idleFinishTimer.current);
       idleFinishTimer.current = setTimeout(() => {
-        if (pendingRequests.current === 0) finish();
+        if (pendingRequests.current === 0 && !navigationPending.current) finish();
       }, 900);
     }
 
@@ -43,9 +50,20 @@ export function AppProgressBar() {
       if (!(target instanceof Element)) return;
 
       const link = target.closest<HTMLAnchorElement>("a[href]");
-      if (link && link.origin === window.location.origin && link.href !== window.location.href) {
+      if (
+        link &&
+        link.origin === window.location.origin &&
+        link.href !== window.location.href &&
+        (link.pathname !== window.location.pathname || link.search !== window.location.search) &&
+        link.target !== "_blank" &&
+        !link.hasAttribute("download") &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.shiftKey &&
+        !event.altKey
+      ) {
+        navigationPending.current = true;
         start();
-        finishWhenIdle();
         return;
       }
 
@@ -69,7 +87,7 @@ export function AppProgressBar() {
         return await originalFetch(...args);
       } finally {
         pendingRequests.current -= 1;
-        if (pendingRequests.current === 0) finish();
+        if (pendingRequests.current === 0 && !navigationPending.current) finish();
       }
     };
 
@@ -85,13 +103,14 @@ export function AppProgressBar() {
 
   useEffect(() => {
     if (progress > 0) {
+      navigationPending.current = false;
       setProgress(100);
       const timer = setTimeout(() => setProgress(0), 350);
       return () => clearTimeout(timer);
     }
-  // A completed App Router navigation changes the pathname.
+  // A completed App Router navigation changes the pathname or query string.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+  }, [pathname, queryString]);
 
   if (progress === 0) return null;
 
