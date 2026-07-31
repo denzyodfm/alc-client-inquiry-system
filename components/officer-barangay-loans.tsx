@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type LoanRow = {
   id: number;
+  branchId: number;
   clientName: string;
   clientNumber: string | null;
   contactNumber: string | null;
@@ -21,14 +23,16 @@ type LoanRow = {
   paidAmount: number;
   totalBalance: number;
   accountOfficer: string;
+  assignedOfficerId: number | null;
   address: string | null;
-  province: string;
-  municipality: string;
-  barangay: string;
 };
+
+type OfficerOption = { id: number; name: string; allBranches: boolean; branchIds: number[] };
 
 type Result = {
   rows: LoanRow[];
+  officers: OfficerOption[];
+  canAssignOfficer: boolean;
   page: number;
   pageSize: number;
   total: number;
@@ -77,11 +81,15 @@ export function BarangayLoanReport({
   assignedOnly?: boolean;
   category?: LocationReportCategory;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [reload, setReload] = useState(0);
+  const [selectedOfficers, setSelectedOfficers] = useState<Record<number, string>>({});
+  const [savingLoanId, setSavingLoanId] = useState<number | null>(null);
   const baseUrl = useMemo(() => {
     const params = new URLSearchParams({ category, context: locationName });
     if (locationId) params.set("locationId", String(locationId));
@@ -110,7 +118,32 @@ export function BarangayLoanReport({
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [baseUrl, open, page]);
+  }, [baseUrl, open, page, reload]);
+
+  async function assignOfficer(row: LoanRow) {
+    const assignedToId = Number(selectedOfficers[row.id] ?? row.assignedOfficerId);
+    if (!Number.isInteger(assignedToId) || assignedToId <= 0) {
+      setError("Select an Account Officer.");
+      return;
+    }
+    setSavingLoanId(row.id);
+    setError(null);
+    try {
+      const response = await fetch("/api/location-masterlist/officer-loans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ loanId: row.id, assignedToId })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error ?? "Unable to assign the Account Officer.");
+      setReload((value) => value + 1);
+      router.refresh();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Unable to assign the Account Officer.");
+    } finally {
+      setSavingLoanId(null);
+    }
+  }
 
   return (
     <>
@@ -161,7 +194,7 @@ export function BarangayLoanReport({
               {loading && !result ? <p className="px-5 py-12 text-center font-semibold text-slate-500">Loading loan details...</p> : null}
               {error ? <p className="px-5 py-12 text-center font-semibold text-red-700">{error}</p> : null}
               {result ? (
-                <table className="w-full min-w-[2100px] text-left text-xs">
+                <table className="w-full min-w-[1900px] text-left text-xs">
                   <thead className="sticky top-0 z-10 bg-slate-50 uppercase tracking-wide text-slate-500">
                     <tr>
                       <th className="px-3 py-3">Client</th><th className="px-3 py-3">Contact</th><th className="px-3 py-3">Loan</th>
@@ -171,7 +204,7 @@ export function BarangayLoanReport({
                       <th className="px-3 py-3 text-right">Interest</th><th className="px-3 py-3 text-right">Penalty</th>
                       <th className="px-3 py-3 text-right">Other Charges</th><th className="px-3 py-3 text-right">Paid</th>
                       <th className="px-3 py-3 text-right">Total Balance</th><th className="px-3 py-3">Address</th>
-                      <th className="px-3 py-3">Province</th><th className="px-3 py-3">City/Municipality</th><th className="px-3 py-3">Barangay</th>
+                      <th className="min-w-[260px] px-3 py-3">Account Officer / Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -185,10 +218,33 @@ export function BarangayLoanReport({
                         <MoneyCell value={row.interest} /><MoneyCell value={row.penalty} /><MoneyCell value={row.otherCharges} />
                         <MoneyCell value={row.paidAmount} /><MoneyCell value={row.totalBalance} />
                         <td className="max-w-sm whitespace-normal px-3 py-3">{row.address || "-"}</td>
-                        <td className="px-3 py-3">{row.province}</td><td className="px-3 py-3">{row.municipality}</td><td className="px-3 py-3">{row.barangay}</td>
+                        <td className="px-3 py-3">
+                          {result.canAssignOfficer ? (
+                            <div className="flex min-w-[250px] items-center gap-2">
+                              <select
+                                className="field h-9 min-w-0 flex-1 py-1 text-xs"
+                                value={selectedOfficers[row.id] ?? String(row.assignedOfficerId ?? "")}
+                                onChange={(event) => setSelectedOfficers((current) => ({ ...current, [row.id]: event.target.value }))}
+                              >
+                                <option value="">Select Account Officer</option>
+                                {result.officers
+                                  .filter((officer) => officer.allBranches || officer.branchIds.includes(row.branchId))
+                                  .map((officer) => <option key={officer.id} value={officer.id}>{officer.name}</option>)}
+                              </select>
+                              <button
+                                className="btn-primary h-9 px-3 text-xs"
+                                type="button"
+                                disabled={savingLoanId === row.id || !(selectedOfficers[row.id] ?? row.assignedOfficerId)}
+                                onClick={() => assignOfficer(row)}
+                              >
+                                {savingLoanId === row.id ? "Assigning..." : "Assign"}
+                              </button>
+                            </div>
+                          ) : <span className="font-semibold">{row.accountOfficer}</span>}
+                        </td>
                       </tr>
                     ))}
-                    {!result.rows.length ? <tr><td className="px-3 py-10 text-center font-semibold text-slate-500" colSpan={19}>No matching loans found.</td></tr> : null}
+                    {!result.rows.length ? <tr><td className="px-3 py-10 text-center font-semibold text-slate-500" colSpan={17}>No matching loans found.</td></tr> : null}
                   </tbody>
                 </table>
               ) : null}

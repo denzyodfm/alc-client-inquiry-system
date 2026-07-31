@@ -2,7 +2,7 @@ import type { Prisma, UserRole } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { requireApiUser } from "@/lib/api";
-import { getAccessibleBranchIds } from "@/lib/auth";
+import { canAccessBranch, getAccessibleBranchIds } from "@/lib/auth";
 import {
   effectiveLocationCategory,
   higherRiskLocationCategory,
@@ -119,10 +119,10 @@ export async function GET(request: NextRequest) {
       otherChargesAmount: true,
       paidAmount: true,
       balance: true,
-      branch: { select: { branchCode: true, branchName: true } },
+      branch: { select: { id: true, branchCode: true, branchName: true } },
       client: { select: { clientId: true, fullName: true, address: true, contactNumber: true } },
       locationMasterlist: { select: { province: true, municipality: true, barangay: true } },
-      remedialAssignment: { select: { assignedTo: { select: { name: true } } } },
+      remedialAssignment: { select: { assignedToId: true, assignedTo: { select: { name: true } } } },
       amortizationSchedules: {
         select: {
           amortDate: true,
@@ -159,6 +159,7 @@ export async function GET(request: NextRequest) {
     clientNumber: loan.client.clientId,
     contactNumber: loan.client.contactNumber,
     loanNumber: loan.loanNumber ?? loan.remoteId,
+    branchId: loan.branch.id,
     branch: `${loan.branch.branchCode} - ${loan.branch.branchName}`,
     product: loan.loanProduct,
     releasedAt: loan.releasedAt?.toISOString() ?? null,
@@ -172,6 +173,7 @@ export async function GET(request: NextRequest) {
     paidAmount: Number(loan.paidAmount),
     totalBalance: Number(loan.balance),
     accountOfficer: (loan.remedialAssignment?.assignedTo?.name ?? "UNASSIGNED").toLocaleUpperCase("en"),
+    assignedOfficerId: loan.remedialAssignment?.assignedToId ?? null,
     address: loan.client.address,
     province: loan.locationMasterlist?.province ?? "-",
     municipality: loan.locationMasterlist?.municipality ?? "-",
@@ -190,7 +192,7 @@ export async function GET(request: NextRequest) {
       <td class="number">${money(row.interest)}</td><td class="number">${money(row.penalty)}</td>
       <td class="number">${money(row.otherCharges)}</td><td class="number">${money(row.paidAmount)}</td>
       <td class="number">${money(row.totalBalance)}</td><td>${escapeHtml(row.address || "-")}</td>
-      <td>${escapeHtml(row.province)}</td><td>${escapeHtml(row.municipality)}</td><td>${escapeHtml(row.barangay)}</td>
+      <td>${escapeHtml(row.accountOfficer)}</td>
     </tr>`).join("");
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
       <style>body{font-family:Arial,sans-serif;font-size:11px;color:#0f172a}h1{font-size:18px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #cbd5e1;padding:5px;vertical-align:top}th{background:#f1f5f9;text-transform:uppercase;font-size:9px}.number{text-align:right;white-space:nowrap}.actions{margin-bottom:12px}@media print{.actions{display:none}body{font-size:8px}th,td{padding:3px}}</style>
@@ -199,7 +201,7 @@ export async function GET(request: NextRequest) {
       <th>No.</th><th>Client</th><th>Client ID</th><th>Contact</th><th>Loan</th><th>Branch</th><th>Product</th>
       <th>Released</th><th>Maturity</th><th>Status</th><th>Original Principal</th><th>Principal Balance</th>
       <th>Interest</th><th>Penalty</th><th>Other Charges</th><th>Paid</th><th>Total Balance</th>
-      <th>Address</th><th>Province</th><th>City/Municipality</th><th>Barangay</th></tr></thead><tbody>${body}</tbody></table>
+      <th>Address</th><th>Account Officer</th></tr></thead><tbody>${body}</tbody></table>
       ${format === "print" ? "<script>window.addEventListener('load',()=>window.print())</script>" : ""}</body></html>`;
     return new NextResponse(html, {
       headers: {
@@ -209,5 +211,86 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({ rows, page, pageSize: PAGE_SIZE, total, clientTotal, totalPages, context, category });
+  const officers = await prisma.user.findMany({
+    where: { role: "ACCOUNT_OFFICER", isActive: true },
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      allBranches: true,
+      branchAccess: { select: { branchId: true } }
+    }
+  });
+
+  return NextResponse.json({
+    rows,
+    officers: officers.map((officer) => ({
+      id: officer.id,
+      name: officer.name,
+      allBranches: officer.allBranches,
+      branchIds: officer.branchAccess.map((access) => access.branchId)
+    })),
+    canAssignOfficer: user.role === "ADMIN" || user.role === "AREA_TEAM_LEADER",
+    page,
+    pageSize: PAGE_SIZE,
+    total,
+    clientTotal,
+    totalPages,
+    context,
+    category
+  });
+}
+
+export async function POST(request: NextRequest) {
+  const { user, response } = await requireApiUser(["ADMIN", "AREA_TEAM_LEADER"]);
+  if (response) return response;
+
+  const body = await request.json().catch(() => null);
+  const loanId = Number(body?.loanId);
+  const assignedToId = Number(body?.assignedToId);
+  if (!Number.isInteger(loanId) || loanId <= 0 || !Number.isInteger(assignedToId) || assignedToId <= 0) {
+    return NextResponse.json({ error: "Select a valid loan and Account Officer." }, { status: 400 });
+  }
+
+  const [loan, officer] = await Promise.all([
+    prisma.loan.findUnique({
+      where: { id: loanId },
+      select: { id: true, branchId: true, remedialAssignment: { select: { id: true } } }
+    }),
+    prisma.user.findFirst({
+      where: {
+        id: assignedToId,
+        role: "ACCOUNT_OFFICER",
+        isActive: true,
+        OR: [{ allBranches: true }, { branchAccess: { some: {} } }]
+      },
+      select: { id: true, name: true, allBranches: true, branchAccess: { select: { branchId: true } } }
+    })
+  ]);
+  if (!loan) return NextResponse.json({ error: "Loan not found." }, { status: 404 });
+  if (!(await canAccessBranch(user, loan.branchId))) {
+    return NextResponse.json({ error: "You do not have access to this loan branch." }, { status: 403 });
+  }
+  if (!officer || (!officer.allBranches && !officer.branchAccess.some((access) => access.branchId === loan.branchId))) {
+    return NextResponse.json({ error: "The selected Account Officer has no access to this loan branch." }, { status: 400 });
+  }
+
+  await prisma.remedialAssignment.upsert({
+    where: { loanId },
+    create: {
+      loanId,
+      branchId: loan.branchId,
+      assignedToId,
+      assignedById: user.id,
+      assignmentNotes: "Account Officer changed from Location loan popup."
+    },
+    update: {
+      assignedToId,
+      assignedById: user.id,
+      status: "ACTIVE",
+      assignmentNotes: "Account Officer changed from Location loan popup."
+    }
+  });
+
+  return NextResponse.json({ ok: true, loanId, assignedToId, officerName: officer.name });
 }
