@@ -3,7 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { requireApiUser } from "@/lib/api";
 import { getAccessibleBranchIds } from "@/lib/auth";
-import { locationLoanClassification, locationLoanIsLitigated, manilaDateKey } from "@/lib/location-loan-aging";
+import {
+  effectiveLocationCategory,
+  higherRiskLocationCategory,
+  manilaDateKey,
+  type LocationClientCategory
+} from "@/lib/location-loan-aging";
 import { prisma } from "@/lib/prisma";
 
 const PAGE_SIZE = 25;
@@ -122,11 +127,17 @@ export async function GET(request: NextRequest) {
     }
   });
   const todayKey = manilaDateKey();
-  const matchingLoans = loans.filter((loan) => {
-    if (category === "all") return true;
-    if (category === "litigated") return locationLoanIsLitigated(loan);
-    return locationLoanClassification(loan, todayKey) === category;
-  });
+  const categoryByClient = new Map<number, LocationClientCategory>();
+  for (const loan of loans) {
+    const candidate = effectiveLocationCategory(loan, todayKey);
+    categoryByClient.set(
+      loan.clientId,
+      higherRiskLocationCategory(categoryByClient.get(loan.clientId), candidate)
+    );
+  }
+  const matchingLoans = category === "all"
+    ? loans
+    : loans.filter((loan) => categoryByClient.get(loan.clientId) === category);
   const total = matchingLoans.length;
   const clientTotal = new Set(matchingLoans.map((loan) => loan.clientId)).size;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));

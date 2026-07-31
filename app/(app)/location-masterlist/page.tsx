@@ -2,7 +2,13 @@ import type { Prisma } from "@prisma/client";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
 import { getLocationLinkSchedule } from "@/lib/location-link-scheduler";
-import { locationLoanClassification, locationLoanIsLitigated, manilaDateKey, type LocationAgingLoan } from "@/lib/location-loan-aging";
+import {
+  effectiveLocationCategory,
+  higherRiskLocationCategory,
+  manilaDateKey,
+  type LocationAgingLoan,
+  type LocationClientCategory
+} from "@/lib/location-loan-aging";
 import { prisma } from "@/lib/prisma";
 import { LocationLinkControl } from "@/components/location-link-control";
 import { BarangayLoanReport } from "@/components/officer-barangay-loans";
@@ -64,14 +70,8 @@ type MetricAccumulator = {
   clients: Set<number>;
   assignedClients: Set<number>;
   portfolio: number;
-  currentClients: Set<number>;
-  currentBalance: number;
-  delayedClients: Set<number>;
-  delayedBalance: number;
-  pastDueClients: Set<number>;
-  pastDueBalance: number;
-  litigatedClients: Set<number>;
-  litigatedBalance: number;
+  categoryByClient: Map<number, LocationClientCategory>;
+  principalByClient: Map<number, number>;
 };
 
 const provinceAliases: Record<string, string> = {
@@ -112,14 +112,8 @@ function emptyAccumulator(): MetricAccumulator {
     clients: new Set(),
     assignedClients: new Set(),
     portfolio: 0,
-    currentClients: new Set(),
-    currentBalance: 0,
-    delayedClients: new Set(),
-    delayedBalance: 0,
-    pastDueClients: new Set(),
-    pastDueBalance: 0,
-    litigatedClients: new Set(),
-    litigatedBalance: 0
+    categoryByClient: new Map(),
+    principalByClient: new Map()
   };
 }
 
@@ -131,18 +125,28 @@ function accumulatedMetrics(accumulator?: MetricAccumulator): Metrics {
       pastDue: 0, pastDueBalance: 0, litigated: 0, litigatedBalance: 0
     };
   }
+  const status = {
+    current: { clients: 0, balance: 0 },
+    delayed: { clients: 0, balance: 0 },
+    pastDue: { clients: 0, balance: 0 },
+    litigated: { clients: 0, balance: 0 }
+  };
+  for (const [clientId, category] of accumulator.categoryByClient) {
+    status[category].clients += 1;
+    status[category].balance += accumulator.principalByClient.get(clientId) ?? 0;
+  }
   return {
     numberOfClients: accumulator.clients.size,
     withAccountOfficer: accumulator.assignedClients.size,
     portfolio: accumulator.portfolio,
-    current: accumulator.currentClients.size,
-    currentBalance: accumulator.currentBalance,
-    delayed: accumulator.delayedClients.size,
-    delayedBalance: accumulator.delayedBalance,
-    pastDue: accumulator.pastDueClients.size,
-    pastDueBalance: accumulator.pastDueBalance,
-    litigated: accumulator.litigatedClients.size,
-    litigatedBalance: accumulator.litigatedBalance
+    current: status.current.clients,
+    currentBalance: status.current.balance,
+    delayed: status.delayed.clients,
+    delayedBalance: status.delayed.balance,
+    pastDue: status.pastDue.clients,
+    pastDueBalance: status.pastDue.balance,
+    litigated: status.litigated.clients,
+    litigatedBalance: status.litigated.balance
   };
 }
 
@@ -190,19 +194,21 @@ function outstandingPrincipalBalance(loan: {
   balance: unknown;
   amortizationSchedules: Array<{ principalAmort: unknown; paidPrincipal: unknown }>;
 }) {
-  const totalBalance = Number(loan.balance);
-  if (!loan.amortizationSchedules.length) return Math.min(Number(loan.principalAmount), totalBalance);
+  const totalBalance = Math.max(0, Number(loan.balance));
+  const fallbackPrincipalBalance = Math.min(Math.max(0, Number(loan.principalAmount)), totalBalance);
+  if (!loan.amortizationSchedules.length) return fallbackPrincipalBalance;
   const schedulePrincipalBalance = loan.amortizationSchedules.reduce(
     (sum, schedule) => sum + Math.max(0, Number(schedule.principalAmort) - Number(schedule.paidPrincipal)),
     0
   );
-  return Math.min(schedulePrincipalBalance, totalBalance);
+  return schedulePrincipalBalance > 0
+    ? Math.min(schedulePrincipalBalance, totalBalance)
+    : fallbackPrincipalBalance;
 }
 
 type ClassifiedLoan = LocationAgingLoan & {
   clientId: number;
 };
-type LoanClassification = ReturnType<typeof locationLoanClassification>;
 
 function addLoanMetrics(
   target: Map<string, MetricAccumulator>,
@@ -210,27 +216,20 @@ function addLoanMetrics(
   loan: ClassifiedLoan,
   hasAssignedOfficer: boolean,
   principalBalance: number,
-  classification: LoanClassification,
-  isLitigated: boolean
+  category: LocationClientCategory
 ) {
   const accumulator = target.get(key) ?? emptyAccumulator();
   accumulator.clients.add(loan.clientId);
   if (hasAssignedOfficer) accumulator.assignedClients.add(loan.clientId);
   accumulator.portfolio += principalBalance;
-  if (isLitigated) {
-    accumulator.litigatedClients.add(loan.clientId);
-    accumulator.litigatedBalance += principalBalance;
-  }
-  if (classification === "pastDue") {
-    accumulator.pastDueClients.add(loan.clientId);
-    accumulator.pastDueBalance += principalBalance;
-  } else if (classification === "delayed") {
-    accumulator.delayedClients.add(loan.clientId);
-    accumulator.delayedBalance += principalBalance;
-  } else {
-    accumulator.currentClients.add(loan.clientId);
-    accumulator.currentBalance += principalBalance;
-  }
+  accumulator.principalByClient.set(
+    loan.clientId,
+    (accumulator.principalByClient.get(loan.clientId) ?? 0) + principalBalance
+  );
+  accumulator.categoryByClient.set(
+    loan.clientId,
+    higherRiskLocationCategory(accumulator.categoryByClient.get(loan.clientId), category)
+  );
   target.set(key, accumulator);
 }
 
@@ -365,21 +364,20 @@ export default async function LocationMasterlistPage() {
     const municipalityKey = `${provinceKey}\u0000${normalizedMunicipality(matchedLocation.municipality)}`;
     const hasAssignedOfficer = assignment.assignedToId !== null;
     const principalBalance = outstandingPrincipalBalance(loan);
-    const classification = locationLoanClassification(loan, todayKey);
-    const isLitigated = locationLoanIsLitigated(loan);
-    addLoanMetrics(metricsByOverall, "all", loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
-    addLoanMetrics(metricsByProvince, provinceKey, loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
-    addLoanMetrics(metricsByMunicipality, municipalityKey, loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
-    addLoanMetrics(metricsByLocation, barangayKey, loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
+    const category = effectiveLocationCategory(loan, todayKey);
+    addLoanMetrics(metricsByOverall, "all", loan, hasAssignedOfficer, principalBalance, category);
+    addLoanMetrics(metricsByProvince, provinceKey, loan, hasAssignedOfficer, principalBalance, category);
+    addLoanMetrics(metricsByMunicipality, municipalityKey, loan, hasAssignedOfficer, principalBalance, category);
+    addLoanMetrics(metricsByLocation, barangayKey, loan, hasAssignedOfficer, principalBalance, category);
     const officerKey = assignment.assignedToId === null ? "unassigned" : String(assignment.assignedToId);
     officerNames.set(officerKey, (assignment.assignedTo?.name ?? "Unassigned").toLocaleUpperCase("en"));
     if (hasAssignedOfficer) {
-      addLoanMetrics(metricsByAssignedOverall, "assigned", loan, true, principalBalance, classification, isLitigated);
+      addLoanMetrics(metricsByAssignedOverall, "assigned", loan, true, principalBalance, category);
     }
-    addLoanMetrics(metricsByOfficer, officerKey, loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
-    addLoanMetrics(metricsByProvinceOfficer, `${provinceKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
-    addLoanMetrics(metricsByMunicipalityOfficer, `${municipalityKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
-    addLoanMetrics(metricsByLocationOfficer, `${barangayKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
+    addLoanMetrics(metricsByOfficer, officerKey, loan, hasAssignedOfficer, principalBalance, category);
+    addLoanMetrics(metricsByProvinceOfficer, `${provinceKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance, category);
+    addLoanMetrics(metricsByMunicipalityOfficer, `${municipalityKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance, category);
+    addLoanMetrics(metricsByLocationOfficer, `${barangayKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance, category);
   }
 
   const provinces = new Map<string, ProvinceNode>();

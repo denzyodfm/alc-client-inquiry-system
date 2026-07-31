@@ -12,6 +12,15 @@ export type LocationAgingLoan = {
   }>;
 };
 
+export type LocationClientCategory = "current" | "delayed" | "pastDue" | "litigated";
+
+const categoryRisk: Record<LocationClientCategory, number> = {
+  current: 0,
+  delayed: 1,
+  pastDue: 2,
+  litigated: 3
+};
+
 const manilaDateFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "Asia/Manila",
   year: "numeric",
@@ -54,3 +63,13 @@ export function locationLoanIsLitigated(loan: Pick<LocationAgingLoan, "sourceSta
   return String(loan.sourceStatusName ?? "").trim().toLocaleLowerCase("en").includes("litig");
 }
 
+export function effectiveLocationCategory(loan: LocationAgingLoan, todayKey: string): LocationClientCategory {
+  return locationLoanIsLitigated(loan) ? "litigated" : locationLoanClassification(loan, todayKey);
+}
+
+export function higherRiskLocationCategory(
+  current: LocationClientCategory | undefined,
+  candidate: LocationClientCategory
+) {
+  return !current || categoryRisk[candidate] > categoryRisk[current] ? candidate : current;
+}
