@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type LoanRow = {
   id: number;
@@ -32,7 +32,18 @@ type Result = {
   page: number;
   pageSize: number;
   total: number;
+  clientTotal: number;
   totalPages: number;
+};
+
+export type LocationReportCategory = "all" | "current" | "delayed" | "pastDue" | "litigated";
+
+const categoryLabels: Record<LocationReportCategory, string> = {
+  all: "All Clients",
+  current: "Current",
+  delayed: "Delayed",
+  pastDue: "Past Due",
+  litigated: "Litigated"
 };
 
 function money(value: number) {
@@ -48,20 +59,36 @@ export function BarangayLoanReport({
   locationId,
   clientCount,
   officerName,
-  locationName
+  locationName,
+  province,
+  municipality,
+  assignedOnly = false,
+  category = "all"
 }: {
   officerId?: number;
-  locationId: number;
+  locationId?: number;
   clientCount: number;
   officerName?: string;
   locationName: string;
+  province?: string;
+  municipality?: string;
+  assignedOnly?: boolean;
+  category?: LocationReportCategory;
 }) {
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const baseUrl = `/api/location-masterlist/officer-loans?locationId=${locationId}${officerId ? `&officerId=${officerId}` : ""}`;
+  const baseUrl = useMemo(() => {
+    const params = new URLSearchParams({ category, context: locationName });
+    if (locationId) params.set("locationId", String(locationId));
+    if (officerId) params.set("officerId", String(officerId));
+    if (province) params.set("province", province);
+    if (municipality) params.set("municipality", municipality);
+    if (assignedOnly) params.set("assignedOnly", "1");
+    return `/api/location-masterlist/officer-loans?${params.toString()}`;
+  }, [assignedOnly, category, locationId, locationName, municipality, officerId, province]);
 
   useEffect(() => {
     if (!open) return;
@@ -100,16 +127,25 @@ export function BarangayLoanReport({
         {clientCount.toLocaleString("en-US")}
       </button>
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true">
-          <div className="flex max-h-[92vh] w-full max-w-[96vw] flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpen(false);
+          }}
+        >
+          <div className="flex max-h-[92vh] w-full max-w-[96vw] flex-col overflow-hidden rounded-xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-brand-green">{officerId ? "Account Officer Loan Details" : "Location Loan Details"}</p>
-                {officerName ? <h3 className="mt-1 text-xl font-bold text-slate-950">{officerName}</h3> : null}
-                <p className={`${officerName ? "mt-1 text-sm" : "mt-1 text-xl"} font-semibold text-slate-600`}>{locationName}</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-brand-green">Client and Loan Information</p>
+                <h3 className="mt-1 text-xl font-bold text-slate-950">{categoryLabels[category]}</h3>
+                <p className="mt-1 text-sm font-semibold text-slate-600">{locationName}</p>
+                {officerName ? <p className="mt-1 text-xs font-bold uppercase tracking-wide text-brand-blue">Account Officer: {officerName}</p> : null}
               </div>
               <div className="flex flex-wrap gap-2">
-                <a className="btn-secondary" href={`${baseUrl}&format=excel`}>Export to Excel</a>
+                <a className="btn-secondary" href={`${baseUrl}&format=excel`} download>Download Excel</a>
                 <a className="btn-secondary" href={`${baseUrl}&format=print`} target="_blank" rel="noreferrer">Print full report</a>
                 <button className="btn-secondary" type="button" onClick={() => setOpen(false)}>Close</button>
               </div>

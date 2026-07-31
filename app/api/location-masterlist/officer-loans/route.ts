@@ -3,10 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { requireApiUser } from "@/lib/api";
 import { getAccessibleBranchIds } from "@/lib/auth";
+import { locationLoanClassification, locationLoanIsLitigated, manilaDateKey } from "@/lib/location-loan-aging";
 import { prisma } from "@/lib/prisma";
 
 const PAGE_SIZE = 25;
 const allowedRoles: UserRole[] = ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"];
+const categories = ["all", "current", "delayed", "pastDue", "litigated"] as const;
+type Category = typeof categories[number];
 
 function principalBalance(loan: {
   principalAmount: unknown;
@@ -40,16 +43,36 @@ export async function GET(request: NextRequest) {
 
   const officerParam = request.nextUrl.searchParams.get("officerId");
   const officerId = officerParam ? Number(officerParam) : null;
-  const locationId = Number(request.nextUrl.searchParams.get("locationId"));
+  const locationParam = request.nextUrl.searchParams.get("locationId");
+  const locationId = locationParam ? Number(locationParam) : null;
+  const province = request.nextUrl.searchParams.get("province")?.trim() || "";
+  const municipality = request.nextUrl.searchParams.get("municipality")?.trim() || "";
+  const assignedOnly = request.nextUrl.searchParams.get("assignedOnly") === "1";
+  const requestedCategory = request.nextUrl.searchParams.get("category") ?? "all";
+  const category: Category = categories.includes(requestedCategory as Category) ? requestedCategory as Category : "all";
+  const context = request.nextUrl.searchParams.get("context")?.trim() || "Account Officer Location Pivot";
   const requestedPage = Math.max(1, Number(request.nextUrl.searchParams.get("page")) || 1);
   const format = request.nextUrl.searchParams.get("format");
-  if ((officerId !== null && (!Number.isInteger(officerId) || officerId <= 0)) || !Number.isInteger(locationId) || locationId <= 0) {
-    return NextResponse.json({ error: "A valid barangay report scope is required." }, { status: 400 });
+  if (
+    (officerId !== null && (!Number.isInteger(officerId) || officerId <= 0))
+    || (locationId !== null && (!Number.isInteger(locationId) || locationId <= 0))
+    || (!locationId && !officerId && !assignedOnly)
+  ) {
+    return NextResponse.json({ error: "A valid Account Officer or location report scope is required." }, { status: 400 });
   }
   if (user.role === "ACCOUNT_OFFICER" && officerId !== null && officerId !== user.id) {
     return NextResponse.json({ error: "You can view only your assigned loans." }, { status: 403 });
   }
   const effectiveOfficerId = officerId ?? (user.role === "ACCOUNT_OFFICER" ? user.id : null);
+  const locationWhere: Prisma.LoanWhereInput = locationId
+    ? { locationMasterlistId: locationId }
+    : province
+      ? { locationMasterlist: { is: { province, ...(municipality ? { municipality } : {}) } } }
+      : {};
+  const assignmentWhere: Prisma.RemedialAssignmentWhereInput = {
+    status: "ACTIVE",
+    ...(effectiveOfficerId ? { assignedToId: effectiveOfficerId } : assignedOnly ? { assignedToId: { not: null } } : {})
+  };
 
   const accessibleBranchIds = user.role === "ACCOUNT_OFFICER" ? null : await getAccessibleBranchIds(user);
   const branchWhere: Prisma.LoanWhereInput =
@@ -58,21 +81,18 @@ export async function GET(request: NextRequest) {
     AND: [
       branchWhere,
       accountTaggingSearchWhere({}),
-      { locationLinked: true, locationMasterlistId: locationId },
-      { remedialAssignment: { is: { status: "ACTIVE", ...(effectiveOfficerId ? { assignedToId: effectiveOfficerId } : {}) } } }
+      { locationLinked: true, locationMasterlistId: { not: null } },
+      locationWhere,
+      { remedialAssignment: { is: assignmentWhere } }
     ]
   };
 
-  const total = await prisma.loan.count({ where });
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const page = Math.min(requestedPage, totalPages);
-  const allRows = format === "excel" || format === "print";
   const loans = await prisma.loan.findMany({
     where,
     orderBy: [{ client: { fullName: "asc" } }, { loanNumber: "asc" }, { id: "asc" }],
-    ...(!allRows ? { skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE } : {}),
     select: {
       id: true,
+      clientId: true,
       remoteId: true,
       loanNumber: true,
       loanProduct: true,
@@ -89,10 +109,31 @@ export async function GET(request: NextRequest) {
       client: { select: { clientId: true, fullName: true, address: true, contactNumber: true } },
       locationMasterlist: { select: { province: true, municipality: true, barangay: true } },
       remedialAssignment: { select: { assignedTo: { select: { name: true } } } },
-      amortizationSchedules: { select: { principalAmort: true, paidPrincipal: true } }
+      amortizationSchedules: {
+        select: {
+          amortDate: true,
+          totalAmort: true,
+          principalAmort: true,
+          interestAmort: true,
+          paidPrincipal: true,
+          paidInterest: true
+        }
+      }
     }
   });
-  const rows = loans.map((loan) => ({
+  const todayKey = manilaDateKey();
+  const matchingLoans = loans.filter((loan) => {
+    if (category === "all") return true;
+    if (category === "litigated") return locationLoanIsLitigated(loan);
+    return locationLoanClassification(loan, todayKey) === category;
+  });
+  const total = matchingLoans.length;
+  const clientTotal = new Set(matchingLoans.map((loan) => loan.clientId)).size;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Math.min(requestedPage, totalPages);
+  const allRows = format === "excel" || format === "print";
+  const pagedLoans = allRows ? matchingLoans : matchingLoans.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const rows = pagedLoans.map((loan) => ({
     id: loan.id,
     clientName: loan.client.fullName,
     clientNumber: loan.client.clientId,
@@ -118,9 +159,8 @@ export async function GET(request: NextRequest) {
   }));
 
   if (format === "excel" || format === "print") {
-    const title = rows[0]
-      ? `${officerId ? `${rows[0].accountOfficer} - ` : ""}${rows[0].barangay}, ${rows[0].municipality}, ${rows[0].province}`
-      : "Account Officer Barangay Loan Report";
+    const categoryLabel = category === "pastDue" ? "Past Due" : category.charAt(0).toUpperCase() + category.slice(1);
+    const title = `${categoryLabel} Clients and Loan Information - ${context}`;
     const body = rows.map((row, index) => `<tr>
       <td>${index + 1}</td><td>${escapeHtml(row.clientName)}</td><td>${escapeHtml(row.clientNumber || "-")}</td>
       <td>${escapeHtml(row.contactNumber || "-")}</td><td>${escapeHtml(row.loanNumber)}</td><td>${escapeHtml(row.branch)}</td>
@@ -135,7 +175,7 @@ export async function GET(request: NextRequest) {
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
       <style>body{font-family:Arial,sans-serif;font-size:11px;color:#0f172a}h1{font-size:18px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #cbd5e1;padding:5px;vertical-align:top}th{background:#f1f5f9;text-transform:uppercase;font-size:9px}.number{text-align:right;white-space:nowrap}.actions{margin-bottom:12px}@media print{.actions{display:none}body{font-size:8px}th,td{padding:3px}}</style>
       </head><body>${format === "print" ? '<div class="actions"><button onclick="window.print()">Print</button></div>' : ""}
-      <h1>${escapeHtml(title)}</h1><p>${rows.length.toLocaleString("en-US")} loan(s)</p><table><thead><tr>
+      <h1>${escapeHtml(title)}</h1><p>${clientTotal.toLocaleString("en-US")} client(s), ${rows.length.toLocaleString("en-US")} loan(s)</p><table><thead><tr>
       <th>No.</th><th>Client</th><th>Client ID</th><th>Contact</th><th>Loan</th><th>Branch</th><th>Product</th>
       <th>Released</th><th>Maturity</th><th>Status</th><th>Original Principal</th><th>Principal Balance</th>
       <th>Interest</th><th>Penalty</th><th>Other Charges</th><th>Paid</th><th>Total Balance</th>
@@ -144,10 +184,10 @@ export async function GET(request: NextRequest) {
     return new NextResponse(html, {
       headers: {
         "Content-Type": format === "excel" ? "application/vnd.ms-excel; charset=utf-8" : "text/html; charset=utf-8",
-        "Content-Disposition": format === "excel" ? `attachment; filename="ao-barangay-loans-${locationId}.xls"` : "inline"
+        "Content-Disposition": format === "excel" ? `attachment; filename="location-client-loans-${category}.xls"` : "inline"
       }
     });
   }
 
-  return NextResponse.json({ rows, page, pageSize: PAGE_SIZE, total, totalPages });
+  return NextResponse.json({ rows, page, pageSize: PAGE_SIZE, total, clientTotal, totalPages, context, category });
 }

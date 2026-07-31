@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
 import { getLocationLinkSchedule } from "@/lib/location-link-scheduler";
+import { locationLoanClassification, locationLoanIsLitigated, manilaDateKey, type LocationAgingLoan } from "@/lib/location-loan-aging";
 import { prisma } from "@/lib/prisma";
 import { LocationLinkControl } from "@/components/location-link-control";
 import { BarangayLoanReport } from "@/components/officer-barangay-loans";
@@ -198,60 +199,10 @@ function outstandingPrincipalBalance(loan: {
   return Math.min(schedulePrincipalBalance, totalBalance);
 }
 
-type ClassifiedLoan = {
+type ClassifiedLoan = LocationAgingLoan & {
   clientId: number;
-  balance: unknown;
-  maturityAt: Date | null;
-  sourceStatusName: string | null;
-  amortizationSchedules: Array<{
-    amortDate: Date | null;
-    totalAmort: unknown;
-    principalAmort: unknown;
-    interestAmort: unknown;
-    paidPrincipal: unknown;
-    paidInterest: unknown;
-  }>;
 };
-
-const manilaDateFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: "Asia/Manila",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit"
-});
-
-function manilaDateKey(value: Date) {
-  const parts = manilaDateFormatter.formatToParts(value);
-  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
-
-function databaseDateKey(value: Date) {
-  return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}-${String(value.getUTCDate()).padStart(2, "0")}`;
-}
-
-function hasUnpaidDueAsOf(loan: ClassifiedLoan, todayKey: string) {
-  return loan.amortizationSchedules.some((schedule) => {
-    if (!schedule.amortDate || databaseDateKey(schedule.amortDate) > todayKey) return false;
-    const scheduledAmount = Number(schedule.totalAmort)
-      || Number(schedule.principalAmort) + Number(schedule.interestAmort);
-    const paidAmount = Number(schedule.paidPrincipal) + Number(schedule.paidInterest);
-    return scheduledAmount - paidAmount > 0;
-  });
-}
-
-function loanClassification(loan: ClassifiedLoan, todayKey: string) {
-  const hasOutstandingBalance = Number(loan.balance) > 0;
-  if (hasOutstandingBalance && loan.maturityAt && databaseDateKey(loan.maturityAt) < todayKey) {
-    return "pastDue" as const;
-  }
-  if (hasOutstandingBalance && hasUnpaidDueAsOf(loan, todayKey)) {
-    return "delayed" as const;
-  }
-  return "current" as const;
-}
-
-type LoanClassification = ReturnType<typeof loanClassification>;
+type LoanClassification = ReturnType<typeof locationLoanClassification>;
 
 function addLoanMetrics(
   target: Map<string, MetricAccumulator>,
@@ -414,8 +365,8 @@ export default async function LocationMasterlistPage() {
     const municipalityKey = `${provinceKey}\u0000${normalizedMunicipality(matchedLocation.municipality)}`;
     const hasAssignedOfficer = assignment.assignedToId !== null;
     const principalBalance = outstandingPrincipalBalance(loan);
-    const classification = loanClassification(loan, todayKey);
-    const isLitigated = normalizedText(loan.sourceStatusName ?? "").includes("litig");
+    const classification = locationLoanClassification(loan, todayKey);
+    const isLitigated = locationLoanIsLitigated(loan);
     addLoanMetrics(metricsByOverall, "all", loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
     addLoanMetrics(metricsByProvince, provinceKey, loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
     addLoanMetrics(metricsByMunicipality, municipalityKey, loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
@@ -636,21 +587,45 @@ export default async function LocationMasterlistPage() {
               <details key={officer.key} className="group/ao">
                 <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/ao:bg-blue-100`}>
                   <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open/ao:before:rotate-90">{officer.name}</span>
-                  <MetricCells metrics={officer.metrics} />
+                  <MetricCells
+                    metrics={officer.metrics}
+                    reportScope={{
+                      officerId: Number(officer.key),
+                      officerName: officer.name,
+                      locationName: `${officer.name} — All Assigned Locations`
+                    }}
+                  />
                 </summary>
                 <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
                   {Array.from(officer.provinces.values()).map((province) => (
                     <details key={province.name} className="group/ao-province border-b border-slate-100 last:border-b-0">
                       <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/ao-province:bg-blue-100`}>
                         <span className="font-bold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/ao-province:before:rotate-90">{province.name}</span>
-                        <MetricCells metrics={province.metrics} />
+                        <MetricCells
+                          metrics={province.metrics}
+                          reportScope={{
+                            officerId: Number(officer.key),
+                            officerName: officer.name,
+                            province: province.name,
+                            locationName: `${officer.name} — ${province.name}`
+                          }}
+                        />
                       </summary>
                       <div className="border-t border-slate-100 bg-white/70 pl-6">
                         {Array.from(province.municipalities.values()).map((municipality) => (
                           <details key={municipality.name} className="group/ao-city border-b border-slate-100 last:border-b-0">
                             <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/ao-city:bg-blue-100`}>
                               <span className="font-semibold text-slate-700 before:mr-2 before:inline-block before:content-['▶'] group-open/ao-city:before:rotate-90">{municipality.name}</span>
-                              <MetricCells metrics={municipality.metrics} />
+                              <MetricCells
+                                metrics={municipality.metrics}
+                                reportScope={{
+                                  officerId: Number(officer.key),
+                                  officerName: officer.name,
+                                  province: province.name,
+                                  municipality: municipality.name,
+                                  locationName: `${officer.name} — ${municipality.name}, ${province.name}`
+                                }}
+                              />
                             </summary>
                             <div className="border-t border-slate-100 bg-white pl-8">
                               {municipality.barangays.map((barangay) => (
@@ -665,7 +640,16 @@ export default async function LocationMasterlistPage() {
                                       locationName={`${barangay.name}, ${municipality.name}, ${province.name}`}
                                     />
                                   </span>
-                                  <MetricCells metrics={barangay.metrics} showClients={false} />
+                                  <MetricCells
+                                    metrics={barangay.metrics}
+                                    showClients={false}
+                                    reportScope={{
+                                      officerId: Number(officer.key),
+                                      officerName: officer.name,
+                                      locationId: barangay.id,
+                                      locationName: `${officer.name} — ${barangay.name}, ${municipality.name}, ${province.name}`
+                                    }}
+                                  />
                                 </div>
                               ))}
                             </div>
@@ -681,7 +665,11 @@ export default async function LocationMasterlistPage() {
           </div>
           {accountOfficers.length ? (
             <div className={`${officerRowGrid} border-t-2 border-slate-300 bg-slate-50 px-4 py-3 font-extrabold text-slate-950`}>
-              <span>Account Officer Total</span><MetricCells metrics={accountOfficerTotal} />
+              <span>Account Officer Total</span>
+              <MetricCells
+                metrics={accountOfficerTotal}
+                reportScope={{ assignedOnly: true, locationName: "All Account Officers — All Assigned Locations" }}
+              />
             </div>
           ) : null}
         </div>
@@ -729,24 +717,42 @@ export default async function LocationMasterlistPage() {
   );
 }
 
+type ClientReportScope = {
+  officerId?: number;
+  officerName?: string;
+  locationId?: number;
+  province?: string;
+  municipality?: string;
+  assignedOnly?: boolean;
+  locationName: string;
+};
+
 function MetricCells({
   metrics,
   showClients = true,
-  showWithAccountOfficer = false
+  showWithAccountOfficer = false,
+  reportScope
 }: {
   metrics: Metrics;
   showClients?: boolean;
   showWithAccountOfficer?: boolean;
+  reportScope?: ClientReportScope;
 }) {
   return (
     <>
-      {showClients ? <span className="text-right font-bold text-brand-blue">{count(metrics.numberOfClients)}</span> : null}
+      {showClients ? (
+        <span className="text-right font-bold text-brand-blue">
+          {reportScope ? (
+            <BarangayLoanReport {...reportScope} category="all" clientCount={metrics.numberOfClients ?? 0} />
+          ) : count(metrics.numberOfClients)}
+        </span>
+      ) : null}
       {showWithAccountOfficer ? <span className="text-right font-bold text-emerald-700">{count(metrics.withAccountOfficer)}</span> : null}
       <span className="text-right font-bold text-red-700">{money(metrics.portfolio)}</span>
-      <StatusMetric countValue={metrics.current} balance={metrics.currentBalance} />
-      <StatusMetric countValue={metrics.delayed} balance={metrics.delayedBalance} />
-      <StatusMetric countValue={metrics.pastDue} balance={metrics.pastDueBalance} />
-      <StatusMetric countValue={metrics.litigated} balance={metrics.litigatedBalance} />
+      <StatusMetric countValue={metrics.current} balance={metrics.currentBalance} category="current" reportScope={reportScope} />
+      <StatusMetric countValue={metrics.delayed} balance={metrics.delayedBalance} category="delayed" reportScope={reportScope} />
+      <StatusMetric countValue={metrics.pastDue} balance={metrics.pastDueBalance} category="pastDue" reportScope={reportScope} />
+      <StatusMetric countValue={metrics.litigated} balance={metrics.litigatedBalance} category="litigated" reportScope={reportScope} />
     </>
   );
 }
@@ -755,10 +761,24 @@ function StatusHeader({ label }: { label: string }) {
   return <span className="text-right"><span className="block">{label}</span><span className="block text-[9px] font-semibold normal-case tracking-normal">Clients / Principal</span></span>;
 }
 
-function StatusMetric({ countValue, balance }: { countValue: number | null; balance: number | null }) {
+function StatusMetric({
+  countValue,
+  balance,
+  category,
+  reportScope
+}: {
+  countValue: number | null;
+  balance: number | null;
+  category: "current" | "delayed" | "pastDue" | "litigated";
+  reportScope?: ClientReportScope;
+}) {
   return (
     <span className="text-right">
-      <span className="block font-bold text-slate-900">{count(countValue)}</span>
+      <span className="block font-bold text-slate-900">
+        {reportScope ? (
+          <BarangayLoanReport {...reportScope} category={category} clientCount={countValue ?? 0} />
+        ) : count(countValue)}
+      </span>
       <span className="mt-0.5 block text-[11px] font-bold text-red-700">{money(balance)}</span>
     </span>
   );
