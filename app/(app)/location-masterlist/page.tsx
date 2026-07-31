@@ -213,37 +213,45 @@ type ClassifiedLoan = {
   }>;
 };
 
+const manilaDateFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Manila",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit"
+});
+
 function manilaDateKey(value: Date) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Manila",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).formatToParts(value);
+  const parts = manilaDateFormatter.formatToParts(value);
   const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
-function unpaidDueAsOf(loan: ClassifiedLoan, todayKey: string) {
-  return loan.amortizationSchedules.reduce((sum, schedule) => {
-    if (!schedule.amortDate || manilaDateKey(schedule.amortDate) > todayKey) return sum;
+function databaseDateKey(value: Date) {
+  return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, "0")}-${String(value.getUTCDate()).padStart(2, "0")}`;
+}
+
+function hasUnpaidDueAsOf(loan: ClassifiedLoan, todayKey: string) {
+  return loan.amortizationSchedules.some((schedule) => {
+    if (!schedule.amortDate || databaseDateKey(schedule.amortDate) > todayKey) return false;
     const scheduledAmount = Number(schedule.totalAmort)
       || Number(schedule.principalAmort) + Number(schedule.interestAmort);
     const paidAmount = Number(schedule.paidPrincipal) + Number(schedule.paidInterest);
-    return sum + Math.max(0, scheduledAmount - paidAmount);
-  }, 0);
+    return scheduledAmount - paidAmount > 0;
+  });
 }
 
 function loanClassification(loan: ClassifiedLoan, todayKey: string) {
   const hasOutstandingBalance = Number(loan.balance) > 0;
-  if (hasOutstandingBalance && loan.maturityAt && manilaDateKey(loan.maturityAt) < todayKey) {
+  if (hasOutstandingBalance && loan.maturityAt && databaseDateKey(loan.maturityAt) < todayKey) {
     return "pastDue" as const;
   }
-  if (hasOutstandingBalance && unpaidDueAsOf(loan, todayKey) > 0) {
+  if (hasOutstandingBalance && hasUnpaidDueAsOf(loan, todayKey)) {
     return "delayed" as const;
   }
   return "current" as const;
 }
+
+type LoanClassification = ReturnType<typeof loanClassification>;
 
 function addLoanMetrics(
   target: Map<string, MetricAccumulator>,
@@ -251,18 +259,17 @@ function addLoanMetrics(
   loan: ClassifiedLoan,
   hasAssignedOfficer: boolean,
   principalBalance: number,
-  todayKey: string
+  classification: LoanClassification,
+  isLitigated: boolean
 ) {
   const accumulator = target.get(key) ?? emptyAccumulator();
   accumulator.clients.add(loan.clientId);
   if (hasAssignedOfficer) accumulator.assignedClients.add(loan.clientId);
   accumulator.portfolio += principalBalance;
-  const isLitigated = normalizedText(loan.sourceStatusName ?? "").includes("litig");
   if (isLitigated) {
     accumulator.litigatedClients.add(loan.clientId);
     accumulator.litigatedBalance += principalBalance;
   }
-  const classification = loanClassification(loan, todayKey);
   if (classification === "pastDue") {
     accumulator.pastDueClients.add(loan.clientId);
     accumulator.pastDueBalance += principalBalance;
@@ -407,19 +414,21 @@ export default async function LocationMasterlistPage() {
     const municipalityKey = `${provinceKey}\u0000${normalizedMunicipality(matchedLocation.municipality)}`;
     const hasAssignedOfficer = assignment.assignedToId !== null;
     const principalBalance = outstandingPrincipalBalance(loan);
-    addLoanMetrics(metricsByOverall, "all", loan, hasAssignedOfficer, principalBalance, todayKey);
-    addLoanMetrics(metricsByProvince, provinceKey, loan, hasAssignedOfficer, principalBalance, todayKey);
-    addLoanMetrics(metricsByMunicipality, municipalityKey, loan, hasAssignedOfficer, principalBalance, todayKey);
-    addLoanMetrics(metricsByLocation, barangayKey, loan, hasAssignedOfficer, principalBalance, todayKey);
+    const classification = loanClassification(loan, todayKey);
+    const isLitigated = normalizedText(loan.sourceStatusName ?? "").includes("litig");
+    addLoanMetrics(metricsByOverall, "all", loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
+    addLoanMetrics(metricsByProvince, provinceKey, loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
+    addLoanMetrics(metricsByMunicipality, municipalityKey, loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
+    addLoanMetrics(metricsByLocation, barangayKey, loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
     const officerKey = assignment.assignedToId === null ? "unassigned" : String(assignment.assignedToId);
     officerNames.set(officerKey, (assignment.assignedTo?.name ?? "Unassigned").toLocaleUpperCase("en"));
     if (hasAssignedOfficer) {
-      addLoanMetrics(metricsByAssignedOverall, "assigned", loan, true, principalBalance, todayKey);
+      addLoanMetrics(metricsByAssignedOverall, "assigned", loan, true, principalBalance, classification, isLitigated);
     }
-    addLoanMetrics(metricsByOfficer, officerKey, loan, hasAssignedOfficer, principalBalance, todayKey);
-    addLoanMetrics(metricsByProvinceOfficer, `${provinceKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance, todayKey);
-    addLoanMetrics(metricsByMunicipalityOfficer, `${municipalityKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance, todayKey);
-    addLoanMetrics(metricsByLocationOfficer, `${barangayKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance, todayKey);
+    addLoanMetrics(metricsByOfficer, officerKey, loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
+    addLoanMetrics(metricsByProvinceOfficer, `${provinceKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
+    addLoanMetrics(metricsByMunicipalityOfficer, `${municipalityKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
+    addLoanMetrics(metricsByLocationOfficer, `${barangayKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance, classification, isLitigated);
   }
 
   const provinces = new Map<string, ProvinceNode>();
