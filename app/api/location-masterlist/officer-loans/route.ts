@@ -48,6 +48,10 @@ export async function GET(request: NextRequest) {
 
   const officerParam = request.nextUrl.searchParams.get("officerId");
   const officerId = officerParam ? Number(officerParam) : null;
+  const areaTeamLeaderParam = request.nextUrl.searchParams.get("areaTeamLeaderId");
+  const areaTeamLeaderId = areaTeamLeaderParam && areaTeamLeaderParam !== "unassigned"
+    ? Number(areaTeamLeaderParam)
+    : null;
   const locationParam = request.nextUrl.searchParams.get("locationId");
   const locationId = locationParam ? Number(locationParam) : null;
   const province = request.nextUrl.searchParams.get("province")?.trim() || "";
@@ -60,6 +64,8 @@ export async function GET(request: NextRequest) {
   const format = request.nextUrl.searchParams.get("format");
   if (
     (officerId !== null && (!Number.isInteger(officerId) || officerId <= 0))
+    || (areaTeamLeaderParam && areaTeamLeaderParam !== "unassigned"
+      && (!Number.isInteger(areaTeamLeaderId) || Number(areaTeamLeaderId) <= 0))
     || (locationId !== null && (!Number.isInteger(locationId) || locationId <= 0))
     || (!locationId && !officerId && !assignedOnly)
   ) {
@@ -76,7 +82,10 @@ export async function GET(request: NextRequest) {
       : {};
   const assignmentWhere: Prisma.RemedialAssignmentWhereInput = {
     status: "ACTIVE",
-    ...(effectiveOfficerId ? { assignedToId: effectiveOfficerId } : assignedOnly ? { assignedToId: { not: null } } : {})
+    ...(effectiveOfficerId ? { assignedToId: effectiveOfficerId } : assignedOnly ? { assignedToId: { not: null } } : {}),
+    ...(areaTeamLeaderParam
+      ? { areaTeamLeaderId: areaTeamLeaderParam === "unassigned" ? null : areaTeamLeaderId }
+      : {})
   };
 
   const accessibleBranchIds = user.role === "ACCOUNT_OFFICER" ? null : await getAccessibleBranchIds(user);

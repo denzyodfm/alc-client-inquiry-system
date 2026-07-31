@@ -66,6 +66,13 @@ type AccountOfficerNode = {
   provinces: Map<string, ProvinceNode>;
 };
 
+type AreaTeamLeaderNode = {
+  key: string;
+  name: string;
+  metrics: Metrics;
+  accountOfficers: AccountOfficerNode[];
+};
+
 type MetricAccumulator = {
   clients: Set<number>;
   assignedClients: Set<number>;
@@ -311,7 +318,9 @@ export default async function LocationMasterlistPage() {
         remedialAssignment: {
           select: {
             assignedToId: true,
-            assignedTo: { select: { name: true } }
+            assignedTo: { select: { name: true } },
+            areaTeamLeaderId: true,
+            areaTeamLeader: { select: { name: true } }
           }
         }
       }
@@ -352,7 +361,13 @@ export default async function LocationMasterlistPage() {
   const metricsByProvinceOfficer = new Map<string, MetricAccumulator>();
   const metricsByMunicipalityOfficer = new Map<string, MetricAccumulator>();
   const metricsByLocationOfficer = new Map<string, MetricAccumulator>();
+  const metricsByAreaTeamLeader = new Map<string, MetricAccumulator>();
+  const metricsByAreaTeamLeaderOfficer = new Map<string, MetricAccumulator>();
+  const metricsByProvinceAreaTeamLeaderOfficer = new Map<string, MetricAccumulator>();
+  const metricsByMunicipalityAreaTeamLeaderOfficer = new Map<string, MetricAccumulator>();
+  const metricsByLocationAreaTeamLeaderOfficer = new Map<string, MetricAccumulator>();
   const officerNames = new Map<string, string>();
+  const areaTeamLeaderNames = new Map<string, string>();
   const todayKey = manilaDateKey(new Date());
   const matchedLoanCount = loans.length;
   for (const loan of loans) {
@@ -373,6 +388,17 @@ export default async function LocationMasterlistPage() {
     officerNames.set(officerKey, (assignment.assignedTo?.name ?? "Unassigned").toLocaleUpperCase("en"));
     if (hasAssignedOfficer) {
       addLoanMetrics(metricsByAssignedOverall, "assigned", loan, true, principalBalance, category);
+      const areaTeamLeaderKey = assignment.areaTeamLeaderId === null ? "unassigned-tl" : String(assignment.areaTeamLeaderId);
+      const areaTeamLeaderOfficerKey = `${areaTeamLeaderKey}\u0000${officerKey}`;
+      areaTeamLeaderNames.set(
+        areaTeamLeaderKey,
+        (assignment.areaTeamLeader?.name ?? "AREA TL NOT SET").toLocaleUpperCase("en")
+      );
+      addLoanMetrics(metricsByAreaTeamLeader, areaTeamLeaderKey, loan, true, principalBalance, category);
+      addLoanMetrics(metricsByAreaTeamLeaderOfficer, areaTeamLeaderOfficerKey, loan, true, principalBalance, category);
+      addLoanMetrics(metricsByProvinceAreaTeamLeaderOfficer, `${provinceKey}\u0000${areaTeamLeaderOfficerKey}`, loan, true, principalBalance, category);
+      addLoanMetrics(metricsByMunicipalityAreaTeamLeaderOfficer, `${municipalityKey}\u0000${areaTeamLeaderOfficerKey}`, loan, true, principalBalance, category);
+      addLoanMetrics(metricsByLocationAreaTeamLeaderOfficer, `${barangayKey}\u0000${areaTeamLeaderOfficerKey}`, loan, true, principalBalance, category);
     }
     addLoanMetrics(metricsByOfficer, officerKey, loan, hasAssignedOfficer, principalBalance, category);
     addLoanMetrics(metricsByProvinceOfficer, `${provinceKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance, category);
@@ -417,31 +443,34 @@ export default async function LocationMasterlistPage() {
   }
   const provinceList = Array.from(provinces.values());
   const grandTotal = accumulatedMetrics(metricsByOverall.get("all"));
-  const accountOfficers: AccountOfficerNode[] = Array.from(officerNames.entries())
-    .filter(([officerKey]) => officerKey !== "unassigned")
-    .map(([officerKey, officerName]) => {
+  const areaTeamLeaders: AreaTeamLeaderNode[] = Array.from(areaTeamLeaderNames.entries())
+    .map(([areaTeamLeaderKey, areaTeamLeaderName]) => {
+      const accountOfficers: AccountOfficerNode[] = Array.from(officerNames.entries())
+        .filter(([officerKey]) => metricsByAreaTeamLeaderOfficer.has(`${areaTeamLeaderKey}\u0000${officerKey}`))
+        .map(([officerKey, officerName]) => {
+      const areaTeamLeaderOfficerKey = `${areaTeamLeaderKey}\u0000${officerKey}`;
       const officer: AccountOfficerNode = {
         key: officerKey,
         name: officerName,
-        metrics: accumulatedMetrics(metricsByOfficer.get(officerKey)),
+        metrics: accumulatedMetrics(metricsByAreaTeamLeaderOfficer.get(areaTeamLeaderOfficerKey)),
         provinces: new Map<string, ProvinceNode>()
       };
       for (const location of locations) {
         const provinceKey = normalizedProvince(location.province);
         const municipalityKey = `${provinceKey}\u0000${normalizedMunicipality(location.municipality)}`;
         const barangayKey = locationKey(location.province, location.municipality, location.barangay);
-        const barangayMetrics = metricsByLocationOfficer.get(`${barangayKey}\u0000${officerKey}`);
+        const barangayMetrics = metricsByLocationAreaTeamLeaderOfficer.get(`${barangayKey}\u0000${areaTeamLeaderOfficerKey}`);
         if (!barangayMetrics) continue;
 
         const province = officer.provinces.get(location.province) ?? {
           name: location.province,
-          metrics: accumulatedMetrics(metricsByProvinceOfficer.get(`${provinceKey}\u0000${officerKey}`)),
+          metrics: accumulatedMetrics(metricsByProvinceAreaTeamLeaderOfficer.get(`${provinceKey}\u0000${areaTeamLeaderOfficerKey}`)),
           officers: [],
           municipalities: new Map<string, MunicipalityNode>()
         };
         const municipality = province.municipalities.get(location.municipality) ?? {
           name: location.municipality,
-          metrics: accumulatedMetrics(metricsByMunicipalityOfficer.get(`${municipalityKey}\u0000${officerKey}`)),
+          metrics: accumulatedMetrics(metricsByMunicipalityAreaTeamLeaderOfficer.get(`${municipalityKey}\u0000${areaTeamLeaderOfficerKey}`)),
           officers: [],
           barangays: []
         };
@@ -457,8 +486,21 @@ export default async function LocationMasterlistPage() {
         officer.provinces.set(location.province, province);
       }
       return officer;
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
+      return {
+        key: areaTeamLeaderKey,
+        name: areaTeamLeaderName,
+        metrics: accumulatedMetrics(metricsByAreaTeamLeader.get(areaTeamLeaderKey)),
+        accountOfficers
+      };
     })
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => {
+      if (a.key === "unassigned-tl") return 1;
+      if (b.key === "unassigned-tl") return -1;
+      return a.name.localeCompare(b.name);
+    });
+  const accountOfficerCount = areaTeamLeaders.reduce((sum, areaTeamLeader) => sum + areaTeamLeader.accountOfficers.length, 0);
   const accountOfficerTotal = accumulatedMetrics(metricsByAssignedOverall.get("assigned"));
   const linkSchedule = getLocationLinkSchedule();
 
@@ -579,25 +621,43 @@ export default async function LocationMasterlistPage() {
         <div className="border-b border-slate-200 p-5">
           <h3 className="text-lg font-bold text-slate-950">Account Officer Location Pivot</h3>
           <p className="mt-1 text-sm text-slate-600">
-            Click an Account Officer to view assigned province, city/municipality, and barangay. The total counts each client only once across all officers.
+            Area Team Leaders are listed first, with their Account Officers and assigned province, city/municipality, and barangay below. The total counts each client only once across all officers.
           </p>
         </div>
         <div className="overflow-x-auto text-sm">
           <div className={`${officerRowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500`}>
-            <span>Account Officer / Location</span><span className="text-right">No. of Clients</span>
+            <span>Area TL / Account Officer / Location</span><span className="text-right">No. of Clients</span>
             <span className="text-right">Portfolio</span>
             <StatusHeader label="Current" /><StatusHeader label="Delayed" />
             <StatusHeader label="Past Due" /><StatusHeader label="Litigated" />
           </div>
           <div className="min-w-[1350px] divide-y divide-slate-200">
-            {accountOfficers.map((officer) => (
-              <details key={officer.key} className="group/ao">
+            {areaTeamLeaders.map((areaTeamLeader) => (
+              <details key={areaTeamLeader.key} className="group/tl">
+                <summary className={`${officerRowGrid} cursor-pointer list-none bg-slate-50 px-4 py-3 hover:bg-blue-50 group-open/tl:bg-blue-100`}>
+                  <span className="font-extrabold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open/tl:before:rotate-90">
+                    <span className="mr-2 text-xs uppercase tracking-wide text-slate-500">Area TL</span>
+                    {areaTeamLeader.name}
+                  </span>
+                  <MetricCells
+                    metrics={areaTeamLeader.metrics}
+                    reportScope={{
+                      areaTeamLeaderId: areaTeamLeader.key === "unassigned-tl" ? "unassigned" : Number(areaTeamLeader.key),
+                      assignedOnly: true,
+                      locationName: `${areaTeamLeader.name} — All Assigned Locations`
+                    }}
+                  />
+                </summary>
+                <div className="border-t border-slate-100">
+                {areaTeamLeader.accountOfficers.map((officer) => (
+              <details key={`${areaTeamLeader.key}-${officer.key}`} className="group/ao">
                 <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/ao:bg-blue-100`}>
                   <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open/ao:before:rotate-90">{officer.name}</span>
                   <MetricCells
                     metrics={officer.metrics}
                     reportScope={{
                       officerId: Number(officer.key),
+                      areaTeamLeaderId: areaTeamLeader.key === "unassigned-tl" ? "unassigned" : Number(areaTeamLeader.key),
                       officerName: officer.name,
                       locationName: `${officer.name} — All Assigned Locations`
                     }}
@@ -612,6 +672,7 @@ export default async function LocationMasterlistPage() {
                           metrics={province.metrics}
                           reportScope={{
                             officerId: Number(officer.key),
+                            areaTeamLeaderId: areaTeamLeader.key === "unassigned-tl" ? "unassigned" : Number(areaTeamLeader.key),
                             officerName: officer.name,
                             province: province.name,
                             locationName: `${officer.name} — ${province.name}`
@@ -627,6 +688,7 @@ export default async function LocationMasterlistPage() {
                                 metrics={municipality.metrics}
                                 reportScope={{
                                   officerId: Number(officer.key),
+                                  areaTeamLeaderId: areaTeamLeader.key === "unassigned-tl" ? "unassigned" : Number(areaTeamLeader.key),
                                   officerName: officer.name,
                                   province: province.name,
                                   municipality: municipality.name,
@@ -641,6 +703,7 @@ export default async function LocationMasterlistPage() {
                                   <span className="text-right">
                                     <BarangayLoanReport
                                       officerId={Number(officer.key)}
+                                      areaTeamLeaderId={areaTeamLeader.key === "unassigned-tl" ? "unassigned" : Number(areaTeamLeader.key)}
                                       locationId={barangay.id}
                                       clientCount={barangay.metrics.numberOfClients ?? 0}
                                       officerName={officer.name}
@@ -652,6 +715,7 @@ export default async function LocationMasterlistPage() {
                                     showClients={false}
                                     reportScope={{
                                       officerId: Number(officer.key),
+                                      areaTeamLeaderId: areaTeamLeader.key === "unassigned-tl" ? "unassigned" : Number(areaTeamLeader.key),
                                       officerName: officer.name,
                                       locationId: barangay.id,
                                       locationName: `${officer.name} — ${barangay.name}, ${municipality.name}, ${province.name}`
@@ -667,10 +731,13 @@ export default async function LocationMasterlistPage() {
                   ))}
                 </div>
               </details>
+                ))}
+                </div>
+              </details>
             ))}
-            {!accountOfficers.length ? <p className="px-4 py-8 text-center font-semibold text-slate-500">No linked Account Officer assignments found.</p> : null}
+            {!accountOfficerCount ? <p className="px-4 py-8 text-center font-semibold text-slate-500">No linked Account Officer assignments found.</p> : null}
           </div>
-          {accountOfficers.length ? (
+          {accountOfficerCount ? (
             <div className={`${officerRowGrid} border-t-2 border-slate-300 bg-slate-50 px-4 py-3 font-extrabold text-slate-950`}>
               <span>Account Officer Total</span>
               <MetricCells
@@ -726,6 +793,7 @@ export default async function LocationMasterlistPage() {
 
 type ClientReportScope = {
   officerId?: number;
+  areaTeamLeaderId?: number | "unassigned";
   officerName?: string;
   locationId?: number;
   province?: string;
