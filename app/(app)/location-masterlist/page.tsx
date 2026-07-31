@@ -198,28 +198,78 @@ function outstandingPrincipalBalance(loan: {
   return Math.min(schedulePrincipalBalance, totalBalance);
 }
 
+type ClassifiedLoan = {
+  clientId: number;
+  balance: unknown;
+  maturityAt: Date | null;
+  sourceStatusName: string | null;
+  amortizationSchedules: Array<{
+    amortDate: Date | null;
+    totalAmort: unknown;
+    principalAmort: unknown;
+    interestAmort: unknown;
+    paidPrincipal: unknown;
+    paidInterest: unknown;
+  }>;
+};
+
+function manilaDateKey(value: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(value);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function unpaidDueAsOf(loan: ClassifiedLoan, todayKey: string) {
+  return loan.amortizationSchedules.reduce((sum, schedule) => {
+    if (!schedule.amortDate || manilaDateKey(schedule.amortDate) > todayKey) return sum;
+    const scheduledAmount = Number(schedule.totalAmort)
+      || Number(schedule.principalAmort) + Number(schedule.interestAmort);
+    const paidAmount = Number(schedule.paidPrincipal) + Number(schedule.paidInterest);
+    return sum + Math.max(0, scheduledAmount - paidAmount);
+  }, 0);
+}
+
+function loanClassification(loan: ClassifiedLoan, todayKey: string) {
+  const hasOutstandingBalance = Number(loan.balance) > 0;
+  if (hasOutstandingBalance && loan.maturityAt && manilaDateKey(loan.maturityAt) < todayKey) {
+    return "pastDue" as const;
+  }
+  if (hasOutstandingBalance && unpaidDueAsOf(loan, todayKey) > 0) {
+    return "delayed" as const;
+  }
+  return "current" as const;
+}
+
 function addLoanMetrics(
   target: Map<string, MetricAccumulator>,
   key: string,
-  loan: { clientId: number; balance: unknown; sourceStatusName: string | null },
+  loan: ClassifiedLoan,
   hasAssignedOfficer: boolean,
-  principalBalance: number
+  principalBalance: number,
+  todayKey: string
 ) {
   const accumulator = target.get(key) ?? emptyAccumulator();
   accumulator.clients.add(loan.clientId);
   if (hasAssignedOfficer) accumulator.assignedClients.add(loan.clientId);
   accumulator.portfolio += principalBalance;
-  const status = normalizedText(loan.sourceStatusName ?? "");
-  if (status.includes("litig")) {
+  const isLitigated = normalizedText(loan.sourceStatusName ?? "").includes("litig");
+  if (isLitigated) {
     accumulator.litigatedClients.add(loan.clientId);
     accumulator.litigatedBalance += principalBalance;
-  } else if (status.includes("past") || status.includes("overdue") || status.includes("arrears")) {
+  }
+  const classification = loanClassification(loan, todayKey);
+  if (classification === "pastDue") {
     accumulator.pastDueClients.add(loan.clientId);
     accumulator.pastDueBalance += principalBalance;
-  } else if (status.includes("delay")) {
+  } else if (classification === "delayed") {
     accumulator.delayedClients.add(loan.clientId);
     accumulator.delayedBalance += principalBalance;
-  } else if (status.includes("current")) {
+  } else {
     accumulator.currentClients.add(loan.clientId);
     accumulator.currentBalance += principalBalance;
   }
@@ -286,8 +336,18 @@ export default async function LocationMasterlistPage() {
         clientId: true,
         balance: true,
         principalAmount: true,
+        maturityAt: true,
         sourceStatusName: true,
-        amortizationSchedules: { select: { principalAmort: true, paidPrincipal: true } },
+        amortizationSchedules: {
+          select: {
+            amortDate: true,
+            totalAmort: true,
+            principalAmort: true,
+            interestAmort: true,
+            paidPrincipal: true,
+            paidInterest: true
+          }
+        },
         locationMasterlist: {
           select: { province: true, municipality: true, barangay: true }
         },
@@ -336,6 +396,7 @@ export default async function LocationMasterlistPage() {
   const metricsByMunicipalityOfficer = new Map<string, MetricAccumulator>();
   const metricsByLocationOfficer = new Map<string, MetricAccumulator>();
   const officerNames = new Map<string, string>();
+  const todayKey = manilaDateKey(new Date());
   const matchedLoanCount = loans.length;
   for (const loan of loans) {
     const assignment = loan.remedialAssignment;
@@ -346,19 +407,19 @@ export default async function LocationMasterlistPage() {
     const municipalityKey = `${provinceKey}\u0000${normalizedMunicipality(matchedLocation.municipality)}`;
     const hasAssignedOfficer = assignment.assignedToId !== null;
     const principalBalance = outstandingPrincipalBalance(loan);
-    addLoanMetrics(metricsByOverall, "all", loan, hasAssignedOfficer, principalBalance);
-    addLoanMetrics(metricsByProvince, provinceKey, loan, hasAssignedOfficer, principalBalance);
-    addLoanMetrics(metricsByMunicipality, municipalityKey, loan, hasAssignedOfficer, principalBalance);
-    addLoanMetrics(metricsByLocation, barangayKey, loan, hasAssignedOfficer, principalBalance);
+    addLoanMetrics(metricsByOverall, "all", loan, hasAssignedOfficer, principalBalance, todayKey);
+    addLoanMetrics(metricsByProvince, provinceKey, loan, hasAssignedOfficer, principalBalance, todayKey);
+    addLoanMetrics(metricsByMunicipality, municipalityKey, loan, hasAssignedOfficer, principalBalance, todayKey);
+    addLoanMetrics(metricsByLocation, barangayKey, loan, hasAssignedOfficer, principalBalance, todayKey);
     const officerKey = assignment.assignedToId === null ? "unassigned" : String(assignment.assignedToId);
     officerNames.set(officerKey, (assignment.assignedTo?.name ?? "Unassigned").toLocaleUpperCase("en"));
     if (hasAssignedOfficer) {
-      addLoanMetrics(metricsByAssignedOverall, "assigned", loan, true, principalBalance);
+      addLoanMetrics(metricsByAssignedOverall, "assigned", loan, true, principalBalance, todayKey);
     }
-    addLoanMetrics(metricsByOfficer, officerKey, loan, hasAssignedOfficer, principalBalance);
-    addLoanMetrics(metricsByProvinceOfficer, `${provinceKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance);
-    addLoanMetrics(metricsByMunicipalityOfficer, `${municipalityKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance);
-    addLoanMetrics(metricsByLocationOfficer, `${barangayKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance);
+    addLoanMetrics(metricsByOfficer, officerKey, loan, hasAssignedOfficer, principalBalance, todayKey);
+    addLoanMetrics(metricsByProvinceOfficer, `${provinceKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance, todayKey);
+    addLoanMetrics(metricsByMunicipalityOfficer, `${municipalityKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance, todayKey);
+    addLoanMetrics(metricsByLocationOfficer, `${barangayKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance, todayKey);
   }
 
   const provinces = new Map<string, ProvinceNode>();
@@ -461,6 +522,9 @@ export default async function LocationMasterlistPage() {
           <h3 className="text-lg font-bold text-slate-950">Location Pivot</h3>
           <p className="mt-1 text-sm text-slate-600">
             {locations.length.toLocaleString("en-US")} barangay location(s), linked to {matchedLoanCount.toLocaleString("en-US")} of {eligibleLoanCount.toLocaleString("en-US")} tagged outstanding loan(s).
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            As of {todayKey}: Past Due means maturity is before today with a remaining balance. Delayed means an amortization due on or before today is not fully paid. Litigated is tracked separately.
           </p>
         </div>
         <div className="overflow-x-auto text-sm">
