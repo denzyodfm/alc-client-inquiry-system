@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { UnlinkedLoansManager } from "@/components/unlinked-loans-manager";
 
 export function LocationLinkControl({ unlinkedLoans }: { unlinkedLoans: number }) {
   const router = useRouter();
@@ -28,7 +29,9 @@ export function LocationLinkControl({ unlinkedLoans }: { unlinkedLoans: number }
     <div className="flex flex-wrap items-center justify-end gap-3">
       <div className="text-right">
         <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Unlinked loans</p>
-        <p className="font-bold text-slate-950">{unlinkedLoans.toLocaleString("en-US")}</p>
+        <p className="font-bold text-slate-950">
+          <UnlinkedLoansManager count={unlinkedLoans} onUpdated={() => router.refresh()} />
+        </p>
       </div>
       <button className="btn-primary" type="button" onClick={runLinker} disabled={isPending || !unlinkedLoans}>
         {isPending ? "Linking loans..." : "Link New Loans"}
