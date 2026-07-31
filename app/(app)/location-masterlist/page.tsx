@@ -541,7 +541,16 @@ export default async function LocationMasterlistPage() {
                                     <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Account Officer</span>
                                     <span className="ml-3 font-semibold text-slate-800">{officer.name}</span>
                                   </span>
-                                  <MetricCells metrics={officer.metrics} showWithAccountOfficer />
+                                  <MetricCells
+                                    metrics={officer.metrics}
+                                    showWithAccountOfficer
+                                    reportScope={officer.key === "unassigned" ? undefined : {
+                                      officerId: Number(officer.key),
+                                      officerName: officer.name,
+                                      locationId: barangay.id,
+                                      locationName: `Location Pivot — ${officer.name} — ${barangay.name}, ${municipality.name}, ${province.name}`
+                                    }}
+                                  />
                                 </div>
                               ))}
                               {!barangay.officers.length ? (
