@@ -37,6 +37,7 @@ export type LoanResultRow = {
   terms: string | null;
   paidAmount: string;
   balance: string;
+  remoteBalance: string | null;
   status: string;
   sourceStatusCode: number | null;
   sourceStatusName: string | null;
@@ -106,7 +107,7 @@ export function LoanResultsTable({
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-500">
+          <thead className="sticky top-20 z-10 bg-slate-50 text-slate-500 shadow-sm">
             <tr>
               <th className="px-4 py-3">No.</th>
               <th className="px-4 py-3">Client</th>
@@ -121,6 +122,7 @@ export function LoanResultsTable({
               <th className="px-4 py-3">Total</th>
               <th className="px-4 py-3">Payments</th>
               <th className="px-4 py-3">Balance</th>
+              <th className="px-4 py-3" title="The branch's own live balance, pulled directly from the source database">Remote Balance</th>
               <th className="px-4 py-3">Status ID</th>
               <th className="px-4 py-3">Status Label</th>
               <th className="px-4 py-3">Analysis</th>
@@ -176,6 +178,7 @@ export function LoanResultsTable({
                   <td className="px-4 py-3 font-semibold">{money(total)}</td>
                   <td className="px-4 py-3 text-brand-green">{money(payments)}</td>
                   <td className={`px-4 py-3 font-bold ${balance > 0 ? "text-red-700" : "text-brand-green"}`}>{money(balance)}</td>
+                  <td className="px-4 py-3 font-bold text-slate-700">{loan.remoteBalance === null ? "Not synced" : money(Number(loan.remoteBalance))}</td>
                   <td className="px-4 py-3 font-bold text-slate-900">{loanStatusCode(loan)}</td>
                   <td className="px-4 py-3">{loanStatusText(loan)}</td>
                   <td className="px-4 py-3">
@@ -192,7 +195,7 @@ export function LoanResultsTable({
               );
             })}
             {!loans.length ? (
-              <tr><td className="px-4 py-6 text-slate-500" colSpan={16}>No loan records available.</td></tr>
+              <tr><td className="px-4 py-6 text-slate-500" colSpan={17}>No loan records available.</td></tr>
             ) : null}
           </tbody>
         </table>

@@ -157,6 +157,7 @@ function toLoanDetail(loan: NonNullable<PaymentRow["loan"]>): LoanDetailLoan {
     terms: loan.terms,
     paidAmount: loan.paidAmount.toString(),
     balance: loan.balance.toString(),
+    remoteBalance: loan.remoteBalance?.toString() ?? null,
     status: loan.status,
     sourceStatusCode: loan.sourceStatusCode,
     sourceStatusName: loan.sourceStatusName,
@@ -374,7 +375,7 @@ export default async function PaymentReportsPage({
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[980px] text-left text-sm">
-            <thead className="bg-slate-50 text-slate-500">
+            <thead className="sticky top-20 z-10 bg-slate-50 text-slate-500 shadow-sm">
               <tr>
                 <th className="px-4 py-3">Branch</th>
                 <th className="px-4 py-3">Code</th>
@@ -437,7 +438,7 @@ export default async function PaymentReportsPage({
         </div>
         <div className="overflow-auto">
           <table className="w-full min-w-[2200px] text-left text-sm">
-            <thead className="bg-slate-50 text-slate-500">
+            <thead className="sticky top-20 z-10 bg-slate-50 text-slate-500 shadow-sm">
               <tr>
                 <th className="px-4 py-3">No.</th>
                 <th className="px-4 py-3">Branch</th>
@@ -459,7 +460,7 @@ export default async function PaymentReportsPage({
                 <th className="px-4 py-3">Principal</th>
                 <th className="px-4 py-3">Interest</th>
                 <th className="px-4 py-3">Penalty</th>
-                <th className="px-4 py-3">Contract Due</th>
+                <th className="px-4 py-3">Loan Amount</th>
                 <th className="px-4 py-3">Loan Paid</th>
                 <th className="px-4 py-3">Balance</th>
                 <th className="px-4 py-3">Remote Updated</th>

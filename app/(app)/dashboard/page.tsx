@@ -4,7 +4,6 @@ import { DashboardBranchStatus, type DashboardBranchAnalysis } from "@/component
 import { inactiveStatus12Where } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 import { dateTime } from "@/lib/format";
-import { checkBranchConnection } from "@/scripts/sync-service";
 
 export const dynamic = "force-dynamic";
 
@@ -117,18 +116,13 @@ export default async function DashboardPage() {
   ]);
   const branchesWithConnection = await Promise.all(
     branches.map(async (branch) => {
-      const [connection, analysis] = await Promise.all([
-        checkBranchConnection(branch),
-        getBranchAnalysis(branch)
-      ]);
+      const analysis = await getBranchAnalysis(branch);
 
       return {
         branchId: branch.id,
         branchName: branch.branchName,
         branchCode: branch.branchCode,
         status: branch.status,
-        connectionStatus: connection.status,
-        connectionMessage: connection.message,
         lastSyncAt: branch.lastSyncAt?.toISOString() ?? null,
         ...analysis
       } satisfies DashboardBranchAnalysis;

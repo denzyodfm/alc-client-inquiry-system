@@ -302,6 +302,7 @@ export default async function CoMakersPage({
         terms: coMaker.loan.terms,
         paidAmount: coMaker.loan.paidAmount.toString(),
         balance: coMaker.loan.balance.toString(),
+        remoteBalance: coMaker.loan.remoteBalance?.toString() ?? null,
         status: coMaker.loan.status,
         sourceStatusCode: coMaker.loan.sourceStatusCode,
         sourceStatusName: coMaker.loan.sourceStatusName,

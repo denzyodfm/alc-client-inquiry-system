@@ -33,6 +33,7 @@ type BranchLoanRow = {
   terms?: string | null;
   paid_amount?: string | number | null;
   balance?: string | number | null;
+  remote_balance?: string | number | null;
   status?: string | number | null;
   source_status_code?: string | number | null;
   source_status_name?: string | null;
@@ -110,6 +111,12 @@ function asNumber(value?: string | number | null) {
   return Number.isFinite(number) ? number : 0;
 }
 
+function asNullableNumber(value?: string | number | null) {
+  if (value === null || value === undefined) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function loanBalance(principalAmount: number, interestAmount: number, penaltyAmount: number, otherChargesAmount: number, paidAmount: number) {
   return Math.max(0, principalAmount + interestAmount + penaltyAmount + otherChargesAmount - paidAmount);
 }
@@ -140,6 +147,31 @@ function nullableColumnExpression(tableAlias: string, columns: Set<string> | und
   return column
     ? `NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(255), ${tableAlias}.${bracketColumn(column)}))), '') AS ${alias}`
     : `CAST(NULL AS NVARCHAR(255)) AS ${alias}`;
+}
+
+// The branch's own live balance columns (per-category, all zero once the
+// branch considers a loan settled) are the authoritative source of truth for
+// whether a loan still has money owed - more reliable than deriving a
+// balance from payment history or amortization schedule totals, which can
+// drift for loans that were renewed/paid off/restructured under the same
+// loan number. Sum whichever of these columns exist on this branch.
+function remoteBalanceColumns(columns: Set<string> | undefined) {
+  return [
+    firstExistingColumn(columns, ["principal_bal", "principal_balance", "prin_bal"]),
+    firstExistingColumn(columns, ["interest_bal", "interest_balance", "int_bal"]),
+    firstExistingColumn(columns, ["sc_bal", "service_charge_bal", "servicecharge_bal"]),
+    firstExistingColumn(columns, ["penalty_bal", "penalty_balance"]),
+    firstExistingColumn(columns, ["pdi_bal", "pdi_balance"]),
+    firstExistingColumn(columns, ["other_charges_bal", "othercharges_bal", "other_charge_bal"]),
+    firstExistingColumn(columns, ["vat_bal", "vat_balance"])
+  ].filter((column): column is string => Boolean(column));
+}
+
+function buildRemoteBalanceExpression(columns: Set<string> | undefined, tableAlias = "loan") {
+  const found = remoteBalanceColumns(columns);
+  return found.length
+    ? `${found.map((column) => `COALESCE(${tableAlias}.${bracketColumn(column)}, 0)`).join(" + ")} AS remote_balance`
+    : "CAST(NULL AS DECIMAL(14, 2)) AS remote_balance";
 }
 
 function nullableLoanColumnExpression(columns: Set<string> | undefined, candidates: string[], alias: string) {
@@ -338,6 +370,16 @@ async function connectToHost(branch: Branch, dbHost: string, options?: { connect
     }
   });
 
+  // mssql/tedious can emit an async "error" event on the pool (e.g. a dropped
+  // connection mid-sync) after connect() has already resolved. Without a
+  // listener, Node treats that as an uncaught exception and kills the whole
+  // process, which is what was silently interrupting overnight syncs. Any
+  // in-flight query still rejects normally and is handled by syncBranch's own
+  // try/catch, so this listener only needs to stop the crash.
+  pool.on("error", (error) => {
+    console.error(`[sync-service] Pool error for ${branch.branchCode} (${dbHost}):`, error instanceof Error ? error.message : error);
+  });
+
   return pool.connect();
 }
 
@@ -443,6 +485,7 @@ async function fetchBranchRows<T>(connection: ConnectionPool, table: BranchTable
   const otherChargesExpression = otherChargesColumn
     ? `COALESCE(loan.${bracketColumn(otherChargesColumn)}, 0) AS other_charges_amount`
     : "CAST(0 AS DECIMAL(14, 2)) AS other_charges_amount";
+  const remoteBalanceExpression = buildRemoteBalanceExpression(loanColumns);
   const loanProductCandidates = [
     "loan_product",
     "product",
@@ -515,6 +558,7 @@ async function fetchBranchRows<T>(connection: ConnectionPool, table: BranchTable
           + COALESCE(loan.penalty, 0)
           + ${otherChargesColumn ? `COALESCE(loan.${bracketColumn(otherChargesColumn)}, 0)` : "0"}
           - COALESCE(payments.paid_amount, 0) AS balance,
+        ${remoteBalanceExpression},
         COALESCE(NULLIF(loan.p_loan_status, 0), loan.loan_status) AS status,
         COALESCE(NULLIF(loan.p_loan_status, 0), loan.loan_status) AS source_status_code,
         loan_status.description AS source_status_name,
@@ -776,8 +820,38 @@ async function describeBranchDatabase(connection: ConnectionPool) {
   return `Connected database: ${databaseName}. Visible matching tables: ${tables.join(", ") || "none"}.`;
 }
 
+const BRANCH_SYNC_TIMEOUT_MS = 30 * 60 * 1000;
+
 export async function syncBranch(branch: Branch): Promise<BranchSyncResult> {
   const startedAt = new Date();
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
+  // Some branch links (flaky WAN/VPN paths) have been observed hanging well
+  // past the driver's own connection/request timeouts, which stalls the
+  // whole batched sync run indefinitely. This is a hard outer ceiling so one
+  // unresponsive branch can never block the rest of the queue.
+  const timeoutResult = new Promise<BranchSyncResult>((resolve) => {
+    timeoutHandle = setTimeout(async () => {
+      const message = `Branch sync timed out after ${Math.round(BRANCH_SYNC_TIMEOUT_MS / 60000)} minutes without completing.`;
+      try {
+        await prisma.syncLog.create({
+          data: { branchId: branch.id, status: "FAILED", startedAt, finishedAt: new Date(), message }
+        });
+      } catch (error) {
+        console.error(`[sync-service] Failed to record timeout log for ${branch.branchCode}:`, error);
+      }
+      resolve({ branch: branch.branchCode, status: "FAILED", message });
+    }, BRANCH_SYNC_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([runSyncBranch(branch, startedAt), timeoutResult]);
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+}
+
+async function runSyncBranch(branch: Branch, startedAt: Date): Promise<BranchSyncResult> {
   const lastSuccess = await prisma.syncLog.findFirst({
     where: { branchId: branch.id, status: "SUCCESS" },
     orderBy: { startedAt: "desc" }
@@ -844,6 +918,7 @@ export async function syncBranch(branch: Branch): Promise<BranchSyncResult> {
       const normalizedStatusCode = Number.isFinite(sourceStatusCode) ? sourceStatusCode : null;
       const balance = normalizedStatusCode === 10 || normalizedStatusCode === 12 ? 0 : loanBalance(principalAmount, interestAmount, penaltyAmount, otherChargesAmount, paidAmount);
       const sourceStatusName = row.source_status_name ?? null;
+      const remoteBalance = asNullableNumber(row.remote_balance);
 
       const loan = await prisma.loan.upsert({
         where: { branchId_remoteId: { branchId: branch.id, remoteId: String(row.id) } },
@@ -862,6 +937,7 @@ export async function syncBranch(branch: Branch): Promise<BranchSyncResult> {
           terms: row.terms ?? null,
           paidAmount,
           balance,
+          remoteBalance,
           status: statusToLoanStatus(row.status, balance),
           sourceStatusCode: normalizedStatusCode,
           sourceStatusName,
@@ -882,6 +958,7 @@ export async function syncBranch(branch: Branch): Promise<BranchSyncResult> {
           terms: row.terms ?? null,
           paidAmount,
           balance,
+          remoteBalance,
           status: statusToLoanStatus(row.status, balance),
           sourceStatusCode: normalizedStatusCode,
           sourceStatusName,
@@ -1104,6 +1181,74 @@ export async function syncBranchCoMakersOnly(branch: Branch): Promise<BranchSync
   }
 }
 
+// Lightweight backfill: pulls only loan_no + the branch's live balance
+// columns and updates loans we've already synced. Used to populate
+// remoteBalance for existing loans without waiting for a full resync.
+export async function syncBranchRemoteBalanceOnly(branch: Branch): Promise<BranchSyncResult> {
+  const startedAt = new Date();
+  let connection: ConnectionPool | null = null;
+  let connectionHost: string | null = null;
+  let updated = 0;
+
+  try {
+    const connected = await getConnection(branch);
+    connection = connected.pool;
+    connectionHost = connected.host;
+    const tableColumns = await getBranchTableColumns(connection);
+    const loanColumns = tableColumns.tb_loan_data;
+    const columns = remoteBalanceColumns(loanColumns);
+
+    if (columns.length) {
+      const expression = columns.map((column) => `COALESCE(loan.${bracketColumn(column)}, 0)`).join(" + ");
+      const result = await connection.request().query(`
+        SELECT loan.loan_no AS loan_no, ${expression} AS remote_balance
+        FROM dbo.tb_loan_data loan
+        WHERE loan.loan_no IS NOT NULL
+      `);
+      const rows = result.recordset as Array<{ loan_no: string; remote_balance: number | string | null }>;
+
+      const chunkSize = 500;
+      for (let index = 0; index < rows.length; index += chunkSize) {
+        const chunk = rows.slice(index, index + chunkSize);
+        await Promise.all(
+          chunk.map(async (row) => {
+            const remoteBalance = asNullableNumber(row.remote_balance);
+            if (remoteBalance === null) return;
+            const { count } = await prisma.loan.updateMany({
+              where: { branchId: branch.id, remoteId: String(row.loan_no) },
+              data: { remoteBalance }
+            });
+            updated += count;
+          })
+        );
+      }
+    }
+
+    await prisma.syncLog.create({
+      data: {
+        branchId: branch.id,
+        status: "SUCCESS",
+        startedAt,
+        finishedAt: new Date(),
+        clientsPulled: 0,
+        loansPulled: 0,
+        paymentsPulled: 0,
+        message: `${connectionHost ? `Remote-balance-only sync completed via ${connectionHost}.` : "Remote-balance-only sync completed."}${columns.length ? ` Balance columns: ${columns.join(", ")}.` : " No live balance columns found on this branch."} Loans updated: ${updated.toLocaleString("en-US")}.`
+      }
+    });
+
+    return { branch: branch.branchCode, status: "SUCCESS", clientsPulled: 0, loansPulled: updated, paymentsPulled: 0 };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown remote-balance sync failure.";
+    await prisma.syncLog.create({
+      data: { branchId: branch.id, status: "FAILED", startedAt, finishedAt: new Date(), message }
+    });
+    return { branch: branch.branchCode, status: "FAILED", message };
+  } finally {
+    await connection?.close();
+  }
+}
+
 async function createSyncSummaryLog({
   startedAt,
   results,
@@ -1165,7 +1310,21 @@ async function syncBranchesInBatches(branches: Branch[], concurrency = 2) {
 
   for (let index = 0; index < branches.length; index += concurrency) {
     const batch = branches.slice(index, index + concurrency);
-    results.push(...(await Promise.all(batch.map((branch) => syncBranch(branch)))));
+    // syncBranch() always resolves (it converts its own failures/timeouts into
+    // a FAILED result), but guard with allSettled anyway so one branch that
+    // somehow still rejects can't stop every later batch from running.
+    const settled = await Promise.allSettled(batch.map((branch) => syncBranch(branch)));
+    results.push(
+      ...settled.map((outcome, position) =>
+        outcome.status === "fulfilled"
+          ? outcome.value
+          : {
+              branch: batch[position].branchCode,
+              status: "FAILED" as const,
+              message: outcome.reason instanceof Error ? outcome.reason.message : "Unknown sync failure."
+            }
+      )
+    );
   }
 
   return results;
@@ -1199,13 +1358,34 @@ export async function syncOnlineBranches(messagePrefix = "Midnight sync") {
       message: `${messagePrefix}: running daily sync for all active branches. Co-makers will be synced with each branch.`
     }
   });
-  const branches = sortByOldestSync(await prisma.branch.findMany({ where: { status: "ACTIVE" } }));
-  const results = await syncBranchesInBatches(branches);
+
+  let results: BranchSyncResult[] = [];
+  let branchCount = 0;
+
+  try {
+    const branches = sortByOldestSync(await prisma.branch.findMany({ where: { status: "ACTIVE" } }));
+    branchCount = branches.length;
+    results = await syncBranchesInBatches(branches);
+  } catch (error) {
+    // Guarantees the summary log below always gets a finishedAt, even if
+    // something outside an individual branch sync throws (e.g. a central DB
+    // hiccup). Previously an interrupted run left this row stuck at
+    // finishedAt: NULL forever, which defeated the "already ran today" guard
+    // and caused the catch-up sync to retry from scratch indefinitely.
+    const message = error instanceof Error ? error.message : "Unknown sync run failure.";
+    console.error("[sync-service] syncOnlineBranches run failed:", message);
+    await prisma.syncLog.update({
+      where: { id: summaryLog.id },
+      data: { status: "FAILED", finishedAt: new Date(), message: `${messagePrefix}: run failed before completing - ${message}` }
+    });
+    return { startedAt: startedAt.toISOString(), totalBranches: branchCount, completed: 0, failed: branchCount, results, error: message };
+  }
+
   const summary = await createSyncSummaryLog({ startedAt, results, messagePrefix, summaryLogId: summaryLog.id });
 
   return {
     startedAt: startedAt.toISOString(),
-    totalBranches: branches.length,
+    totalBranches: branchCount,
     skipped: 0,
     ...summary,
     results

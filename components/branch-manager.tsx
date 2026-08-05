@@ -1,6 +1,6 @@
 "use client";
 
-import { Database, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import { Database, Pencil, Plug, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { dateTime } from "@/lib/format";
 
@@ -15,11 +15,11 @@ type Branch = {
   dbUser: string;
   status: string;
   lastSyncAt: string | null;
-  connection?: {
-    status: "ONLINE" | "OFFLINE";
-    checkedAt: string;
-    message: string;
-  };
+};
+
+type ConnectionState = {
+  status: "UNKNOWN" | "CHECKING" | "ONLINE" | "OFFLINE";
+  message?: string;
 };
 
 type SyncResult = {
@@ -51,13 +51,27 @@ function summarizeSync(result: SyncResult) {
 }
 
 function canSyncBranch(branch: Branch) {
-  return branch.status === "ACTIVE" && branch.connection?.status === "ONLINE";
+  return branch.status === "ACTIVE";
+}
+
+function connectionBadgeClass(status: ConnectionState["status"]) {
+  if (status === "ONLINE") return "bg-emerald-50 text-brand-green";
+  if (status === "OFFLINE") return "bg-red-50 text-red-700";
+  if (status === "CHECKING") return "bg-blue-50 text-brand-blue";
+  return "bg-slate-100 text-slate-500";
+}
+
+function connectionBadgeLabel(status: ConnectionState["status"]) {
+  if (status === "CHECKING") return "CHECKING...";
+  if (status === "UNKNOWN") return "NOT CHECKED";
+  return status;
 }
 
 export function BranchManager({ initialBranches }: { initialBranches: Branch[] }) {
   const [branches, setBranches] = useState(initialBranches);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [loading, setLoading] = useState(false);
+  const [connections, setConnections] = useState<Record<number, ConnectionState>>({});
   const [syncingBranchId, setSyncingBranchId] = useState<number | "all" | null>(null);
   const [syncStartedAt, setSyncStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -79,12 +93,27 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
     const branch = branches.find((item) => item.id === syncingBranchId);
     return branch?.branchName ?? "selected branch";
   }, [branches, syncingBranchId]);
-  const onlineBranchCount = branches.filter(canSyncBranch).length;
+  const activeBranchCount = branches.filter(canSyncBranch).length;
 
   async function refresh() {
     const response = await fetch("/api/branches");
     if (!response.ok) throw new Error("Unable to refresh branches.");
     setBranches(await response.json());
+  }
+
+  async function checkConnection(branchId: number) {
+    setConnections((current) => ({ ...current, [branchId]: { status: "CHECKING" } }));
+    try {
+      const response = await fetch(`/api/branches/${branchId}/check`, { method: "POST" });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.connection) {
+        setConnections((current) => ({ ...current, [branchId]: { status: "OFFLINE", message: data?.error ?? "Unable to check connection." } }));
+        return;
+      }
+      setConnections((current) => ({ ...current, [branchId]: { status: data.connection.status, message: data.connection.message } }));
+    } catch {
+      setConnections((current) => ({ ...current, [branchId]: { status: "OFFLINE", message: "Unable to reach the server." } }));
+    }
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -161,7 +190,7 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
 
   async function runSync(branch?: Branch) {
     if (branch && !canSyncBranch(branch)) {
-      setError(`${branch.branchName} is ${branch.connection?.status ?? "not checked"}. Sync is available only for online active branches.`);
+      setError(`${branch.branchName} is ${branch.status}. Sync is available only for active branches.`);
       return;
     }
 
@@ -243,7 +272,7 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
 
       <section className="space-y-4">
         <div className="flex justify-end">
-          <button className="btn-secondary" onClick={() => runSync()} disabled={loading || onlineBranchCount === 0} title={onlineBranchCount === 0 ? "No online active branches available to sync." : "Sync online active branches."}>
+          <button className="btn-secondary" onClick={() => runSync()} disabled={loading || activeBranchCount === 0} title={activeBranchCount === 0 ? "No active branches available to sync." : "Sync all active branches. Offline branches are skipped automatically."}>
             <RotateCcw className="h-4 w-4" />
             {syncingBranchId === "all" ? "Syncing..." : "Run All"}
           </button>
@@ -269,6 +298,7 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
         <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
           {branches.map((branch) => {
             const syncable = canSyncBranch(branch);
+            const connection = connections[branch.id] ?? { status: "UNKNOWN" as const };
 
             return (
             <div key={branch.id} className="panel p-4">
@@ -282,14 +312,18 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
                       <h4 className="min-w-[6rem] flex-1 text-sm font-bold leading-tight text-slate-950">{branch.branchName}</h4>
                       <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
                       <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-700">{branch.status}</span>
-                      <span
-                        className={`rounded-md px-2 py-1 text-[11px] font-bold ${
-                          branch.connection?.status === "ONLINE" ? "bg-emerald-50 text-brand-green" : "bg-red-50 text-red-700"
-                        }`}
-                        title={branch.connection?.message}
+                      <button
+                        type="button"
+                        className={`rounded-md px-2 py-1 text-[11px] font-bold transition ${connectionBadgeClass(connection.status)}`}
+                        title={connection.message ?? "Click to check whether this branch database is reachable right now."}
+                        onClick={() => checkConnection(branch.id)}
+                        disabled={connection.status === "CHECKING"}
                       >
-                        {branch.connection?.status ?? "CHECKING"}
-                      </span>
+                        <span className="inline-flex items-center gap-1">
+                          <Plug className="h-3 w-3" />
+                          {connectionBadgeLabel(connection.status)}
+                        </span>
+                      </button>
                       </div>
                     </div>
                     <p className="break-all text-xs text-slate-500">{branch.branchCode} - {branch.dbHost}</p>
@@ -300,7 +334,6 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
                 <div className="flex justify-between gap-4"><dt className="text-slate-500">Database</dt><dd className="font-semibold">{branch.dbName}</dd></div>
                 <div className="flex justify-between gap-4"><dt className="text-slate-500">Fallback IP</dt><dd className="break-all text-right font-semibold">{branch.dynamicIp || "-"}</dd></div>
                 <div className="flex justify-between gap-4"><dt className="text-slate-500">User</dt><dd className="font-semibold">{branch.dbUser}</dd></div>
-                <div className="flex justify-between gap-4"><dt className="text-slate-500">Connection</dt><dd className="font-semibold">{branch.connection?.status ?? "Not checked"}</dd></div>
                 <div className="flex justify-between gap-4"><dt className="text-slate-500">Last sync</dt><dd className="font-semibold">{dateTime(branch.lastSyncAt)}</dd></div>
               </dl>
               <div className="mt-4 grid grid-cols-3 gap-2">
@@ -313,7 +346,7 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
                   className="btn-secondary h-9 px-2 text-xs"
                   onClick={() => runSync(branch)}
                   disabled={loading || !syncable}
-                  title={syncable ? `Sync ${branch.branchName}` : "Sync is available only when this branch is online."}
+                  title={syncable ? `Sync ${branch.branchName}` : "Sync is available only when this branch is active."}
                 >
                   <RotateCcw className="h-4 w-4" />
                   {syncingBranchId === branch.id ? "Syncing" : "Sync"}

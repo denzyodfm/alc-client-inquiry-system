@@ -179,6 +179,7 @@ button {
   }
 
   .print-area .max-w-7xl,
+  .print-area .max-w-\[1600px\],
   .print-area .min-w-\[1120px\],
   .print-area .min-w-\[1180px\],
   .print-area .min-w-\[1280px\] {

@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import Link from "next/link";
-import { AlertTriangle, Hourglass, Layers3 } from "lucide-react";
+import { AlertTriangle, Building2, Hourglass, Layers3, UserRound } from "lucide-react";
 import { AgingDetailReport, type AgingDetailRow } from "@/components/aging-detail-report";
 import { AgingReportFilter } from "@/components/aging-report-filter";
 import type { LoanDetailLoan } from "@/components/loan-detail-window";
@@ -17,6 +17,7 @@ type AgingLoan = Prisma.LoanGetPayload<{
     branch: true;
     client: true;
     amortizationSchedules: true;
+    remedialAssignment: { include: { assignedTo: true } };
   };
 }>;
 
@@ -38,6 +39,8 @@ type AgingRow = {
   paid: number;
   balance: number;
   bucket: string;
+  assignedOfficerId: number | null;
+  assignedOfficerName: string;
   loan: LoanDetailLoan;
 };
 
@@ -115,6 +118,7 @@ function toLoanDetail(loan: AgingLoan): LoanDetailLoan {
     terms: loan.terms,
     paidAmount: loan.paidAmount.toString(),
     balance: loan.balance.toString(),
+    remoteBalance: loan.remoteBalance?.toString() ?? null,
     status: loan.status,
     sourceStatusCode: loan.sourceStatusCode,
     sourceStatusName: loan.sourceStatusName,
@@ -156,6 +160,7 @@ function toLoanDetail(loan: AgingLoan): LoanDetailLoan {
 function toAgingRow(loan: AgingLoan): AgingRow {
   const aging = pastDueInfo(loan);
   const balance = numberValue(loan.balance);
+  const assignedOfficer = loan.remedialAssignment?.assignedTo;
 
   return {
     id: loan.id,
@@ -175,8 +180,14 @@ function toAgingRow(loan: AgingLoan): AgingRow {
     paid: loanPaidTotal(loan),
     balance,
     bucket: bucketFor(aging.daysPastDue),
+    assignedOfficerId: assignedOfficer?.id ?? null,
+    assignedOfficerName: assignedOfficer?.name ?? "Unassigned",
     loan: toLoanDetail(loan)
   };
+}
+
+function officerKeyFor(row: Pick<AgingRow, "assignedOfficerId">) {
+  return row.assignedOfficerId !== null ? String(row.assignedOfficerId) : "unassigned";
 }
 
 function buildAgingHref({
@@ -186,7 +197,8 @@ function buildAgingHref({
   searchText,
   bucket,
   detailBranchId,
-  detail
+  detail,
+  officerId
 }: {
   page?: number;
   branchId: string;
@@ -195,6 +207,7 @@ function buildAgingHref({
   bucket?: string;
   detailBranchId?: number;
   detail?: "matches";
+  officerId?: string;
 }) {
   const params = new URLSearchParams();
   if (branchId !== "ALL") params.set("branchId", branchId);
@@ -203,6 +216,7 @@ function buildAgingHref({
   if (bucket) params.set("bucket", bucket);
   if (detailBranchId) params.set("detailBranchId", String(detailBranchId));
   if (detail) params.set("detail", detail);
+  if (officerId) params.set("officerId", officerId);
   if (page && page > 1) params.set("page", String(page));
   const query = params.toString();
   return query ? `/aging?${query}` : "/aging";
@@ -211,7 +225,7 @@ function buildAgingHref({
 export default async function AgingReportPage({
   searchParams
 }: {
-  searchParams?: Promise<{ branchId?: string; product?: string; q?: string; page?: string; bucket?: string; detailBranchId?: string; detail?: string }>;
+  searchParams?: Promise<{ branchId?: string; product?: string; q?: string; page?: string; bucket?: string; detailBranchId?: string; detail?: string; officerId?: string }>;
 }) {
   const user = await requireUser(["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
   const params = await searchParams;
@@ -221,6 +235,7 @@ export default async function AgingReportPage({
   const selectedBucket = buckets.some((bucket) => bucket.label === params?.bucket) ? params?.bucket ?? "" : "";
   const showMatchingDetails = params?.detail === "matches";
   const selectedDetailBranchId = Number(params?.detailBranchId ?? 0) || null;
+  const selectedOfficerKey = params?.officerId?.trim() || null;
   const accessibleBranchIds = user.role === "ACCOUNT_OFFICER" ? await getAccessibleBranchIds(user) : null;
   const branchAccessFilter: Prisma.LoanWhereInput =
     accessibleBranchIds === null ? {} : accessibleBranchIds.length ? { branchId: { in: accessibleBranchIds } } : { branchId: -1 };
@@ -245,7 +260,8 @@ export default async function AgingReportPage({
         client: true,
         amortizationSchedules: {
           orderBy: [{ amortNo: "asc" }, { amortDate: "asc" }]
-        }
+        },
+        remedialAssignment: { include: { assignedTo: true } }
       }
     }),
     prisma.branch.findMany({
@@ -295,15 +311,43 @@ export default async function AgingReportPage({
         count: branchRows.length,
         dueToday: branchRows.reduce((sum, row) => sum + row.dueToday, 0),
         balance: branchRows.reduce((sum, row) => sum + row.balance, 0),
-        bucketBreakdown
+        bucketBreakdown,
+        matchesHref: buildAgingHref({ branchId: selectedBranchId, product: selectedProduct, searchText, detail: "matches", detailBranchId: branch.id })
       };
     })
     .filter((branch) => branch.count > 0);
   const totalLoans = allRows.length;
   const totalBalance = allRows.reduce((sum, row) => sum + row.balance, 0);
   const totalDueToday = allRows.reduce((sum, row) => sum + row.dueToday, 0);
+  const showBranchCards = showMatchingDetails && selectedDetailBranchId === null;
+  const showOfficerCards = showMatchingDetails && selectedDetailBranchId !== null && !selectedOfficerKey;
+  const officerSummaries = showOfficerCards
+    ? Array.from(
+        allRows
+          .filter((row) => row.branchId === selectedDetailBranchId)
+          .reduce((map, row) => {
+            const key = officerKeyFor(row);
+            const group = map.get(key) ?? { key, officerId: row.assignedOfficerId, officerName: row.assignedOfficerName, count: 0, dueToday: 0, balance: 0 };
+            group.count += 1;
+            group.dueToday += row.dueToday;
+            group.balance += row.balance;
+            map.set(key, group);
+            return map;
+          }, new Map<string, { key: string; officerId: number | null; officerName: string; count: number; dueToday: number; balance: number }>())
+          .values()
+      )
+        .sort((a, b) => (a.key === "unassigned" ? 1 : b.key === "unassigned" ? -1 : a.officerName.localeCompare(b.officerName)))
+        .map((group) => ({
+          ...group,
+          href: buildAgingHref({ branchId: selectedBranchId, product: selectedProduct, searchText, detail: "matches", detailBranchId: selectedDetailBranchId!, officerId: group.key })
+        }))
+    : [];
+  const matchesDetailAgingRows: AgingRow[] =
+    showMatchingDetails && selectedDetailBranchId !== null && selectedOfficerKey
+      ? allRows.filter((row) => row.branchId === selectedDetailBranchId && officerKeyFor(row) === selectedOfficerKey)
+      : [];
   const detailRows: AgingDetailRow[] = showMatchingDetails
-    ? allRows
+    ? matchesDetailAgingRows
     : selectedBucket
       ? allRows.filter((row) => row.bucket === selectedBucket && (selectedDetailBranchId === null || row.branchId === selectedDetailBranchId))
       : [];
@@ -311,7 +355,12 @@ export default async function AgingReportPage({
   const detailBalance = detailRows.reduce((sum, row) => sum + row.balance, 0);
   const detailDueToday = detailRows.reduce((sum, row) => sum + row.dueToday, 0);
   const closeDetailHref = buildAgingHref({ branchId: selectedBranchId, product: selectedProduct, searchText });
+  const backToOfficerCardsHref = selectedDetailBranchId !== null
+    ? buildAgingHref({ branchId: selectedBranchId, product: selectedProduct, searchText, detail: "matches", detailBranchId: selectedDetailBranchId })
+    : closeDetailHref;
+  const backToBranchCardsHref = buildAgingHref({ branchId: selectedBranchId, product: selectedProduct, searchText, detail: "matches" });
   const matchingDetailTitle = searchText ? `Matching past-due accounts for "${searchText}"` : "All matching past-due accounts";
+  const activeOfficerName = selectedOfficerKey === "unassigned" ? "Unassigned" : matchesDetailAgingRows[0]?.assignedOfficerName ?? "Account Officer";
 
   return (
     <div className="space-y-6">
@@ -409,18 +458,110 @@ export default async function AgingReportPage({
         )}
       </section>
 
-      {selectedBucket || showMatchingDetails ? (
+      {showBranchCards ? (
+        <div className="fixed inset-0 z-50 bg-slate-950/50 px-8 py-4">
+          <div className="mx-auto flex max-h-[calc(100vh-2rem)] max-w-[1600px] flex-col overflow-hidden rounded-lg bg-white shadow-2xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-brand-green">Past-Due Accounts</p>
+                <h3 className="text-xl font-bold text-slate-950">{matchingDetailTitle} - by branch</h3>
+                <p className="text-sm text-slate-500">
+                  {totalLoans.toLocaleString("en-US")} account(s) | Due as of today {money(totalDueToday)} | Balance {money(totalBalance)}
+                </p>
+              </div>
+              <Link className="btn-secondary h-9 px-3" href={closeDetailHref}>
+                Close
+              </Link>
+            </div>
+            <div className="overflow-auto p-5">
+              {branchSummaries.length ? (
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {branchSummaries.map((branch) => (
+                    <Link
+                      key={branch.id}
+                      href={branch.matchesHref}
+                      className="rounded-lg border border-slate-200 bg-white p-4 transition hover:border-brand-blue hover:shadow-sm"
+                    >
+                      <div className="mb-3 inline-flex rounded-md bg-slate-50 p-2 text-brand-blue">
+                        <Building2 className="h-5 w-5" />
+                      </div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{branch.branchCode}</p>
+                      <h4 className="mt-1 text-lg font-bold text-slate-950">{branch.branchName}</h4>
+                      <p className="mt-2 text-xl font-bold text-red-700">{branch.count.toLocaleString("en-US")} account(s)</p>
+                      <p className="mt-1 text-sm font-semibold text-red-700">Due today: {money(branch.dueToday)}</p>
+                      <p className="mt-1 text-xs font-semibold text-slate-500">Balance: {money(branch.balance)}</p>
+                      <p className="mt-3 text-xs font-semibold text-brand-blue">View account officers</p>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="p-5 text-sm font-semibold text-slate-500">No past-due accounts found.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showOfficerCards && activeDetailBranch ? (
+        <div className="fixed inset-0 z-50 bg-slate-950/50 px-8 py-4">
+          <div className="mx-auto flex max-h-[calc(100vh-2rem)] max-w-[1600px] flex-col overflow-hidden rounded-lg bg-white shadow-2xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-brand-green">Past-Due Accounts</p>
+                <h3 className="text-xl font-bold text-slate-950">{activeDetailBranch.branchName} - by account officer</h3>
+                <p className="text-sm text-slate-500">
+                  {officerSummaries.reduce((sum, officer) => sum + officer.count, 0).toLocaleString("en-US")} account(s) in this branch
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link className="btn-secondary h-9 px-3" href={backToBranchCardsHref}>
+                  Back to branches
+                </Link>
+                <Link className="btn-secondary h-9 px-3" href={closeDetailHref}>
+                  Close
+                </Link>
+              </div>
+            </div>
+            <div className="overflow-auto p-5">
+              {officerSummaries.length ? (
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {officerSummaries.map((officer) => (
+                    <Link
+                      key={officer.key}
+                      href={officer.href}
+                      className="rounded-lg border border-slate-200 bg-white p-4 transition hover:border-brand-blue hover:shadow-sm"
+                    >
+                      <div className="mb-3 inline-flex rounded-md bg-slate-50 p-2 text-brand-blue">
+                        <UserRound className="h-5 w-5" />
+                      </div>
+                      <h4 className="text-lg font-bold text-slate-950">{officer.officerName}</h4>
+                      <p className="mt-2 text-xl font-bold text-red-700">{officer.count.toLocaleString("en-US")} account(s)</p>
+                      <p className="mt-1 text-sm font-semibold text-red-700">Due today: {money(officer.dueToday)}</p>
+                      <p className="mt-1 text-xs font-semibold text-slate-500">Balance: {money(officer.balance)}</p>
+                      <p className="mt-3 text-xs font-semibold text-brand-blue">View loan details</p>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="p-5 text-sm font-semibold text-slate-500">No past-due accounts found for this branch.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {selectedBucket || (showMatchingDetails && selectedDetailBranchId !== null && selectedOfficerKey) ? (
         <AgingDetailReport
           title={
             showMatchingDetails
-              ? matchingDetailTitle
+              ? `${activeDetailBranch?.branchName ?? ""} - ${activeOfficerName}`
               : `${selectedBucket}${activeDetailBranch ? ` - ${activeDetailBranch.branchName}` : " - All visible branches"}`
           }
           count={detailTotal}
           dueToday={detailDueToday}
           balance={detailBalance}
           rows={detailRows}
-          closeHref={closeDetailHref}
+          closeHref={showMatchingDetails ? backToOfficerCardsHref : closeDetailHref}
         />
       ) : null}
     </div>

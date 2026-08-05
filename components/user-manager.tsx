@@ -295,7 +295,7 @@ export function UserManager({
       <div className="panel overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="bg-slate-50 text-slate-500">
+            <thead className="sticky top-20 z-10 bg-slate-50 text-slate-500 shadow-sm">
               <tr>
                 <th className="px-4 py-3">User</th>
                 <th className="px-4 py-3">Email</th>

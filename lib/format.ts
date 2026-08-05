@@ -1,5 +1,6 @@
 export function money(value: unknown) {
   const amount = Number(value ?? 0);
+  if (!amount) return "-";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "PHP",

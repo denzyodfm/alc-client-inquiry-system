@@ -34,6 +34,7 @@ type Loan = {
   terms: string | null;
   paidAmount: string;
   balance: string;
+  remoteBalance: string | null;
   status: string;
   sourceStatusCode: number | null;
   sourceStatusName: string | null;
@@ -322,7 +323,7 @@ export function InquiryForm() {
               {isExpanded ? (
                 <div className="mt-5 overflow-x-auto">
                   <table className="w-full min-w-[1240px] text-left text-sm">
-                    <thead className="bg-slate-50 text-slate-500">
+                    <thead className="sticky top-20 z-10 bg-slate-50 text-slate-500 shadow-sm">
                       <tr>
                         <th className="px-3 py-2">Loan No.</th>
                         <th className="px-3 py-2">Branch</th>
@@ -336,6 +337,7 @@ export function InquiryForm() {
                         <th className="px-3 py-2">Terms</th>
                         <th className="px-3 py-2">Total Payments</th>
                         <th className="px-3 py-2">Balance</th>
+                        <th className="px-3 py-2" title="The branch's own live balance, pulled directly from the source database">Remote Balance</th>
                         <th className="px-3 py-2">Status</th>
                         <th className="px-3 py-2">Status ID</th>
                         <th className="px-3 py-2">Status Label</th>
@@ -369,6 +371,7 @@ export function InquiryForm() {
                             <td className="px-3 py-2">{loan.terms ?? "-"}</td>
                             <td className="px-3 py-2 text-brand-green">{money(loan.paidAmount)}</td>
                             <td className={`px-3 py-2 font-bold ${displayBalance(loan) > 0 ? "text-red-700" : "text-brand-green"}`}>{money(displayBalance(loan))}</td>
+                            <td className="px-3 py-2 font-bold text-slate-700">{loan.remoteBalance === null ? "Not synced" : money(Number(loan.remoteBalance))}</td>
                             <td className="px-3 py-2 font-semibold text-slate-900">{appStatusText(loan.status)}</td>
                             <td className="px-3 py-2 font-bold text-slate-900">{loanStatusCode(loan)}</td>
                             <td className="px-3 py-2">{loanStatusText(loan)}</td>
@@ -386,7 +389,7 @@ export function InquiryForm() {
                         );
                       })}
                       {!group.loans.length ? (
-                        <tr><td className="px-3 py-3 text-slate-500" colSpan={16}>No loans with remaining balance for this client.</td></tr>
+                        <tr><td className="px-3 py-3 text-slate-500" colSpan={17}>No loans with remaining balance for this client.</td></tr>
                       ) : null}
                     </tbody>
                   </table>

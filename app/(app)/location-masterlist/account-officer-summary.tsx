@@ -20,6 +20,7 @@ export type AccountOfficerSummaryRow = {
 };
 
 function money(value: number) {
+  if (!value) return "-";
   return value.toLocaleString("en-US", { style: "currency", currency: "PHP" });
 }
 
@@ -170,7 +171,7 @@ export function AccountOfficerSummary({
               </div>
             </header>
             <div className="overflow-auto">
-              <div className="grid min-w-[940px] grid-cols-[minmax(180px,1fr)_80px_130px_repeat(4,125px)] gap-2 border-b border-slate-200 bg-white px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+              <div className="sticky top-0 z-10 grid min-w-[940px] grid-cols-[minmax(180px,1fr)_80px_130px_repeat(4,125px)] gap-2 border-b border-slate-200 bg-white px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-slate-500 shadow-sm">
                 <span>Account Officer</span><span className="text-right">Clients</span><span className="text-right">Portfolio</span>
                 <SummaryHeader label="Current" /><SummaryHeader label="Delayed" />
                 <SummaryHeader label="Past Due" /><SummaryHeader label="Litigated" />

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { encryptSecret } from "@/lib/crypto";
-import { checkBranchConnection } from "@/scripts/sync-service";
 import { Prisma } from "@prisma/client";
 
 export async function GET() {
@@ -18,15 +17,9 @@ export async function GET() {
       }
     }
   });
-  const branchesWithConnection = await Promise.all(
-    branches.map(async (branch) => {
-      const connection = await checkBranchConnection(branch);
-      const { encryptedDbPassword: _encryptedDbPassword, ...safeBranch } = branch;
-      return { ...safeBranch, connection };
-    })
-  );
+  const safeBranches = branches.map(({ encryptedDbPassword: _encryptedDbPassword, ...safeBranch }) => safeBranch);
 
-  return NextResponse.json(branchesWithConnection);
+  return NextResponse.json(safeBranches);
 }
 
 export async function POST(request: Request) {

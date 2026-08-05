@@ -261,6 +261,7 @@ export function ClientLoanAnalysisReport({ clientName, customerNo, loans, onClos
                     <th className="px-4 py-3">Due</th>
                     <th className="px-4 py-3">Paid</th>
                     <th className="px-4 py-3">Balance</th>
+                    <th className="px-4 py-3" title="The branch's own live balance, pulled directly from the source database">Remote Balance</th>
                     <th className="px-4 py-3">Paid %</th>
                     <th className="px-4 py-3">Past Due</th>
                     <th className="px-4 py-3">Rows</th>
@@ -285,6 +286,7 @@ export function ClientLoanAnalysisReport({ clientName, customerNo, loans, onClos
                         <td className="px-4 py-3 font-semibold">{money(due)}</td>
                         <td className="px-4 py-3 text-brand-green">{money(paid)}</td>
                         <td className={`px-4 py-3 font-bold ${balance > 0 ? "text-red-700" : "text-brand-green"}`}>{money(balance)}</td>
+                        <td className="px-4 py-3 font-bold text-slate-700">{loan.remoteBalance === null ? "Not synced" : money(Number(loan.remoteBalance))}</td>
                         <td className="px-4 py-3">{percent(paid, due)}</td>
                         <td className={`px-4 py-3 font-bold ${isPastDueLoan ? "text-red-700" : "text-brand-green"}`}>{isPastDueLoan ? "Yes" : "No"}</td>
                         <td className="px-4 py-3">{loan.amortizationSchedules.length}</td>
@@ -292,7 +294,7 @@ export function ClientLoanAnalysisReport({ clientName, customerNo, loans, onClos
                     );
                   })}
                   {!sortedLoans.length ? (
-                    <tr><td className="px-4 py-6 text-slate-500" colSpan={10}>No loans available for analysis.</td></tr>
+                    <tr><td className="px-4 py-6 text-slate-500" colSpan={11}>No loans available for analysis.</td></tr>
                   ) : null}
                 </tbody>
               </table>

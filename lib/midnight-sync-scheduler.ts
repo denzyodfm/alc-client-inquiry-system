@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const STARTUP_CATCH_UP_DELAY_MS = 10 * 1000;
+const STALE_RUN_THRESHOLD_MS = 90 * 60 * 1000;
 
 type SchedulerState = {
   running: boolean;
@@ -55,6 +56,37 @@ async function runScheduledSync(messagePrefix = "Midnight sync") {
   }
 }
 
+// A run that never reaches its finalization step (process killed outright,
+// not just an in-process error) leaves this row stuck at finishedAt: NULL
+// forever. That defeats hasMidnightSyncToday()'s guard and made the
+// catch-up sync retry from scratch every time the server restarted,
+// hammering branch databases all night without ever completing. Close out
+// anything that's clearly abandoned before deciding whether to catch up.
+async function reconcileStaleSyncRuns() {
+  const staleCutoff = new Date(Date.now() - STALE_RUN_THRESHOLD_MS);
+  const stale = await prisma.syncLog.findMany({
+    where: {
+      branchId: null,
+      finishedAt: null,
+      startedAt: { lt: staleCutoff },
+      message: { startsWith: "Midnight sync" }
+    },
+    select: { id: true }
+  });
+
+  if (!stale.length) return;
+
+  await prisma.syncLog.updateMany({
+    where: { id: { in: stale.map((row) => row.id) } },
+    data: {
+      status: "FAILED",
+      finishedAt: new Date(),
+      message: "Run did not finish - the server likely restarted or crashed mid-sync. Marked failed by startup reconciliation."
+    }
+  });
+  console.warn(`[midnight-sync] Reconciled ${stale.length} abandoned sync run(s) that never finished.`);
+}
+
 async function hasMidnightSyncToday() {
   const today = startOfLocalDay();
   const existing = await prisma.syncLog.findFirst({
@@ -76,6 +108,7 @@ async function runStartupCatchUpIfMissed() {
 
   state.catchUpChecked = true;
   try {
+    await reconcileStaleSyncRuns();
     if (await hasMidnightSyncToday()) return;
     await runScheduledSync("Midnight sync catch-up");
   } catch (error) {

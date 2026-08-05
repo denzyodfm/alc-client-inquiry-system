@@ -166,6 +166,7 @@ model Loan {
   terms           String?    @db.VarChar(40)
   paidAmount      Decimal    @default(0) @map("paid_amount") @db.Decimal(14, 2)
   balance         Decimal    @default(0) @db.Decimal(14, 2)
+  remoteBalance   Decimal?   @map("remote_balance") @db.Decimal(14, 2)
   status          LoanStatus @default(ACTIVE)
   sourceStatusCode Int?      @map("source_status_code")
   sourceStatusName String?   @map("source_status_name") @db.VarChar(80)

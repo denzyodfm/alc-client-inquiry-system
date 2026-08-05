@@ -39,6 +39,7 @@ function escapeHtml(value: unknown) {
 }
 
 function money(value: number) {
+  if (!value) return "-";
   return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
@@ -119,6 +120,7 @@ export async function GET(request: NextRequest) {
       otherChargesAmount: true,
       paidAmount: true,
       balance: true,
+      remoteBalance: true,
       branch: { select: { id: true, branchCode: true, branchName: true } },
       client: { select: { clientId: true, fullName: true, address: true, contactNumber: true } },
       locationMasterlist: { select: { province: true, municipality: true, barangay: true } },
@@ -172,6 +174,7 @@ export async function GET(request: NextRequest) {
     otherCharges: Number(loan.otherChargesAmount),
     paidAmount: Number(loan.paidAmount),
     totalBalance: Number(loan.balance),
+    remoteBalance: loan.remoteBalance === null ? null : Number(loan.remoteBalance),
     accountOfficer: (loan.remedialAssignment?.assignedTo?.name ?? "UNASSIGNED").toLocaleUpperCase("en"),
     assignedOfficerId: loan.remedialAssignment?.assignedToId ?? null,
     address: loan.client.address,
@@ -191,7 +194,8 @@ export async function GET(request: NextRequest) {
       <td class="number">${money(row.originalPrincipal)}</td><td class="number">${money(row.principalBalance)}</td>
       <td class="number">${money(row.interest)}</td><td class="number">${money(row.penalty)}</td>
       <td class="number">${money(row.otherCharges)}</td><td class="number">${money(row.paidAmount)}</td>
-      <td class="number">${money(row.totalBalance)}</td><td>${escapeHtml(row.address || "-")}</td>
+      <td class="number">${money(row.totalBalance)}</td><td class="number">${row.remoteBalance === null ? "-" : money(row.remoteBalance)}</td>
+      <td>${escapeHtml(row.address || "-")}</td>
       <td>${escapeHtml(row.accountOfficer)}</td>
     </tr>`).join("");
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
@@ -200,7 +204,7 @@ export async function GET(request: NextRequest) {
       <h1>${escapeHtml(title)}</h1><p>${clientTotal.toLocaleString("en-US")} client(s), ${rows.length.toLocaleString("en-US")} loan(s)</p><table><thead><tr>
       <th>No.</th><th>Client</th><th>Client ID</th><th>Contact</th><th>Loan</th><th>Branch</th><th>Product</th>
       <th>Released</th><th>Maturity</th><th>Status</th><th>Original Principal</th><th>Principal Balance</th>
-      <th>Interest</th><th>Penalty</th><th>Other Charges</th><th>Paid</th><th>Total Balance</th>
+      <th>Interest</th><th>Penalty</th><th>Other Charges</th><th>Paid</th><th>Total Balance</th><th>Remote Balance</th>
       <th>Address</th><th>Account Officer</th></tr></thead><tbody>${body}</tbody></table>
       ${format === "print" ? "<script>window.addEventListener('load',()=>window.print())</script>" : ""}</body></html>`;
     return new NextResponse(html, {

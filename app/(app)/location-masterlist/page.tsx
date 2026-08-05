@@ -265,7 +265,9 @@ function count(value: number | null) {
 }
 
 function money(value: number | null) {
-  return value === null ? "—" : value.toLocaleString("en-US", { style: "currency", currency: "PHP" });
+  if (value === null) return "—";
+  if (!value) return "-";
+  return value.toLocaleString("en-US", { style: "currency", currency: "PHP" });
 }
 
 const locationRowGrid = "grid min-w-[1480px] grid-cols-[minmax(300px,1fr)_100px_130px_160px_repeat(4,150px)] items-center";
@@ -528,7 +530,7 @@ export default async function LocationMasterlistPage() {
           </p>
         </div>
         <div className="overflow-x-auto text-sm">
-          <div className={`${locationRowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500`}>
+          <div className={`${locationRowGrid} sticky top-20 z-10 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 shadow-sm`}>
             <span>Location</span><span className="text-right">No. of Clients</span>
             <span className="text-right">With Account Officer</span><span className="text-right">Portfolio</span>
             <StatusHeader label="Current" /><StatusHeader label="Delayed" />
@@ -625,7 +627,7 @@ export default async function LocationMasterlistPage() {
           </p>
         </div>
         <div className="overflow-x-auto text-sm">
-          <div className={`${officerRowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500`}>
+          <div className={`${officerRowGrid} sticky top-20 z-10 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 shadow-sm`}>
             <span>Area TL / Account Officer / Location</span><span className="text-right">No. of Clients</span>
             <span className="text-right">Portfolio</span>
             <StatusHeader label="Current" /><StatusHeader label="Delayed" />
@@ -761,7 +763,7 @@ export default async function LocationMasterlistPage() {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[850px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="sticky top-20 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500 shadow-sm">
               <tr>
                 <th className="px-4 py-3">Started</th><th className="px-4 py-3">Trigger</th>
                 <th className="px-4 py-3">Started by</th><th className="px-4 py-3">Status</th>

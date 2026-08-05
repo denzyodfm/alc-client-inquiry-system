@@ -29,6 +29,7 @@ function escapeHtml(value: unknown) {
 }
 
 function money(value: number) {
+  if (!value) return "-";
   return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 

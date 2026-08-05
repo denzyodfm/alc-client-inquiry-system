@@ -497,7 +497,7 @@ export function RemedialWorkspace({
               <col className="w-32" />
               <col className="w-28 no-print" />
             </colgroup>
-            <thead className="bg-slate-50 text-slate-500">
+            <thead className="sticky top-20 z-10 bg-slate-50 text-slate-500 shadow-sm">
               <tr>
                 <th className="px-2 py-2">No.</th>
                 <th className="px-2 py-2">Client</th>
@@ -629,7 +629,7 @@ export function RemedialWorkspace({
             </div>
             <div className="overflow-auto">
               <table className="w-full min-w-[1320px] text-left text-sm">
-                <thead className="bg-slate-50 text-slate-500">
+                <thead className="sticky top-0 z-10 bg-slate-50 text-slate-500 shadow-sm">
                   <tr>
                     <th className="px-4 py-3">No.</th>
                     <th className="px-4 py-3">Follow-up Date</th>

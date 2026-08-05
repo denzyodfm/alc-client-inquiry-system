@@ -4,7 +4,7 @@ import { FormEvent, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { AccountTaggingLoanRow } from "@/components/account-tagging-workspace";
 import { LoanDetailLink } from "@/components/loan-detail-link";
-import { dateOnly } from "@/lib/format";
+import { dateOnly, money } from "@/lib/format";
 
 export function LocationReportLoanList({
   loans,
@@ -120,7 +120,7 @@ export function LocationReportLoanList({
       </div>
       <div className="overflow-x-auto px-4 py-3">
         <table className="w-full min-w-[1680px] text-left text-xs">
-        <thead className="uppercase tracking-wide text-slate-500">
+        <thead className="sticky top-20 z-10 bg-white uppercase tracking-wide text-slate-500 shadow-sm">
           <tr>
             <th className="px-3 py-2">Client</th>
             <th className="px-3 py-2">Loan</th>
@@ -213,7 +213,7 @@ export function LocationReportLoanRow({
       <td className="px-3 py-2">{dateOnly(loan.maturityAt)}</td>
       <td className="px-3 py-2">{loan.sourceStatusName || "-"}</td>
       <td className="px-3 py-2 text-right font-bold text-red-700">
-        {loan.principalBalance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}
+        {money(loan.principalBalance)}
       </td>
       <td className="max-w-[300px] whitespace-normal px-3 py-2 text-slate-700">{loan.address || "-"}</td>
       {canEdit ? (

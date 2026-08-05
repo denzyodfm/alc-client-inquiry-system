@@ -31,6 +31,7 @@ type Result = {
 };
 
 function money(value: number) {
+  if (!value) return "-";
   return value.toLocaleString("en-US", { style: "currency", currency: "PHP" });
 }
 

@@ -7,6 +7,7 @@ import { LocationReportLoanList } from "@/components/location-report-loan-row";
 import { PrintReportButton } from "@/components/print-report-button";
 import { accountTaggingHref, accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { canAssignRemedial, getAccessibleBranchIds, requireUser } from "@/lib/auth";
+import { money } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +39,7 @@ function toLoanDetail(loan: AccountTaggingLoan): LoanDetailLoan {
     terms: loan.terms,
     paidAmount: loan.paidAmount.toString(),
     balance: loan.balance.toString(),
+    remoteBalance: loan.remoteBalance?.toString() ?? null,
     status: loan.status,
     sourceStatusCode: loan.sourceStatusCode,
     sourceStatusName: loan.sourceStatusName,
@@ -864,7 +866,7 @@ export default async function AccountTaggingPage({
                     </div>
                     <div className="mt-1.5 flex items-center justify-between gap-3 border-t border-slate-100 pt-1.5 text-xs">
                       <span className="text-slate-500">Customers <strong className="text-brand-blue">{segment.customers.toLocaleString("en-US")}</strong></span>
-                      <span className="text-right text-slate-500">Principal <strong className="text-red-700">{segment.principalBalance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</strong></span>
+                      <span className="text-right text-slate-500">Principal <strong className="text-red-700">{money(segment.principalBalance)}</strong></span>
                     </div>
                   </div>
                 ))}
@@ -922,7 +924,7 @@ export default async function AccountTaggingPage({
                     </div>
                     <div className="mt-1.5 flex items-center justify-between gap-3 border-t border-slate-100 pt-1.5 text-xs">
                       <span className="text-slate-500">Customers <strong className="text-brand-blue">{segment.customers.toLocaleString("en-US")}</strong></span>
-                      <span className="text-right text-slate-500">Principal <strong className="text-red-700">{segment.principalBalance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</strong></span>
+                      <span className="text-right text-slate-500">Principal <strong className="text-red-700">{money(segment.principalBalance)}</strong></span>
                     </div>
                   </div>
                 ))}
@@ -959,7 +961,7 @@ export default async function AccountTaggingPage({
                   <summary className="grid cursor-pointer list-none grid-cols-[minmax(300px,1fr)_140px_220px] items-center px-4 py-3 hover:bg-blue-50">
                     <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open:before:rotate-90">{province.name}</span>
                     <span className="text-right font-bold text-brand-blue">{province.customers.size.toLocaleString("en-US")}</span>
-                    <span className="text-right font-bold text-red-700">{province.principalBalance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</span>
+                    <span className="text-right font-bold text-red-700">{money(province.principalBalance)}</span>
                   </summary>
                   <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
                     {Array.from(province.municipalities.values()).map((municipality) => (
@@ -967,7 +969,7 @@ export default async function AccountTaggingPage({
                         <summary className="grid cursor-pointer list-none grid-cols-[minmax(276px,1fr)_140px_220px] items-center px-4 py-3 hover:bg-blue-50">
                           <span className="font-semibold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/city:before:rotate-90">{municipality.name}</span>
                           <span className="text-right font-bold text-brand-blue">{municipality.customers.size.toLocaleString("en-US")}</span>
-                          <span className="text-right font-bold text-red-700">{municipality.principalBalance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</span>
+                          <span className="text-right font-bold text-red-700">{money(municipality.principalBalance)}</span>
                         </summary>
                         <div className="border-t border-slate-100 bg-white pl-8">
                           {municipality.barangays.map((barangay) => (
@@ -975,7 +977,7 @@ export default async function AccountTaggingPage({
                               <summary className="grid cursor-pointer list-none grid-cols-[minmax(244px,1fr)_140px_220px] px-4 py-3 text-slate-700 hover:bg-blue-50">
                                 <span className="before:mr-2 before:inline-block before:text-[10px] before:content-['▶'] group-open/barangay:before:rotate-90">{barangay.barangay}</span>
                                 <span className="text-right font-bold text-brand-blue">{barangay.customerCount.toLocaleString("en-US")}</span>
-                                <span className="text-right font-bold text-red-700">{barangay.principalBalance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</span>
+                                <span className="text-right font-bold text-red-700">{money(barangay.principalBalance)}</span>
                               </summary>
                               <div className="border-t border-slate-200 bg-slate-50">
                                 <LocationReportLoanList loans={barangay.loans} canEdit={canAssignRemedial(user.role)} />
@@ -994,7 +996,7 @@ export default async function AccountTaggingPage({
               <div className="grid min-w-[700px] grid-cols-[minmax(300px,1fr)_140px_220px] border-t-2 border-slate-300 bg-slate-50 px-4 py-3 font-extrabold text-slate-950">
                 <span>Grand Total</span>
                 <span className="text-right">{new Set(portfolioLoans.map((loan) => loan.clientId)).size.toLocaleString("en-US")}</span>
-                <span className="text-right">{portfolioTotals.principal.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</span>
+                <span className="text-right">{money(portfolioTotals.principal)}</span>
               </div>
             ) : null}
           </div>
@@ -1032,14 +1034,14 @@ export default async function AccountTaggingPage({
                       <span className="font-semibold text-slate-800">{breakdown.zone}</span>
                       <span className="text-right font-bold text-brand-blue">{breakdown.customers.toLocaleString("en-US")}</span>
                       <span className="text-right font-bold text-slate-950">{breakdown.assignments.toLocaleString("en-US")}</span>
-                      <span className="text-right font-bold text-red-700">{breakdown.balance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</span>
+                      <span className="text-right font-bold text-red-700">{money(breakdown.balance)}</span>
                     </Link>
                   ))}
                   <div className="grid grid-cols-[1fr_70px_76px_110px] gap-2 border-t-2 border-slate-200 bg-slate-50 px-3 py-2 text-xs">
                     <span className="font-bold uppercase text-slate-600">Total</span>
                     <span className="text-right font-extrabold text-brand-blue">{officer.customerCount.toLocaleString("en-US")}</span>
                     <span className="text-right font-extrabold text-slate-950">{officer.count.toLocaleString("en-US")}</span>
-                    <span className="text-right font-extrabold text-red-700">{officer.balance.toLocaleString("en-US", { style: "currency", currency: "PHP" })}</span>
+                    <span className="text-right font-extrabold text-red-700">{money(officer.balance)}</span>
                   </div>
                 </div>
               </div>

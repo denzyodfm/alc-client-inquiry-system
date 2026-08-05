@@ -47,6 +47,7 @@ function toLoanDetail(loan: LoanWithRelations): LoanDetailLoan {
     terms: loan.terms,
     paidAmount: loan.paidAmount.toString(),
     balance: loan.balance.toString(),
+    remoteBalance: loan.remoteBalance?.toString() ?? null,
     status: loan.status,
     sourceStatusCode: loan.sourceStatusCode,
     sourceStatusName: loan.sourceStatusName,

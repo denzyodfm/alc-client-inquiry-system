@@ -22,6 +22,7 @@ type LoanRow = {
   otherCharges: number;
   paidAmount: number;
   totalBalance: number;
+  remoteBalance: number | null;
   accountOfficer: string;
   assignedOfficerId: number | null;
   address: string | null;
@@ -51,6 +52,7 @@ const categoryLabels: Record<LocationReportCategory, string> = {
 };
 
 function money(value: number) {
+  if (!value) return "-";
   return value.toLocaleString("en-US", { style: "currency", currency: "PHP" });
 }
 
@@ -203,7 +205,9 @@ export function BarangayLoanReport({
                       <th className="px-3 py-3 text-right">Original Principal</th><th className="px-3 py-3 text-right">Principal Balance</th>
                       <th className="px-3 py-3 text-right">Interest</th><th className="px-3 py-3 text-right">Penalty</th>
                       <th className="px-3 py-3 text-right">Other Charges</th><th className="px-3 py-3 text-right">Paid</th>
-                      <th className="px-3 py-3 text-right">Total Balance</th><th className="px-3 py-3">Address</th>
+                      <th className="px-3 py-3 text-right">Total Balance</th>
+                      <th className="px-3 py-3 text-right" title="The branch's own live balance, pulled directly from the source database">Remote Balance</th>
+                      <th className="px-3 py-3">Address</th>
                       <th className="min-w-[260px] px-3 py-3">Account Officer / Action</th>
                     </tr>
                   </thead>
@@ -217,6 +221,11 @@ export function BarangayLoanReport({
                         <td className="px-3 py-3">{row.status || "-"}</td><MoneyCell value={row.originalPrincipal} /><MoneyCell value={row.principalBalance} />
                         <MoneyCell value={row.interest} /><MoneyCell value={row.penalty} /><MoneyCell value={row.otherCharges} />
                         <MoneyCell value={row.paidAmount} /><MoneyCell value={row.totalBalance} />
+                        {row.remoteBalance === null ? (
+                          <td className="whitespace-nowrap px-3 py-3 text-right text-slate-400">Not synced</td>
+                        ) : (
+                          <MoneyCell value={row.remoteBalance} tone={row.remoteBalance === 0 && row.totalBalance > 0 ? "flag" : "default"} />
+                        )}
                         <td className="max-w-sm whitespace-normal px-3 py-3">{row.address || "-"}</td>
                         <td className="px-3 py-3">
                           {result.canAssignOfficer ? (
@@ -244,7 +253,7 @@ export function BarangayLoanReport({
                         </td>
                       </tr>
                     ))}
-                    {!result.rows.length ? <tr><td className="px-3 py-10 text-center font-semibold text-slate-500" colSpan={17}>No matching loans found.</td></tr> : null}
+                    {!result.rows.length ? <tr><td className="px-3 py-10 text-center font-semibold text-slate-500" colSpan={18}>No matching loans found.</td></tr> : null}
                   </tbody>
                 </table>
               ) : null}
@@ -261,6 +270,9 @@ export function BarangayLoanReport({
   );
 }
 
-function MoneyCell({ value }: { value: number }) {
-  return <td className="whitespace-nowrap px-3 py-3 text-right font-bold text-red-700">{money(value)}</td>;
+function MoneyCell({ value, tone = "default" }: { value: number; tone?: "default" | "flag" }) {
+  const className = tone === "flag"
+    ? "whitespace-nowrap px-3 py-3 text-right font-bold text-brand-green"
+    : "whitespace-nowrap px-3 py-3 text-right font-bold text-red-700";
+  return <td className={className} title={tone === "flag" ? "The branch shows this loan as fully settled - our computed balance may be stale." : undefined}>{money(value)}</td>;
 }

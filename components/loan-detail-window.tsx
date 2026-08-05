@@ -33,6 +33,7 @@ export type LoanDetailLoan = {
   terms: string | null;
   paidAmount: string;
   balance: string;
+  remoteBalance: string | null;
   status: string;
   sourceStatusCode: number | null;
   sourceStatusName: string | null;
@@ -153,8 +154,8 @@ export function LoanDetailWindow({ loan, onClose }: LoanDetailWindowProps) {
   const paymentRows = loan.amortizationSchedules.filter((schedule) => schedulePaidTotal(schedule) > 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-3">
-      <div className="w-full max-w-[840px] overflow-hidden border border-slate-900 bg-[#ececec] shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-8 py-3">
+      <div className="w-full max-w-[1200px] overflow-hidden border border-slate-900 bg-[#ececec] shadow-2xl">
         <div className="flex h-5 items-center justify-between bg-[#0b2d73] px-1.5 text-[11px] font-semibold text-white">
           <span>Loan Account Details - {loanNumber}</span>
           <button type="button" className="inline-flex items-center gap-1 hover:text-blue-100" onClick={onClose}>

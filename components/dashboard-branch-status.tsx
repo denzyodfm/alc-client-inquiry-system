@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Building2, CheckCircle2, Clock, CreditCard, FileText, TrendingUp, X } from "lucide-react";
+import { BarChart3, Building2, CheckCircle2, Clock, CreditCard, FileText, Plug, TrendingUp, X } from "lucide-react";
 import { useState } from "react";
 import { dateTime, money } from "@/lib/format";
 
@@ -9,8 +9,6 @@ export type DashboardBranchAnalysis = {
   branchName: string;
   branchCode: string;
   status: string;
-  connectionStatus: "ONLINE" | "OFFLINE";
-  connectionMessage: string;
   lastSyncAt: string | null;
   totalLoans: number;
   openLoans: number;
@@ -47,38 +45,80 @@ function classifyBranch(branch: DashboardBranchAnalysis) {
   return "High collection priority";
 }
 
+type ConnectionState = {
+  status: "UNKNOWN" | "CHECKING" | "ONLINE" | "OFFLINE";
+  message?: string;
+};
+
+function connectionBadgeClass(status: ConnectionState["status"]) {
+  if (status === "ONLINE") return "bg-emerald-50 text-brand-green";
+  if (status === "OFFLINE") return "bg-red-50 text-red-700";
+  if (status === "CHECKING") return "bg-blue-50 text-brand-blue";
+  return "bg-slate-100 text-slate-500";
+}
+
+function connectionBadgeLabel(status: ConnectionState["status"]) {
+  if (status === "CHECKING") return "CHECKING...";
+  if (status === "UNKNOWN") return "NOT CHECKED";
+  return status;
+}
+
 export function DashboardBranchStatus({ branches }: DashboardBranchStatusProps) {
   const [selectedBranch, setSelectedBranch] = useState<DashboardBranchAnalysis | null>(null);
+  const [connections, setConnections] = useState<Record<number, ConnectionState>>({});
+
+  async function checkConnection(branchId: number) {
+    setConnections((current) => ({ ...current, [branchId]: { status: "CHECKING" } }));
+    try {
+      const response = await fetch(`/api/branches/${branchId}/check`, { method: "POST" });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.connection) {
+        setConnections((current) => ({ ...current, [branchId]: { status: "OFFLINE", message: data?.error ?? "Unable to check connection." } }));
+        return;
+      }
+      setConnections((current) => ({ ...current, [branchId]: { status: data.connection.status, message: data.connection.message } }));
+    } catch {
+      setConnections((current) => ({ ...current, [branchId]: { status: "OFFLINE", message: "Unable to reach the server." } }));
+    }
+  }
 
   return (
     <>
       <div className="grid gap-3 md:grid-cols-2">
-        {branches.map((branch) => (
-          <div key={branch.branchId} className="rounded-lg border border-slate-200 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-semibold text-slate-900">{branch.branchName}</p>
-                <p className="text-sm text-slate-500">{branch.branchCode}</p>
+        {branches.map((branch) => {
+          const connection = connections[branch.branchId] ?? { status: "UNKNOWN" as const };
+
+          return (
+            <div key={branch.branchId} className="rounded-lg border border-slate-200 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-slate-900">{branch.branchName}</p>
+                  <p className="text-sm text-slate-500">{branch.branchCode}</p>
+                </div>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">{branch.status}</span>
+                  <button
+                    type="button"
+                    className={`rounded-md px-2 py-1 text-xs font-bold transition ${connectionBadgeClass(connection.status)}`}
+                    title={connection.message ?? "Click to check whether this branch database is reachable right now."}
+                    onClick={() => checkConnection(branch.branchId)}
+                    disabled={connection.status === "CHECKING"}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      <Plug className="h-3 w-3" />
+                      {connectionBadgeLabel(connection.status)}
+                    </span>
+                  </button>
+                </div>
               </div>
-              <div className="flex flex-wrap justify-end gap-2">
-                <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">{branch.status}</span>
-                <span
-                  className={`rounded-md px-2 py-1 text-xs font-bold ${
-                    branch.connectionStatus === "ONLINE" ? "bg-emerald-50 text-brand-green" : "bg-red-50 text-red-700"
-                  }`}
-                  title={branch.connectionMessage}
-                >
-                  {branch.connectionStatus}
-                </span>
-              </div>
+              <p className="mt-4 text-sm text-slate-500">Last sync: {dateTime(branch.lastSyncAt)}</p>
+              <button type="button" className="btn-secondary mt-3 h-8 px-3 text-xs" onClick={() => setSelectedBranch(branch)}>
+                <BarChart3 className="h-3.5 w-3.5" />
+                Analyze
+              </button>
             </div>
-            <p className="mt-4 text-sm text-slate-500">Last sync: {dateTime(branch.lastSyncAt)}</p>
-            <button type="button" className="btn-secondary mt-3 h-8 px-3 text-xs" onClick={() => setSelectedBranch(branch)}>
-              <BarChart3 className="h-3.5 w-3.5" />
-              Analyze
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {selectedBranch ? <BranchAnalysisModal branch={selectedBranch} onClose={() => setSelectedBranch(null)} /> : null}
@@ -97,7 +137,7 @@ function BranchAnalysisModal({ branch, onClose }: { branch: DashboardBranchAnaly
             <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Branch loan performance</p>
             <h3 className="mt-1 text-2xl font-bold text-slate-950">{branch.branchName}</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Branch {branch.branchCode} · {branch.connectionStatus} · Last sync {dateTime(branch.lastSyncAt)}
+              Branch {branch.branchCode} · Last sync {dateTime(branch.lastSyncAt)}
             </p>
           </div>
           <button type="button" className="btn-secondary" onClick={onClose}>
