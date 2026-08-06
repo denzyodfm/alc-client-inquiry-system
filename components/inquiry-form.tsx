@@ -321,7 +321,7 @@ export function InquiryForm() {
                 <div><dt className="font-semibold text-slate-500">Address</dt><dd><Highlight value={primaryClient.address} tokens={activeSearchTokens} /></dd></div>
               </dl>
               {isExpanded ? (
-                <div className="mt-5 overflow-x-auto">
+                <div className="mt-5 overflow-x-auto overflow-y-visible">
                   <table className="w-full min-w-[1240px] text-left text-sm">
                     <thead className="sticky top-20 z-10 bg-slate-50 text-slate-500 shadow-sm">
                       <tr>

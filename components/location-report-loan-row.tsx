@@ -118,7 +118,7 @@ export function LocationReportLoanList({
           <p className={`text-xs font-semibold ${bulkMessage.endsWith("updated.") ? "text-green-700" : "text-red-700"}`}>{bulkMessage}</p>
         ) : null}
       </div>
-      <div className="overflow-x-auto px-4 py-3">
+      <div className="overflow-x-auto overflow-y-visible px-4 py-3">
         <table className="w-full min-w-[1680px] text-left text-xs">
         <thead className="sticky top-20 z-10 bg-white uppercase tracking-wide text-slate-500 shadow-sm">
           <tr>

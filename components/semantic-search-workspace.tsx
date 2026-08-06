@@ -276,7 +276,7 @@ export function SemanticSearchWorkspace({ query, results, branchChart, statusCha
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <div className="overflow-x-auto overflow-y-visible rounded-lg border border-slate-200">
                 <table className="w-full min-w-[900px] text-left text-sm">
                   <thead className="sticky top-20 z-10 bg-slate-50 text-slate-500 shadow-sm">
                     <tr>

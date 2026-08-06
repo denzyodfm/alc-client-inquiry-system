@@ -323,7 +323,7 @@ export default async function PaymentReportsPage({
             {selectedPeriod === "yearly" ? "Yearly" : "Monthly"} collections by branch
           </h3>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-visible">
           <table className="w-full min-w-[980px] text-left text-sm">
             <thead className="sticky top-20 z-10 bg-slate-50 text-slate-500 shadow-sm">
               <tr>
@@ -386,7 +386,7 @@ export default async function PaymentReportsPage({
             Showing {startRow.toLocaleString("en-US")}-{endRow.toLocaleString("en-US")} of {totalPayments.toLocaleString("en-US")} payment(s) | Total {money(totalAmount)}
           </p>
         </div>
-        <div className="overflow-auto">
+        <div className="overflow-x-auto overflow-y-visible">
           <table className="w-full min-w-[2200px] text-left text-sm">
             <thead className="sticky top-20 z-10 bg-slate-50 text-slate-500 shadow-sm">
               <tr>

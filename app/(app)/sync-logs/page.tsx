@@ -23,7 +23,7 @@ export default async function SyncLogsPage() {
         <h2 className="mt-2 text-3xl font-bold text-slate-950">Sync Logs</h2>
       </div>
       <div className="panel overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-visible">
           <table className="w-full text-left text-sm">
             <thead className="sticky top-20 z-10 bg-slate-50 text-slate-500 shadow-sm">
               <tr>

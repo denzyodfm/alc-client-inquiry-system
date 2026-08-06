@@ -529,7 +529,7 @@ export default async function LocationMasterlistPage() {
             As of {todayKey}: Past Due means maturity is before today with a remaining balance. Delayed means an amortization due on or before today is not fully paid. Litigated is tracked separately.
           </p>
         </div>
-        <div className="overflow-x-auto text-sm">
+        <div className="overflow-x-auto overflow-y-visible text-sm">
           <div className={`${locationRowGrid} sticky top-20 z-10 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 shadow-sm`}>
             <span>Location</span><span className="text-right">No. of Clients</span>
             <span className="text-right">With Account Officer</span><span className="text-right">Portfolio</span>
@@ -626,7 +626,7 @@ export default async function LocationMasterlistPage() {
             Area Team Leaders are listed first, with their Account Officers and assigned province, city/municipality, and barangay below. The total counts each client only once across all officers.
           </p>
         </div>
-        <div className="overflow-x-auto text-sm">
+        <div className="overflow-x-auto overflow-y-visible text-sm">
           <div className={`${officerRowGrid} sticky top-20 z-10 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 shadow-sm`}>
             <span>Area TL / Account Officer / Location</span><span className="text-right">No. of Clients</span>
             <span className="text-right">Portfolio</span>
@@ -761,7 +761,7 @@ export default async function LocationMasterlistPage() {
             Daily automatic link: {linkSchedule.enabled ? (linkSchedule.nextRunAt ? new Date(linkSchedule.nextRunAt).toLocaleString("en-US") : "scheduler starting") : "disabled"}
           </p>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-visible">
           <table className="w-full min-w-[850px] text-left text-sm">
             <thead className="sticky top-20 z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500 shadow-sm">
               <tr>

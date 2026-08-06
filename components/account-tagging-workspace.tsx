@@ -654,7 +654,7 @@ export function AccountTaggingWorkspace({
         >
           <div style={{ width: `${tableMinWidth}px`, height: 1 }} />
         </div>
-        <div ref={tableScrollRef} className="overflow-x-auto" onScroll={() => syncHorizontalScroll("table")}>
+        <div ref={tableScrollRef} className="overflow-x-auto overflow-y-visible" onScroll={() => syncHorizontalScroll("table")}>
           {canAssign
             ? loans.map((loan) => (
                 <form key={loan.id} id={`tagging-row-${loan.id}`} onSubmit={updateLoanTagging} className="hidden">

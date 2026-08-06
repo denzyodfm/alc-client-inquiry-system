@@ -127,7 +127,7 @@ export function ClientConditionList({
             {printAll ? <PrintReportButton label="Print full list" /> : <Link className={`btn-primary ${!totalRows ? "pointer-events-none opacity-50" : ""}`} href={printableHref}>Print full list</Link>}
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-visible">
           <table className="w-full min-w-[1500px] text-left text-xs">
             <thead className="sticky top-20 z-10 bg-slate-50 uppercase tracking-wide text-slate-500 shadow-sm">
               <tr>

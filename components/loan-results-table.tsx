@@ -120,7 +120,7 @@ export function LoanResultsTable({
         </span>
         <span className="text-slate-500">Page {safePage} of {totalPages}</span>
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overflow-y-visible">
         <table className="w-full text-left text-sm">
           <thead className="sticky top-20 z-10 bg-slate-50 text-slate-500 shadow-sm">
             <tr>

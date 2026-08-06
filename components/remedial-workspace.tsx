@@ -480,7 +480,7 @@ export function RemedialWorkspace({
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-visible">
           <table className="w-full min-w-[1180px] table-fixed text-left text-xs">
             <colgroup>
               <col className="w-10" />
