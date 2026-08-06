@@ -37,6 +37,8 @@ type BranchLoanRow = {
   status?: string | number | null;
   source_status_code?: string | number | null;
   source_status_name?: string | null;
+  loan_type2_code?: string | number | null;
+  loan_type2_name?: string | null;
   released_at?: Date | string | null;
   maturity_at?: Date | string | null;
   updated_at?: Date | string | null;
@@ -65,6 +67,20 @@ type BranchPaymentRow = {
   amount?: string | number | null;
   paid_at?: Date | string | null;
   updated_at?: Date | string | null;
+  or_number?: string | null;
+  amort_no?: string | number | null;
+  paid_principal?: string | number | null;
+  paid_interest?: string | number | null;
+  paid_penalty?: string | number | null;
+  paid_pdi?: string | number | null;
+  paid_other_charges?: string | number | null;
+  paid_ca?: string | number | null;
+  principal_balance_after?: string | number | null;
+  interest_balance_after?: string | number | null;
+  penalty_balance_after?: string | number | null;
+  pdi_balance_after?: string | number | null;
+  other_charges_balance_after?: string | number | null;
+  collector?: string | null;
 };
 
 type BranchCoMakerRow = {
@@ -514,6 +530,43 @@ async function fetchBranchRows<T>(connection: ConnectionPool, table: BranchTable
     ? `LEFT JOIN dbo.tb_loan_product loan_product ON CONVERT(NVARCHAR(255), loan_product.${bracketColumn(productCodeColumn!)}) = CONVERT(NVARCHAR(255), loan.${bracketColumn(loanProductColumn!)})`
     : "";
 
+  const loanType2Column = firstExistingColumn(loanColumns, ["loan_type2", "loantype2", "loan_type_2"]);
+  const loanType2LookupColumns = tableColumns["dbo.tb_loan_type2"] ?? tableColumns.tb_loan_type2;
+  const loanType2CodeColumn = firstExistingColumn(loanType2LookupColumns, ["id_code", "code"]);
+  const loanType2NameColumn = firstExistingColumn(loanType2LookupColumns, ["description", "name"]);
+  const canJoinLoanType2Lookup = Boolean(loanType2Column && loanType2CodeColumn && loanType2NameColumn);
+  const loanType2CodeExpression = loanType2Column
+    ? `CASE WHEN ISNUMERIC(loan.${bracketColumn(loanType2Column)}) = 1 THEN CONVERT(INT, loan.${bracketColumn(loanType2Column)}) ELSE NULL END AS loan_type2_code`
+    : "CAST(NULL AS INT) AS loan_type2_code";
+  const loanType2NameExpression = canJoinLoanType2Lookup
+    ? `NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(80), loan_type2.${bracketColumn(loanType2NameColumn!)}))), '') AS loan_type2_name`
+    : "CAST(NULL AS NVARCHAR(80)) AS loan_type2_name";
+  const loanType2Join = canJoinLoanType2Lookup
+    ? `LEFT JOIN dbo.tb_loan_type2 loan_type2 ON CONVERT(NVARCHAR(255), loan_type2.${bracketColumn(loanType2CodeColumn!)}) = CONVERT(NVARCHAR(255), loan.${bracketColumn(loanType2Column!)})`
+    : "";
+
+  const paymentColumns = tableColumns.tb_payment_history;
+  const orNumberColumn = firstExistingColumn(paymentColumns, ["reference", "or_number", "reference_no"]);
+  const paymentAmortNoColumn = firstExistingColumn(paymentColumns, ["amort_no"]);
+  const paidPenaltyColumn = firstExistingColumn(paymentColumns, ["paid_penalty"]);
+  const paidPdiColumn = firstExistingColumn(paymentColumns, ["paid_pdi"]);
+  const paidOtherChargesColumn = firstExistingColumn(paymentColumns, ["paid_other_charges"]);
+  const paidCaColumn = firstExistingColumn(paymentColumns, ["paid_ca"]);
+  const principalBalAfterColumn = firstExistingColumn(paymentColumns, ["principal_bal"]);
+  const interestBalAfterColumn = firstExistingColumn(paymentColumns, ["interest_bal"]);
+  const penaltyBalAfterColumn = firstExistingColumn(paymentColumns, ["penalty_bal"]);
+  const pdiBalAfterColumn = firstExistingColumn(paymentColumns, ["pdi_bal"]);
+  const otherChargesBalAfterColumn = firstExistingColumn(paymentColumns, ["other_charges_bal"]);
+  const collectorColumn = firstExistingColumn(paymentColumns, ["collector"]);
+  const paymentTextExpression = (column: string | null, alias: string) =>
+    column
+      ? `NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(120), payment.${bracketColumn(column)}))), '') AS ${alias}`
+      : `CAST(NULL AS NVARCHAR(120)) AS ${alias}`;
+  const paymentNumberExpression = (column: string | null, alias: string) =>
+    column ? `COALESCE(payment.${bracketColumn(column)}, 0) AS ${alias}` : `CAST(0 AS DECIMAL(14, 2)) AS ${alias}`;
+  const paymentNullableNumberExpression = (column: string | null, alias: string) =>
+    column ? `payment.${bracketColumn(column)} AS ${alias}` : `CAST(NULL AS DECIMAL(14, 2)) AS ${alias}`;
+
   const queries: Record<BranchTable, string> = {
     tb_loan_cif: `
       SELECT
@@ -562,12 +615,15 @@ async function fetchBranchRows<T>(connection: ConnectionPool, table: BranchTable
         COALESCE(NULLIF(loan.p_loan_status, 0), loan.loan_status) AS status,
         COALESCE(NULLIF(loan.p_loan_status, 0), loan.loan_status) AS source_status_code,
         loan_status.description AS source_status_name,
+        ${loanType2CodeExpression},
+        ${loanType2NameExpression},
         loan.date_created AS released_at,
         loan.due_date AS maturity_at,
         COALESCE(loan.date_created, loan.due_date) AS updated_at
       FROM dbo.tb_loan_data loan
       LEFT JOIN dbo.tb_loan_status loan_status ON loan_status.id_code = COALESCE(NULLIF(loan.p_loan_status, 0), loan.loan_status)
       ${loanProductJoin}
+      ${loanType2Join}
       OUTER APPLY (
         SELECT SUM(COALESCE(paid_principal, 0) + COALESCE(paid_interest, 0)) AS paid_amount
         FROM dbo.tb_payment_history
@@ -584,7 +640,21 @@ async function fetchBranchRows<T>(connection: ConnectionPool, table: BranchTable
         payment.loan_no AS loan_remote_id,
         COALESCE(payment.paid_principal, 0) + COALESCE(payment.paid_interest, 0) AS amount,
         COALESCE(payment.tdate, payment.date_created) AS paid_at,
-        COALESCE(payment.date_created, payment.tdate) AS updated_at
+        COALESCE(payment.date_created, payment.tdate) AS updated_at,
+        ${paymentTextExpression(orNumberColumn, "or_number")},
+        ${paymentAmortNoColumn ? `payment.${bracketColumn(paymentAmortNoColumn)} AS amort_no` : "CAST(NULL AS INT) AS amort_no"},
+        COALESCE(payment.paid_principal, 0) AS paid_principal,
+        COALESCE(payment.paid_interest, 0) AS paid_interest,
+        ${paymentNumberExpression(paidPenaltyColumn, "paid_penalty")},
+        ${paymentNumberExpression(paidPdiColumn, "paid_pdi")},
+        ${paymentNumberExpression(paidOtherChargesColumn, "paid_other_charges")},
+        ${paymentNumberExpression(paidCaColumn, "paid_ca")},
+        ${paymentNullableNumberExpression(principalBalAfterColumn, "principal_balance_after")},
+        ${paymentNullableNumberExpression(interestBalAfterColumn, "interest_balance_after")},
+        ${paymentNullableNumberExpression(penaltyBalAfterColumn, "penalty_balance_after")},
+        ${paymentNullableNumberExpression(pdiBalAfterColumn, "pdi_balance_after")},
+        ${paymentNullableNumberExpression(otherChargesBalAfterColumn, "other_charges_balance_after")},
+        ${paymentTextExpression(collectorColumn, "collector")}
       FROM dbo.tb_payment_history payment
       INNER JOIN dbo.tb_loan_data loan ON loan.loan_no = payment.loan_no
       WHERE payment.id_code IS NOT NULL
@@ -919,6 +989,8 @@ async function runSyncBranch(branch: Branch, startedAt: Date): Promise<BranchSyn
       const balance = normalizedStatusCode === 10 || normalizedStatusCode === 12 ? 0 : loanBalance(principalAmount, interestAmount, penaltyAmount, otherChargesAmount, paidAmount);
       const sourceStatusName = row.source_status_name ?? null;
       const remoteBalance = asNullableNumber(row.remote_balance);
+      const loanType2Code = asNullableNumber(row.loan_type2_code);
+      const loanType2Name = row.loan_type2_name ?? null;
 
       const loan = await prisma.loan.upsert({
         where: { branchId_remoteId: { branchId: branch.id, remoteId: String(row.id) } },
@@ -941,6 +1013,8 @@ async function runSyncBranch(branch: Branch, startedAt: Date): Promise<BranchSyn
           status: statusToLoanStatus(row.status, balance),
           sourceStatusCode: normalizedStatusCode,
           sourceStatusName,
+          loanType2Code: loanType2Code === null ? null : Math.trunc(loanType2Code),
+          loanType2Name,
           releasedAt: asDate(row.released_at),
           maturityAt: asDate(row.maturity_at),
           remoteUpdatedAt: asDate(row.updated_at)
@@ -962,6 +1036,8 @@ async function runSyncBranch(branch: Branch, startedAt: Date): Promise<BranchSyn
           status: statusToLoanStatus(row.status, balance),
           sourceStatusCode: normalizedStatusCode,
           sourceStatusName,
+          loanType2Code: loanType2Code === null ? null : Math.trunc(loanType2Code),
+          loanType2Name,
           releasedAt: asDate(row.released_at),
           maturityAt: asDate(row.maturity_at),
           remoteUpdatedAt: asDate(row.updated_at)
@@ -1048,6 +1124,8 @@ async function runSyncBranch(branch: Branch, startedAt: Date): Promise<BranchSyn
           })
         : null;
 
+      const paymentAmortNo = asNullableNumber(row.amort_no);
+
       await prisma.payment.upsert({
         where: { branchId_remoteId: { branchId: branch.id, remoteId: String(row.id) } },
         create: {
@@ -1057,6 +1135,20 @@ async function runSyncBranch(branch: Branch, startedAt: Date): Promise<BranchSyn
           remoteId: String(row.id),
           amount: row.amount ?? 0,
           paidAt: asDate(row.paid_at),
+          orNumber: row.or_number ?? null,
+          amortNo: paymentAmortNo === null ? null : Math.trunc(paymentAmortNo),
+          paidPrincipal: asNumber(row.paid_principal),
+          paidInterest: asNumber(row.paid_interest),
+          paidPenalty: asNumber(row.paid_penalty),
+          paidPdi: asNumber(row.paid_pdi),
+          paidOtherCharges: asNumber(row.paid_other_charges),
+          paidCa: asNumber(row.paid_ca),
+          principalBalanceAfter: asNullableNumber(row.principal_balance_after),
+          interestBalanceAfter: asNullableNumber(row.interest_balance_after),
+          penaltyBalanceAfter: asNullableNumber(row.penalty_balance_after),
+          pdiBalanceAfter: asNullableNumber(row.pdi_balance_after),
+          otherChargesBalanceAfter: asNullableNumber(row.other_charges_balance_after),
+          collector: row.collector ?? null,
           remoteUpdatedAt: asDate(row.updated_at)
         },
         update: {
@@ -1064,6 +1156,20 @@ async function runSyncBranch(branch: Branch, startedAt: Date): Promise<BranchSyn
           loanId: loan?.id,
           amount: row.amount ?? 0,
           paidAt: asDate(row.paid_at),
+          orNumber: row.or_number ?? null,
+          amortNo: paymentAmortNo === null ? null : Math.trunc(paymentAmortNo),
+          paidPrincipal: asNumber(row.paid_principal),
+          paidInterest: asNumber(row.paid_interest),
+          paidPenalty: asNumber(row.paid_penalty),
+          paidPdi: asNumber(row.paid_pdi),
+          paidOtherCharges: asNumber(row.paid_other_charges),
+          paidCa: asNumber(row.paid_ca),
+          principalBalanceAfter: asNullableNumber(row.principal_balance_after),
+          interestBalanceAfter: asNullableNumber(row.interest_balance_after),
+          penaltyBalanceAfter: asNullableNumber(row.penalty_balance_after),
+          pdiBalanceAfter: asNullableNumber(row.pdi_balance_after),
+          otherChargesBalanceAfter: asNullableNumber(row.other_charges_balance_after),
+          collector: row.collector ?? null,
           remoteUpdatedAt: asDate(row.updated_at)
         }
       });

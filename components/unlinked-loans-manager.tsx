@@ -209,7 +209,7 @@ export function UnlinkedLoansManager({
                       <th className="px-3 py-3">Client</th><th className="px-3 py-3">Contact</th><th className="px-3 py-3">Loan</th>
                       <th className="px-3 py-3">Branch</th><th className="px-3 py-3">Product</th><th className="px-3 py-3">Maturity</th>
                       <th className="px-3 py-3">Status</th><th className="px-3 py-3 text-right">Principal Balance</th>
-                      <th className="px-3 py-3 text-right">Total Balance</th><th className="px-3 py-3">Address</th>
+                      <th className="px-3 py-3 text-right" title="Sum of the amortization schedule's total due minus principal and interest paid so far. May differ from the branch's live remote balance.">Total Balance</th><th className="px-3 py-3">Address</th>
                       <th className="px-3 py-3">Current Assigned Location</th>
                     </tr>
                   </thead>

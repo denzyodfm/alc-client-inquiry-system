@@ -706,7 +706,7 @@ export function AccountTaggingWorkspace({
                 <th className="px-2 py-2 text-right">Other Charges</th>
                 <th className="px-2 py-2 text-right">Payments</th>
                 <th className="px-2 py-2 text-right">Waived</th>
-                <th className="px-2 py-2 text-right">Balance</th>
+                <th className="px-2 py-2 text-right" title="Sum of the amortization schedule's total due minus principal and interest paid so far. May differ from the branch's live remote balance.">Balance</th>
                 <th className="px-2 py-2">Status</th>
                 <th className="px-2 py-2">Zone</th>
                 <th className="px-2 py-2">Division</th>

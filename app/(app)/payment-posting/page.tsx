@@ -3,6 +3,7 @@ import { PaymentPostingWorkspace, type PaymentPostingLoanRow } from "@/component
 import type { LoanDetailLoan } from "@/components/loan-detail-window";
 import { requireUser } from "@/lib/auth";
 import { numberValue } from "@/lib/loan-amounts";
+import { toLoanDetail } from "@/lib/loan-detail";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -78,57 +79,6 @@ function automaticDueBreakdown(loan: PostingLoan) {
   };
 }
 
-function toLoanDetail(loan: PostingLoan): LoanDetailLoan {
-  return {
-    id: loan.id,
-    remoteId: loan.remoteId,
-    loanNumber: loan.loanNumber,
-    loanProduct: loan.loanProduct,
-    principalAmount: loan.principalAmount.toString(),
-    interestRate: loan.interestRate.toString(),
-    interestAmount: loan.interestAmount.toString(),
-    penaltyAmount: loan.penaltyAmount.toString(),
-    terms: loan.terms,
-    paidAmount: loan.paidAmount.toString(),
-    balance: loan.balance.toString(),
-    remoteBalance: loan.remoteBalance?.toString() ?? null,
-    status: loan.status,
-    sourceStatusCode: loan.sourceStatusCode,
-    sourceStatusName: loan.sourceStatusName,
-    releasedAt: loan.releasedAt?.toISOString() ?? null,
-    maturityAt: loan.maturityAt?.toISOString() ?? null,
-    client: {
-      fullName: loan.client.fullName,
-      clientId: loan.client.clientId,
-      birthdate: loan.client.birthdate?.toISOString() ?? null,
-      contactNumber: loan.client.contactNumber,
-      validIdNumber: loan.client.validIdNumber,
-      branch: {
-        branchName: loan.branch.branchName,
-        branchCode: loan.branch.branchCode
-      }
-    },
-    branch: {
-      branchName: loan.branch.branchName,
-      branchCode: loan.branch.branchCode
-    },
-    amortizationSchedules: loan.amortizationSchedules.map((schedule) => ({
-      id: schedule.id,
-      remoteId: schedule.remoteId,
-      amortNo: schedule.amortNo,
-      amortDate: schedule.amortDate?.toISOString() ?? null,
-      principalBalance: schedule.principalBalance.toString(),
-      interestBalance: schedule.interestBalance.toString(),
-      principalAmort: schedule.principalAmort.toString(),
-      interestAmort: schedule.interestAmort.toString(),
-      totalAmort: schedule.totalAmort.toString(),
-      paidPrincipal: schedule.paidPrincipal.toString(),
-      paidInterest: schedule.paidInterest.toString(),
-      paidTotal: schedule.paidTotal.toString(),
-      paidStatus: schedule.paidStatus
-    }))
-  };
-}
 
 function searchTerms(value: string) {
   return value.trim().split(/\s+/).filter(Boolean);

@@ -26,6 +26,7 @@ type LoanWithRelations = Prisma.LoanGetPayload<{
     client: true;
     branch: true;
     amortizationSchedules: true;
+    payments: true;
   };
 }>;
 
@@ -35,6 +36,7 @@ function toLoanRow(loan: LoanWithRelations): LoanResultRow {
     remoteId: loan.remoteId,
     loanNumber: loan.loanNumber,
     loanProduct: loan.loanProduct,
+    loanType2Name: loan.loanType2Name,
     principalAmount: loan.principalAmount.toString(),
     interestRate: loan.interestRate.toString(),
     interestAmount: loan.interestAmount.toString(),
@@ -74,6 +76,18 @@ function toLoanRow(loan: LoanWithRelations): LoanResultRow {
       paidInterest: schedule.paidInterest.toString(),
       paidTotal: (Number(schedule.paidPrincipal) + Number(schedule.paidInterest)).toString(),
       paidStatus: schedule.paidStatus
+    })),
+    payments: loan.payments.map((payment) => ({
+      id: payment.id,
+      orNumber: payment.orNumber,
+      amortNo: payment.amortNo,
+      paidAt: payment.paidAt?.toISOString() ?? null,
+      paidPrincipal: payment.paidPrincipal.toString(),
+      paidInterest: payment.paidInterest.toString(),
+      paidPenalty: payment.paidPenalty.toString(),
+      paidPdi: payment.paidPdi.toString(),
+      paidOtherCharges: payment.paidOtherCharges.toString(),
+      paidCa: payment.paidCa.toString()
     }))
   };
 }
@@ -155,6 +169,9 @@ export default async function LoansPage({
         branch: true,
         amortizationSchedules: {
           orderBy: [{ amortNo: "asc" }, { amortDate: "asc" }]
+        },
+        payments: {
+          orderBy: { paidAt: "asc" }
         }
       }
     }),
@@ -233,6 +250,9 @@ export default async function LoansPage({
           branch: true,
           amortizationSchedules: {
             orderBy: [{ amortNo: "asc" }, { amortDate: "asc" }]
+          },
+          payments: {
+            orderBy: { paidAt: "asc" }
           }
         }
       })

@@ -25,11 +25,25 @@ type Schedule = {
   paidStatus: number | null;
 };
 
+type ResultPayment = {
+  id: number;
+  orNumber: string | null;
+  amortNo: number | null;
+  paidAt: string | null;
+  paidPrincipal: string;
+  paidInterest: string;
+  paidPenalty: string;
+  paidPdi: string;
+  paidOtherCharges: string;
+  paidCa: string;
+};
+
 export type LoanResultRow = {
   id: number;
   remoteId: string;
   loanNumber: string | null;
   loanProduct: string | null;
+  loanType2Name?: string | null;
   principalAmount: string;
   interestRate: string;
   interestAmount: string;
@@ -56,6 +70,7 @@ export type LoanResultRow = {
     branchCode: string;
   };
   amortizationSchedules: Schedule[];
+  payments?: ResultPayment[];
 };
 
 type LoanResultsTableProps = {
@@ -121,7 +136,7 @@ export function LoanResultsTable({
               <th className="px-4 py-3">Due Today</th>
               <th className="px-4 py-3">Total</th>
               <th className="px-4 py-3">Payments</th>
-              <th className="px-4 py-3">Balance</th>
+              <th className="px-4 py-3" title="Sum of the amortization schedule's total due minus principal and interest paid so far. May differ from Remote Balance, the branch's live figure.">Balance</th>
               <th className="px-4 py-3" title="The branch's own live balance, pulled directly from the source database">Remote Balance</th>
               <th className="px-4 py-3">Status ID</th>
               <th className="px-4 py-3">Status Label</th>

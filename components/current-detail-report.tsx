@@ -159,7 +159,7 @@ export function CurrentDetailReport({
                 <th className="px-4 py-3">Maturity</th>
                 <th className="px-4 py-3">Due Today</th>
                 <th className="px-4 py-3">Paid</th>
-                <th className="px-4 py-3">Balance</th>
+                <th className="px-4 py-3" title="Sum of the amortization schedule's total due minus principal and interest paid so far. May differ from the branch's live remote balance.">Balance</th>
               </tr>
             </thead>
             <tbody>

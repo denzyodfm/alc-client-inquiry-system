@@ -2,8 +2,9 @@
 
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { dateOnly, money } from "@/lib/format";
+import { amountDueAsOfToday } from "@/lib/loan-amounts";
 
 export type LoanDetailSchedule = {
   id: number;
@@ -21,11 +22,25 @@ export type LoanDetailSchedule = {
   paidStatus: number | null;
 };
 
+export type LoanDetailPayment = {
+  id: number;
+  orNumber: string | null;
+  amortNo: number | null;
+  paidAt: string | null;
+  paidPrincipal: string;
+  paidInterest: string;
+  paidPenalty: string;
+  paidPdi: string;
+  paidOtherCharges: string;
+  paidCa: string;
+};
+
 export type LoanDetailLoan = {
   id: number;
   remoteId?: string;
   loanNumber: string | null;
   loanProduct?: string | null;
+  loanType2Name?: string | null;
   principalAmount: string;
   interestRate: string;
   interestAmount: string;
@@ -49,6 +64,7 @@ export type LoanDetailLoan = {
   };
   branch?: { branchName: string; branchCode: string };
   amortizationSchedules: LoanDetailSchedule[];
+  payments?: LoanDetailPayment[];
 };
 
 type LoanDetailWindowProps = {
@@ -104,6 +120,63 @@ function scheduleStatusText(schedule: LoanDetailSchedule) {
   return "Unpaid";
 }
 
+type PaymentGroup = {
+  key: string;
+  orNumber: string | null;
+  paidAt: string | null;
+  amortLabel: string;
+  paidPrincipal: number;
+  paidInterest: number;
+  paidPenalty: number;
+  paidPdi: number;
+  paidOtherCharges: number;
+  paidCa: number;
+  paidTotal: number;
+};
+
+function groupPaymentsByReceipt(payments: LoanDetailPayment[]): PaymentGroup[] {
+  const order: string[] = [];
+  const groups = new Map<string, LoanDetailPayment[]>();
+
+  payments.forEach((payment, index) => {
+    const key = payment.orNumber ?? `_row_${index}`;
+    if (!groups.has(key)) {
+      groups.set(key, []);
+      order.push(key);
+    }
+    groups.get(key)!.push(payment);
+  });
+
+  return order.map((key) => {
+    const rows = groups.get(key)!;
+    const amortNos = rows.map((row) => row.amortNo).filter((value): value is number => value !== null);
+    const minAmort = amortNos.length ? Math.min(...amortNos) : null;
+    const maxAmort = amortNos.length ? Math.max(...amortNos) : null;
+    const amortLabel = minAmort === null ? "-" : minAmort === maxAmort ? String(minAmort) : `${minAmort}-${maxAmort}`;
+    const sum = (selector: (row: LoanDetailPayment) => string) => rows.reduce((total, row) => total + Number(selector(row) || 0), 0);
+    const paidPrincipal = sum((row) => row.paidPrincipal);
+    const paidInterest = sum((row) => row.paidInterest);
+    const paidPenalty = sum((row) => row.paidPenalty);
+    const paidPdi = sum((row) => row.paidPdi);
+    const paidOtherCharges = sum((row) => row.paidOtherCharges);
+    const paidCa = sum((row) => row.paidCa);
+
+    return {
+      key,
+      orNumber: rows[0].orNumber,
+      paidAt: rows[0].paidAt,
+      amortLabel,
+      paidPrincipal,
+      paidInterest,
+      paidPenalty,
+      paidPdi,
+      paidOtherCharges,
+      paidCa,
+      paidTotal: paidPrincipal + paidInterest + paidPenalty + paidPdi + paidOtherCharges + paidCa
+    };
+  });
+}
+
 function amortizationTotals(schedules: LoanDetailSchedule[]) {
   return schedules.reduce(
     (totals, schedule) => ({
@@ -152,10 +225,12 @@ export function LoanDetailWindow({ loan, onClose }: LoanDetailWindowProps) {
   const interestBalance = isClosed ? 0 : hasSchedules ? totals.interestBalance : Number(loan.interestAmount);
   const penaltyBalance = isClosed ? 0 : Number(loan.penaltyAmount);
   const paymentRows = loan.amortizationSchedules.filter((schedule) => schedulePaidTotal(schedule) > 0);
+  const receiptGroups = useMemo(() => (loan.payments?.length ? groupPaymentsByReceipt(loan.payments) : []), [loan.payments]);
+  const totalAmountDue = isClosed ? 0 : amountDueAsOfToday(loan);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-8 py-3">
-      <div className="w-full max-w-[1200px] overflow-hidden border border-slate-900 bg-[#ececec] shadow-2xl">
+      <div className="w-full max-w-[1400px] overflow-hidden border border-slate-900 bg-[#ececec] shadow-2xl">
         <div className="flex h-5 items-center justify-between bg-[#0b2d73] px-1.5 text-[11px] font-semibold text-white">
           <span>Loan Account Details - {loanNumber}</span>
           <button type="button" className="inline-flex items-center gap-1 hover:text-blue-100" onClick={onClose}>
@@ -173,14 +248,15 @@ export function LoanDetailWindow({ loan, onClose }: LoanDetailWindowProps) {
                 <Info label="Loan Amt (Accumulated)" value={plainMoney(loanTotal)} valueClassName="text-orange-600" />
                 <Info label="Loan Number" value={loanNumber} valueClassName="font-bold" />
                 <Info label="Loan Product" value={loan.loanProduct ?? "-"} />
+                <Info label="Loan Type2" value={loan.loanType2Name ?? "-"} />
                 <Info label="Principal" value={plainMoney(loan.principalAmount)} />
                 <Info label="Last Transaction" value={dateOnly(loan.maturityAt ?? loan.releasedAt)} />
                 <Info label="Granted-Due Dates" value={`${dateOnly(loan.releasedAt)}-${dateOnly(loan.maturityAt)}`} />
                 <Info label="Interest" value={plainMoney(loan.interestAmount)} />
-                <Info label="Borrower's name" value="" />
                 <Info label="Loan Status" value={loanStatusText(loan)} valueClassName="font-bold text-[#001bb5]" />
                 <Info label="Loan Stat" value={loanStatusCode(loan)} valueClassName="font-bold text-[#001bb5]" />
-                <Info label="Total Amount Due" value={plainMoney(0)} valueClassName="text-red-600" />
+                <Info label="Total Amount Due" value={plainMoney(totalAmountDue)} valueClassName="text-red-600" />
+                <Info label="Borrower's name" value={loan.client.fullName} valueClassName="uppercase" wide />
               </div>
 
               <h3 className="mt-1 text-lg font-bold uppercase leading-none text-[#001eff]">{loan.client.fullName}</h3>
@@ -218,7 +294,11 @@ export function LoanDetailWindow({ loan, onClose }: LoanDetailWindowProps) {
 
           <div className="border border-slate-500 bg-white p-2">
             {activeTab === "Payments View" ? (
-              <PaymentsTable rows={paymentRows} />
+              receiptGroups.length ? (
+                <ReceiptPaymentsTable groups={receiptGroups} />
+              ) : (
+                <PaymentsTable rows={paymentRows} />
+              )
             ) : (
               <AmortizationTable rows={loan.amortizationSchedules} />
             )}
@@ -346,19 +426,67 @@ function PaymentsTable({ rows }: { rows: LoanDetailSchedule[] }) {
   );
 }
 
+function ReceiptPaymentsTable({ groups }: { groups: PaymentGroup[] }) {
+  return (
+    <div className="max-h-[43vh] overflow-auto border border-slate-400">
+      <table className="w-full min-w-[760px] border-collapse text-right text-[11px]">
+        <thead className="sticky top-0 bg-[#d6d6d6] text-slate-950">
+          <tr>
+            <GridHead align="left">Pay Date</GridHead>
+            <GridHead align="left">OR Number</GridHead>
+            <GridHead>Amort No.</GridHead>
+            <GridHead>Paid Principal</GridHead>
+            <GridHead>Paid Interest</GridHead>
+            <GridHead>Paid Penalty</GridHead>
+            <GridHead>Paid PDI</GridHead>
+            <GridHead>Paid Charges</GridHead>
+            <GridHead>Paid CA</GridHead>
+            <GridHead>Paid Total</GridHead>
+          </tr>
+        </thead>
+        <tbody>
+          {groups.map((group, index) => (
+            <tr key={group.key} className={index === 1 ? "bg-[#07357f] text-white" : "odd:bg-white even:bg-[#f7f7f7]"}>
+              <GridCell align="left">{dateOnly(group.paidAt)}</GridCell>
+              <GridCell align="left">{group.orNumber ?? "-"}</GridCell>
+              <GridCell>{group.amortLabel}</GridCell>
+              <GridCell>{plainMoney(group.paidPrincipal)}</GridCell>
+              <GridCell>{plainMoney(group.paidInterest)}</GridCell>
+              <GridCell>{plainMoney(group.paidPenalty)}</GridCell>
+              <GridCell>{plainMoney(group.paidPdi)}</GridCell>
+              <GridCell>{plainMoney(group.paidOtherCharges)}</GridCell>
+              <GridCell>{plainMoney(group.paidCa)}</GridCell>
+              <GridCell>{plainMoney(group.paidTotal)}</GridCell>
+            </tr>
+          ))}
+          {!groups.length ? (
+            <tr>
+              <td className="border border-slate-300 px-2 py-4 text-center text-slate-500" colSpan={10}>
+                No payment rows available for this loan.
+              </td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function Info({
   label,
   value,
-  valueClassName = ""
+  valueClassName = "",
+  wide = false
 }: {
   label: string;
   value: string;
   valueClassName?: string;
+  wide?: boolean;
 }) {
   return (
-    <div className="grid gap-1 sm:grid-cols-[118px_1fr]">
-      <span className="text-left text-slate-500 sm:text-right">{label} :</span>
-      <span className={`font-semibold ${valueClassName}`}>{value || "\u00a0"}</span>
+    <div className={`grid gap-1 sm:grid-cols-[132px_1fr] ${wide ? "md:col-span-3" : ""}`}>
+      <span className="whitespace-nowrap text-left text-slate-500 sm:text-right">{label} :</span>
+      <span className={`truncate font-semibold ${valueClassName}`}>{value || "\u00a0"}</span>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { AgingReportFilter } from "@/components/aging-report-filter";
 import type { LoanDetailLoan } from "@/components/loan-detail-window";
 import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
 import { amountDueAsOfToday, loanContractAmount, numberValue, scheduleIsPaid, schedulePaidTotal } from "@/lib/loan-amounts";
+import { toLoanDetail } from "@/lib/loan-detail";
 import { pastDueLoanWhere } from "@/lib/remedial";
 import { money } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
@@ -17,6 +18,7 @@ type AgingLoan = Prisma.LoanGetPayload<{
     branch: true;
     client: true;
     amortizationSchedules: true;
+    payments: true;
     remedialAssignment: { include: { assignedTo: true } };
   };
 }>;
@@ -103,58 +105,6 @@ function pastDueInfo(loan: AgingLoan) {
 
 function bucketFor(daysPastDue: number) {
   return buckets.find((bucket) => daysPastDue >= bucket.min && daysPastDue <= bucket.max)?.label ?? "Unaged";
-}
-
-function toLoanDetail(loan: AgingLoan): LoanDetailLoan {
-  return {
-    id: loan.id,
-    remoteId: loan.remoteId,
-    loanNumber: loan.loanNumber,
-    loanProduct: loan.loanProduct,
-    principalAmount: loan.principalAmount.toString(),
-    interestRate: loan.interestRate.toString(),
-    interestAmount: loan.interestAmount.toString(),
-    penaltyAmount: loan.penaltyAmount.toString(),
-    terms: loan.terms,
-    paidAmount: loan.paidAmount.toString(),
-    balance: loan.balance.toString(),
-    remoteBalance: loan.remoteBalance?.toString() ?? null,
-    status: loan.status,
-    sourceStatusCode: loan.sourceStatusCode,
-    sourceStatusName: loan.sourceStatusName,
-    releasedAt: loan.releasedAt?.toISOString() ?? null,
-    maturityAt: loan.maturityAt?.toISOString() ?? null,
-    client: {
-      fullName: loan.client.fullName,
-      clientId: loan.client.clientId,
-      birthdate: loan.client.birthdate?.toISOString() ?? null,
-      contactNumber: loan.client.contactNumber,
-      validIdNumber: loan.client.validIdNumber,
-      branch: {
-        branchName: loan.branch.branchName,
-        branchCode: loan.branch.branchCode
-      }
-    },
-    branch: {
-      branchName: loan.branch.branchName,
-      branchCode: loan.branch.branchCode
-    },
-    amortizationSchedules: loan.amortizationSchedules.map((schedule) => ({
-      id: schedule.id,
-      remoteId: schedule.remoteId,
-      amortNo: schedule.amortNo,
-      amortDate: schedule.amortDate?.toISOString() ?? null,
-      principalBalance: schedule.principalBalance.toString(),
-      interestBalance: schedule.interestBalance.toString(),
-      principalAmort: schedule.principalAmort.toString(),
-      interestAmort: schedule.interestAmort.toString(),
-      totalAmort: schedule.totalAmort.toString(),
-      paidPrincipal: schedule.paidPrincipal.toString(),
-      paidInterest: schedule.paidInterest.toString(),
-      paidTotal: (Number(schedule.paidPrincipal) + Number(schedule.paidInterest)).toString(),
-      paidStatus: schedule.paidStatus
-    }))
-  };
 }
 
 function toAgingRow(loan: AgingLoan): AgingRow {
@@ -260,6 +210,9 @@ export default async function AgingReportPage({
         client: true,
         amortizationSchedules: {
           orderBy: [{ amortNo: "asc" }, { amortDate: "asc" }]
+        },
+        payments: {
+          orderBy: { paidAt: "asc" }
         },
         remedialAssignment: { include: { assignedTo: true } }
       }

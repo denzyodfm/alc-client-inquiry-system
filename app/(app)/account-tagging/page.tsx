@@ -8,6 +8,7 @@ import { PrintReportButton } from "@/components/print-report-button";
 import { accountTaggingHref, accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { canAssignRemedial, getAccessibleBranchIds, requireUser } from "@/lib/auth";
 import { money } from "@/lib/format";
+import { toLoanDetail } from "@/lib/loan-detail";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -23,60 +24,9 @@ type AccountTaggingLoan = Prisma.LoanGetPayload<{
       };
     };
     amortizationSchedules: true;
+    payments: true;
   };
 }>;
-
-function toLoanDetail(loan: AccountTaggingLoan): LoanDetailLoan {
-  return {
-    id: loan.id,
-    remoteId: loan.remoteId,
-    loanNumber: loan.loanNumber,
-    loanProduct: loan.loanProduct,
-    principalAmount: loan.principalAmount.toString(),
-    interestRate: loan.interestRate.toString(),
-    interestAmount: loan.interestAmount.toString(),
-    penaltyAmount: loan.penaltyAmount.toString(),
-    terms: loan.terms,
-    paidAmount: loan.paidAmount.toString(),
-    balance: loan.balance.toString(),
-    remoteBalance: loan.remoteBalance?.toString() ?? null,
-    status: loan.status,
-    sourceStatusCode: loan.sourceStatusCode,
-    sourceStatusName: loan.sourceStatusName,
-    releasedAt: loan.releasedAt?.toISOString() ?? null,
-    maturityAt: loan.maturityAt?.toISOString() ?? null,
-    client: {
-      fullName: loan.client.fullName,
-      clientId: loan.client.clientId,
-      birthdate: loan.client.birthdate?.toISOString() ?? null,
-      contactNumber: loan.client.contactNumber,
-      validIdNumber: loan.client.validIdNumber,
-      branch: {
-        branchName: loan.branch.branchName,
-        branchCode: loan.branch.branchCode
-      }
-    },
-    branch: {
-      branchName: loan.branch.branchName,
-      branchCode: loan.branch.branchCode
-    },
-    amortizationSchedules: loan.amortizationSchedules.map((schedule) => ({
-      id: schedule.id,
-      remoteId: schedule.remoteId,
-      amortNo: schedule.amortNo,
-      amortDate: schedule.amortDate?.toISOString() ?? null,
-      principalBalance: schedule.principalBalance.toString(),
-      interestBalance: schedule.interestBalance.toString(),
-      principalAmort: schedule.principalAmort.toString(),
-      interestAmort: schedule.interestAmort.toString(),
-      totalAmort: schedule.totalAmort.toString(),
-      paidPrincipal: schedule.paidPrincipal.toString(),
-      paidInterest: schedule.paidInterest.toString(),
-      paidTotal: schedule.paidTotal.toString(),
-      paidStatus: schedule.paidStatus
-    }))
-  };
-}
 
 function loanAmountBreakdown(loan: AccountTaggingLoan) {
   const originalPrincipal = Number(loan.principalAmount);
@@ -496,6 +446,7 @@ export default async function AccountTaggingPage({
             branch: true,
             client: true,
             amortizationSchedules: true,
+            payments: true,
             remedialAssignment: {
               include: {
                 assignedTo: { select: { id: true, name: true, email: true } }
@@ -623,6 +574,9 @@ export default async function AccountTaggingPage({
           },
           amortizationSchedules: {
             orderBy: [{ amortNo: "asc" }, { amortDate: "asc" }]
+          },
+          payments: {
+            orderBy: { paidAt: "asc" }
           }
         }
       })

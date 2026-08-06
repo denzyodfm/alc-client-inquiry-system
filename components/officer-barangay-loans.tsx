@@ -205,7 +205,7 @@ export function BarangayLoanReport({
                       <th className="px-3 py-3 text-right">Original Principal</th><th className="px-3 py-3 text-right">Principal Balance</th>
                       <th className="px-3 py-3 text-right">Interest</th><th className="px-3 py-3 text-right">Penalty</th>
                       <th className="px-3 py-3 text-right">Other Charges</th><th className="px-3 py-3 text-right">Paid</th>
-                      <th className="px-3 py-3 text-right">Total Balance</th>
+                      <th className="px-3 py-3 text-right" title="Sum of the amortization schedule's total due minus principal and interest paid so far. May differ from Remote Balance, the branch's live figure.">Total Balance</th>
                       <th className="px-3 py-3 text-right" title="The branch's own live balance, pulled directly from the source database">Remote Balance</th>
                       <th className="px-3 py-3">Address</th>
                       <th className="min-w-[260px] px-3 py-3">Account Officer / Action</th>
