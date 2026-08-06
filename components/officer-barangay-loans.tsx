@@ -64,6 +64,7 @@ export function BarangayLoanReport({
   officerId,
   areaTeamLeaderId,
   locationId,
+  branchId,
   clientCount,
   officerName,
   locationName,
@@ -75,6 +76,7 @@ export function BarangayLoanReport({
   officerId?: number;
   areaTeamLeaderId?: number | "unassigned";
   locationId?: number;
+  branchId?: number;
   clientCount: number;
   officerName?: string;
   locationName: string;
@@ -96,12 +98,13 @@ export function BarangayLoanReport({
     const params = new URLSearchParams({ category, context: locationName });
     if (locationId) params.set("locationId", String(locationId));
     if (officerId) params.set("officerId", String(officerId));
+    if (branchId) params.set("branchId", String(branchId));
     if (areaTeamLeaderId !== undefined) params.set("areaTeamLeaderId", String(areaTeamLeaderId));
     if (province) params.set("province", province);
     if (municipality) params.set("municipality", municipality);
     if (assignedOnly) params.set("assignedOnly", "1");
     return `/api/location-masterlist/officer-loans?${params.toString()}`;
-  }, [areaTeamLeaderId, assignedOnly, category, locationId, locationName, municipality, officerId, province]);
+  }, [areaTeamLeaderId, assignedOnly, branchId, category, locationId, locationName, municipality, officerId, province]);
 
   useEffect(() => {
     if (!open) return;

@@ -55,6 +55,8 @@ export async function GET(request: NextRequest) {
     : null;
   const locationParam = request.nextUrl.searchParams.get("locationId");
   const locationId = locationParam ? Number(locationParam) : null;
+  const branchParam = request.nextUrl.searchParams.get("branchId");
+  const branchId = branchParam ? Number(branchParam) : null;
   const province = request.nextUrl.searchParams.get("province")?.trim() || "";
   const municipality = request.nextUrl.searchParams.get("municipality")?.trim() || "";
   const assignedOnly = request.nextUrl.searchParams.get("assignedOnly") === "1";
@@ -68,6 +70,7 @@ export async function GET(request: NextRequest) {
     || (areaTeamLeaderParam && areaTeamLeaderParam !== "unassigned"
       && (!Number.isInteger(areaTeamLeaderId) || Number(areaTeamLeaderId) <= 0))
     || (locationId !== null && (!Number.isInteger(locationId) || locationId <= 0))
+    || (branchId !== null && (!Number.isInteger(branchId) || branchId <= 0))
     || (!locationId && !officerId && !assignedOnly)
   ) {
     return NextResponse.json({ error: "A valid Account Officer or location report scope is required." }, { status: 400 });
@@ -98,6 +101,7 @@ export async function GET(request: NextRequest) {
       accountTaggingSearchWhere({}),
       { locationLinked: true, locationMasterlistId: { not: null } },
       locationWhere,
+      branchId ? { branchId } : {},
       { remedialAssignment: { is: assignmentWhere } }
     ]
   };

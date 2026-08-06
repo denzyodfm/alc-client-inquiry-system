@@ -12,6 +12,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { LocationLinkControl } from "@/components/location-link-control";
 import { BarangayLoanReport } from "@/components/officer-barangay-loans";
+import { OfficerBranchSummary } from "@/components/officer-branch-summary";
 import { AccountOfficerSummary, type AccountOfficerSummaryRow } from "./account-officer-summary";
 
 export const dynamic = "force-dynamic";
@@ -658,7 +659,10 @@ export default async function LocationMasterlistPage() {
                 {areaTeamLeader.accountOfficers.map((officer) => (
               <details key={`${areaTeamLeader.key}-${officer.key}`} className="group/ao">
                 <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/ao:bg-blue-100`}>
-                  <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open/ao:before:rotate-90">{officer.name}</span>
+                  <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open/ao:before:rotate-90">
+                    {officer.name}
+                    {officer.key !== "unassigned" ? <OfficerBranchSummary officerId={Number(officer.key)} officerName={officer.name} /> : null}
+                  </span>
                   <MetricCells
                     metrics={officer.metrics}
                     reportScope={{
