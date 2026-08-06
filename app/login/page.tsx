@@ -32,6 +32,11 @@ export default function LoginPage() {
           </div>
           <LoginForm />
         </div>
+        {process.env.NODE_ENV !== "production" ? (
+          <p className="mt-4 w-full max-w-md text-center text-xs text-slate-400">
+            Dev login: admin@alc.web / TempDebug@12345
+          </p>
+        ) : null}
       </section>
     </main>
   );
