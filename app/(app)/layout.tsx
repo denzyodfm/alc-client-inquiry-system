@@ -6,7 +6,7 @@ import { AppProgressBar } from "@/components/app-progress-bar";
 type NavConfig = {
   href: string;
   label: string;
-  icon: "Gauge" | "Building2" | "Banknote" | "Search" | "BrainCircuit" | "ClipboardCheck" | "ClipboardList" | "FileClock" | "Hourglass" | "ReceiptText" | "UserRoundCheck" | "MapPinned" | "Tag" | "History" | "Users" | "Settings";
+  icon: "Gauge" | "Building2" | "Banknote" | "Search" | "BrainCircuit" | "ClipboardCheck" | "ClipboardList" | "FileClock" | "Hourglass" | "ReceiptText" | "UserRoundCheck" | "MapPinned" | "Tag" | "History" | "Users" | "Settings" | "MapPin";
   roles: string[];
 };
 
@@ -25,6 +25,7 @@ const nav: NavConfig[] = [
   { href: "/remedial", label: "Remedial", icon: "MapPinned", roles: ["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
   { href: "/account-tagging", label: "Account Tagging", icon: "Tag", roles: ["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
   { href: "/location-masterlist", label: "Location Masterlist", icon: "MapPinned", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
+  { href: "/verify-address", label: "Verify Address", icon: "MapPin", roles: ["ADMIN"] },
   { href: "/client-conditions", label: "Client Condition", icon: "UserRoundCheck", roles: ["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER"] },
   { href: "/sync-logs", label: "Sync Logs", icon: "History", roles: ["ADMIN", "AUDITOR"] },
   { href: "/users", label: "Users", icon: "Users", roles: ["ADMIN", "AREA_TEAM_LEADER"] },
