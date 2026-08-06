@@ -5,10 +5,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { BarangayLoanReport } from "@/components/officer-barangay-loans";
 
-type BranchSummaryRow = {
-  branchId: number;
-  branchName: string;
-  branchCode: string;
+type TotalsSummary = {
   numberOfClients: number;
   portfolio: number;
   current: number;
@@ -21,6 +18,12 @@ type BranchSummaryRow = {
   litigatedBalance: number;
 };
 
+type BranchSummaryRow = TotalsSummary & {
+  branchId: number;
+  branchName: string;
+  branchCode: string;
+};
+
 function money(value: number) {
   if (!value) return "-";
   return value.toLocaleString("en-US", { style: "currency", currency: "PHP" });
@@ -29,6 +32,7 @@ function money(value: number) {
 export function OfficerBranchSummary({ officerId, officerName }: { officerId: number; officerName: string }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<BranchSummaryRow[] | null>(null);
+  const [totals, setTotals] = useState<TotalsSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -42,6 +46,7 @@ export function OfficerBranchSummary({ officerId, officerName }: { officerId: nu
         const data = await response.json();
         if (!response.ok) throw new Error(data?.error ?? "Unable to load branch summary.");
         setRows(data.branches);
+        setTotals(data.totals);
       })
       .catch((requestError) => {
         if (requestError instanceof DOMException && requestError.name === "AbortError") return;
@@ -133,6 +138,24 @@ export function OfficerBranchSummary({ officerId, officerName }: { officerId: nu
                         </div>
                       ))}
                       {!rows.length ? <p className="px-4 py-10 text-center font-semibold text-slate-500">No linked outstanding loans.</p> : null}
+                      {rows.length && totals ? (
+                        <div className="grid min-w-[980px] grid-cols-[minmax(180px,1fr)_100px_130px_repeat(4,125px)] items-center gap-2 border-t-2 border-slate-300 bg-slate-50 px-4 py-3 font-extrabold text-slate-950">
+                          <span>Total</span>
+                          <span className="text-right text-brand-blue">
+                            <BarangayLoanReport
+                              officerId={officerId}
+                              clientCount={totals.numberOfClients}
+                              officerName={officerName}
+                              locationName={`${officerName} - All Branches`}
+                            />
+                          </span>
+                          <span className="text-right text-red-700">{money(totals.portfolio)}</span>
+                          <SummaryMetric count={totals.current} balance={totals.currentBalance} />
+                          <SummaryMetric count={totals.delayed} balance={totals.delayedBalance} />
+                          <SummaryMetric count={totals.pastDue} balance={totals.pastDueBalance} />
+                          <SummaryMetric count={totals.litigated} balance={totals.litigatedBalance} />
+                        </div>
+                      ) : null}
                     </>
                   ) : null}
                 </div>

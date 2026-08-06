@@ -23,15 +23,47 @@ function outstandingPrincipalBalance(loan: {
   return schedulePrincipalBalance > 0 ? Math.min(schedulePrincipalBalance, totalBalance) : fallbackPrincipalBalance;
 }
 
-type BranchAccumulator = {
-  branchId: number;
-  branchName: string;
-  branchCode: string;
+type Accumulator = {
   clients: Set<number>;
   portfolio: number;
   principalByClient: Map<number, number>;
   categoryByClient: Map<number, LocationClientCategory>;
 };
+
+type BranchAccumulator = Accumulator & {
+  branchId: number;
+  branchName: string;
+  branchCode: string;
+};
+
+function emptyAccumulator(): Accumulator {
+  return { clients: new Set(), portfolio: 0, principalByClient: new Map(), categoryByClient: new Map() };
+}
+
+function summarize(accumulator: Accumulator) {
+  const status = {
+    current: { clients: 0, balance: 0 },
+    delayed: { clients: 0, balance: 0 },
+    pastDue: { clients: 0, balance: 0 },
+    litigated: { clients: 0, balance: 0 }
+  };
+  for (const [clientId, category] of accumulator.categoryByClient) {
+    status[category].clients += 1;
+    status[category].balance += accumulator.principalByClient.get(clientId) ?? 0;
+  }
+  return {
+    numberOfClients: accumulator.clients.size,
+    portfolio: accumulator.portfolio,
+    current: status.current.clients,
+    currentBalance: status.current.balance,
+    delayed: status.delayed.clients,
+    delayedBalance: status.delayed.balance,
+    pastDue: status.pastDue.clients,
+    pastDueBalance: status.pastDue.balance,
+    litigated: status.litigated.clients,
+    litigatedBalance: status.litigated.balance
+  };
+}
 
 export async function GET(request: NextRequest) {
   const { user, response } = await requireApiUser(allowedRoles);
@@ -74,56 +106,38 @@ export async function GET(request: NextRequest) {
 
   const todayKey = manilaDateKey();
   const byBranch = new Map<number, BranchAccumulator>();
+  const overall = emptyAccumulator();
   for (const loan of loans) {
     const accumulator = byBranch.get(loan.branch.id) ?? {
       branchId: loan.branch.id,
       branchName: loan.branch.branchName,
       branchCode: loan.branch.branchCode,
-      clients: new Set<number>(),
-      portfolio: 0,
-      principalByClient: new Map<number, number>(),
-      categoryByClient: new Map<number, LocationClientCategory>()
+      ...emptyAccumulator()
     };
     const category = effectiveLocationCategory(loan, todayKey);
     const principal = outstandingPrincipalBalance(loan);
-    accumulator.clients.add(loan.clientId);
-    accumulator.portfolio += principal;
-    accumulator.principalByClient.set(loan.clientId, (accumulator.principalByClient.get(loan.clientId) ?? 0) + principal);
-    accumulator.categoryByClient.set(loan.clientId, higherRiskLocationCategory(accumulator.categoryByClient.get(loan.clientId), category));
+    for (const target of [accumulator, overall]) {
+      target.clients.add(loan.clientId);
+      target.portfolio += principal;
+      target.principalByClient.set(loan.clientId, (target.principalByClient.get(loan.clientId) ?? 0) + principal);
+      target.categoryByClient.set(loan.clientId, higherRiskLocationCategory(target.categoryByClient.get(loan.clientId), category));
+    }
     byBranch.set(loan.branch.id, accumulator);
   }
 
   const branches = Array.from(byBranch.values())
     .map((accumulator) => {
-      const status = {
-        current: { clients: 0, balance: 0 },
-        delayed: { clients: 0, balance: 0 },
-        pastDue: { clients: 0, balance: 0 },
-        litigated: { clients: 0, balance: 0 }
-      };
-      for (const [clientId, category] of accumulator.categoryByClient) {
-        status[category].clients += 1;
-        status[category].balance += accumulator.principalByClient.get(clientId) ?? 0;
-      }
+      const summary = summarize(accumulator);
       return {
         branchId: accumulator.branchId,
         branchName: accumulator.branchName,
         branchCode: accumulator.branchCode,
-        numberOfClients: accumulator.clients.size,
-        portfolio: accumulator.portfolio,
-        current: status.current.clients,
-        currentBalance: status.current.balance,
-        delayed: status.delayed.clients,
-        delayedBalance: status.delayed.balance,
-        pastDue: status.pastDue.clients,
-        pastDueBalance: status.pastDue.balance,
-        litigated: status.litigated.clients,
-        litigatedBalance: status.litigated.balance
+        ...summary
       };
     })
     .sort((a, b) => b.portfolio - a.portfolio);
 
   const officer = await prisma.user.findUnique({ where: { id: officerId }, select: { name: true } });
 
-  return NextResponse.json({ officerName: officer?.name ?? "Account Officer", branches });
+  return NextResponse.json({ officerName: officer?.name ?? "Account Officer", branches, totals: summarize(overall) });
 }
