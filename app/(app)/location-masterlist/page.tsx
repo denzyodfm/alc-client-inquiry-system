@@ -110,6 +110,10 @@ function normalizedBarangay(value: string) {
     .replace(/^(?:barangay|brgy)\.?\s+/, "");
 }
 
+function byPortfolioDesc<T extends { metrics: { portfolio: number | null } }>(a: T, b: T) {
+  return (b.metrics.portfolio ?? 0) - (a.metrics.portfolio ?? 0);
+}
+
 function locationKey(province: string, municipality: string, barangay: string) {
   return `${normalizedProvince(province)}\u0000${normalizedMunicipality(municipality)}\u0000${normalizedBarangay(barangay)}`;
 }
@@ -443,7 +447,7 @@ export default async function LocationMasterlistPage() {
     province.officers = officerNodesForLocation(provinceKey, metricsByProvinceOfficer, officerNames);
     provinces.set(location.province, province);
   }
-  const provinceList = Array.from(provinces.values());
+  const provinceList = Array.from(provinces.values()).sort(byPortfolioDesc);
   const grandTotal = accumulatedMetrics(metricsByOverall.get("all"));
   const areaTeamLeaders: AreaTeamLeaderNode[] = Array.from(areaTeamLeaderNames.entries())
     .map(([areaTeamLeaderKey, areaTeamLeaderName]) => {
@@ -548,7 +552,7 @@ export default async function LocationMasterlistPage() {
                   <MetricCells metrics={province.metrics} showClients={false} showWithAccountOfficer />
                 </summary>
                 <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
-                  {Array.from(province.municipalities.values()).map((municipality) => (
+                  {Array.from(province.municipalities.values()).sort(byPortfolioDesc).map((municipality) => (
                     <details key={municipality.name} className="group/city border-b border-slate-100 last:border-b-0">
                       <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/city:bg-blue-100`}>
                         <span className="font-semibold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/city:before:rotate-90">
@@ -562,7 +566,7 @@ export default async function LocationMasterlistPage() {
                         <MetricCells metrics={municipality.metrics} showClients={false} showWithAccountOfficer />
                       </summary>
                       <div className="border-t border-slate-100 bg-white pl-8">
-                        {municipality.barangays.map((barangay) => (
+                        {[...municipality.barangays].sort(byPortfolioDesc).map((barangay) => (
                           <details key={barangay.id} className="group/barangay border-b border-slate-100 last:border-b-0">
                             <summary className={`${locationRowGrid} selected-report-row cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/barangay:bg-blue-100`}>
                             <span className="before:mr-2 before:inline-block before:text-[10px] before:content-['▶'] group-open/barangay:before:rotate-90">
@@ -666,7 +670,7 @@ export default async function LocationMasterlistPage() {
                   />
                 </summary>
                 <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
-                  {Array.from(officer.provinces.values()).map((province) => (
+                  {Array.from(officer.provinces.values()).sort(byPortfolioDesc).map((province) => (
                     <details key={province.name} className="group/ao-province border-b border-slate-100 last:border-b-0">
                       <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/ao-province:bg-blue-100`}>
                         <span className="font-bold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/ao-province:before:rotate-90">{province.name}</span>
@@ -682,7 +686,7 @@ export default async function LocationMasterlistPage() {
                         />
                       </summary>
                       <div className="border-t border-slate-100 bg-white/70 pl-6">
-                        {Array.from(province.municipalities.values()).map((municipality) => (
+                        {Array.from(province.municipalities.values()).sort(byPortfolioDesc).map((municipality) => (
                           <details key={municipality.name} className="group/ao-city border-b border-slate-100 last:border-b-0">
                             <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/ao-city:bg-blue-100`}>
                               <span className="font-semibold text-slate-700 before:mr-2 before:inline-block before:content-['▶'] group-open/ao-city:before:rotate-90">{municipality.name}</span>
@@ -699,7 +703,7 @@ export default async function LocationMasterlistPage() {
                               />
                             </summary>
                             <div className="border-t border-slate-100 bg-white pl-8">
-                              {municipality.barangays.map((barangay) => (
+                              {[...municipality.barangays].sort(byPortfolioDesc).map((barangay) => (
                                 <div key={barangay.id} className={`${officerRowGrid} selected-report-row border-b border-slate-100 px-4 py-3 last:border-b-0`}>
                                   <span className="text-slate-700">{barangay.name}</span>
                                   <span className="text-right">
