@@ -688,7 +688,7 @@ export function AccountTaggingWorkspace({
               {reportOnly ? <col className="w-[130px]" /> : null}
               <col className="w-[196px]" />
             </colgroup>
-            <thead className="sticky top-[108px] z-10 bg-slate-50 text-xs uppercase tracking-wide text-slate-500 shadow-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr className="h-12 leading-tight">
                 <th className="px-2 py-2">No.</th>
                 <th className="px-2 py-2">Client</th>

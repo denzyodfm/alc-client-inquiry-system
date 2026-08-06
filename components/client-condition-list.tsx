@@ -129,7 +129,7 @@ export function ClientConditionList({
         </div>
         <div className="overflow-x-auto overflow-y-visible">
           <table className="w-full min-w-[1500px] text-left text-xs">
-            <thead className="sticky top-20 z-10 bg-slate-50 uppercase tracking-wide text-slate-500 shadow-sm">
+            <thead className="bg-slate-50 uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-3 py-3">No.</th><th className="px-3 py-3">Client</th><th className="px-3 py-3">Address</th>
                 <th className="px-3 py-3">Branch / Loan</th><th className="px-3 py-3">Account Officer</th><th className="px-3 py-3">Area TL</th>

@@ -497,7 +497,7 @@ export function RemedialWorkspace({
               <col className="w-32" />
               <col className="w-28 no-print" />
             </colgroup>
-            <thead className="sticky top-20 z-10 bg-slate-50 text-slate-500 shadow-sm">
+            <thead className="bg-slate-50 text-slate-500">
               <tr>
                 <th className="px-2 py-2">No.</th>
                 <th className="px-2 py-2">Client</th>

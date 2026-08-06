@@ -122,7 +122,7 @@ export function LoanResultsTable({
       </div>
       <div className="overflow-x-auto overflow-y-visible">
         <table className="w-full text-left text-sm">
-          <thead className="sticky top-20 z-10 bg-slate-50 text-slate-500 shadow-sm">
+          <thead className="bg-slate-50 text-slate-500">
             <tr>
               <th className="px-4 py-3">No.</th>
               <th className="px-4 py-3">Client</th>

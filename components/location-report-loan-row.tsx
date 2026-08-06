@@ -120,7 +120,7 @@ export function LocationReportLoanList({
       </div>
       <div className="overflow-x-auto overflow-y-visible px-4 py-3">
         <table className="w-full min-w-[1680px] text-left text-xs">
-        <thead className="sticky top-20 z-10 bg-white uppercase tracking-wide text-slate-500 shadow-sm">
+        <thead className="bg-white uppercase tracking-wide text-slate-500">
           <tr>
             <th className="px-3 py-2">Client</th>
             <th className="px-3 py-2">Loan</th>
