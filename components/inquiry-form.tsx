@@ -51,6 +51,10 @@ type ClientResult = {
   clientId: string | null;
   validIdNumber: string | null;
   address: string | null;
+  permanentAddress: string | null;
+  permanentProvince: string | null;
+  permanentMunicipality: string | null;
+  permanentBarangay: string | null;
   branch: { branchName: string; branchCode: string };
   loans: Loan[];
 };
@@ -134,6 +138,112 @@ function Highlight({ value, tokens }: { value: string | null | undefined; tokens
         )
       )}
     </>
+  );
+}
+
+function PermanentAddressEditor({ client }: { client: ClientResult }) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState<ClientResult | null>(null);
+  const [address, setAddress] = useState(client.permanentAddress ?? "");
+  const [province, setProvince] = useState(client.permanentProvince ?? "");
+  const [municipality, setMunicipality] = useState(client.permanentMunicipality ?? "");
+  const [barangay, setBarangay] = useState(client.permanentBarangay ?? "");
+
+  const current = saved ?? client;
+  const showsPermanent = Boolean(
+    current.permanentAddress || current.permanentProvince || current.permanentMunicipality || current.permanentBarangay
+  );
+
+  async function save(clear: boolean) {
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/clients/${client.id}/permanent-address`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sameAsCurrent: clear,
+          permanentAddress: address,
+          permanentProvince: province,
+          permanentMunicipality: municipality,
+          permanentBarangay: barangay
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error ?? "Unable to save permanent address.");
+      setSaved({ ...client, ...data.client });
+      setEditing(false);
+      if (clear) {
+        setAddress("");
+        setProvince("");
+        setMunicipality("");
+        setBarangay("");
+      }
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Unable to save permanent address.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3 text-sm">
+        <span className="font-semibold text-slate-500">Permanent Address:</span>
+        {showsPermanent ? (
+          <span className="text-slate-800">
+            {[current.permanentAddress, current.permanentBarangay, current.permanentMunicipality, current.permanentProvince]
+              .filter(Boolean)
+              .join(", ")}
+          </span>
+        ) : (
+          <span className="text-slate-400">Same as current address</span>
+        )}
+        <button type="button" className="btn-secondary h-8 px-3 text-xs" onClick={() => setEditing(true)}>
+          {showsPermanent ? "Edit" : "Add different permanent address"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+      <p className="text-sm font-semibold text-slate-700">Permanent Address (leave blank if same as current address)</p>
+      <div className="grid gap-3 md:grid-cols-4">
+        <label className="text-xs font-bold uppercase tracking-wide text-slate-600 md:col-span-2">
+          Address
+          <input className="field mt-1 h-9 text-xs" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="House/street, purok" />
+        </label>
+        <label className="text-xs font-bold uppercase tracking-wide text-slate-600">
+          Province
+          <input className="field mt-1 h-9 text-xs" value={province} onChange={(event) => setProvince(event.target.value)} />
+        </label>
+        <label className="text-xs font-bold uppercase tracking-wide text-slate-600">
+          City/Municipality
+          <input className="field mt-1 h-9 text-xs" value={municipality} onChange={(event) => setMunicipality(event.target.value)} />
+        </label>
+        <label className="text-xs font-bold uppercase tracking-wide text-slate-600 md:col-start-1">
+          Barangay
+          <input className="field mt-1 h-9 text-xs" value={barangay} onChange={(event) => setBarangay(event.target.value)} />
+        </label>
+      </div>
+      {error ? <p className="text-xs font-semibold text-red-600">{error}</p> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" className="btn-primary h-9 px-3 text-xs" disabled={saving} onClick={() => save(false)}>
+          {saving ? "Saving..." : "Save Permanent Address"}
+        </button>
+        {showsPermanent ? (
+          <button type="button" className="btn-secondary h-9 px-3 text-xs" disabled={saving} onClick={() => save(true)}>
+            Same as current address
+          </button>
+        ) : null}
+        <button type="button" className="btn-secondary h-9 px-3 text-xs" disabled={saving} onClick={() => setEditing(false)}>
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -320,6 +430,7 @@ export function InquiryForm() {
                 <div><dt className="font-semibold text-slate-500">Valid ID</dt><dd><Highlight value={primaryClient.validIdNumber} tokens={activeSearchTokens} /></dd></div>
                 <div><dt className="font-semibold text-slate-500">Address</dt><dd><Highlight value={primaryClient.address} tokens={activeSearchTokens} /></dd></div>
               </dl>
+              <PermanentAddressEditor client={primaryClient} />
               {isExpanded ? (
                 <div className="mt-5 overflow-x-auto overflow-y-visible">
                   <table className="w-full min-w-[1240px] text-left text-sm">

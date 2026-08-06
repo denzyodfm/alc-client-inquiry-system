@@ -3,6 +3,8 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+const SHOW_AFTER_MS = 45000;
+
 export function AppProgressBar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -10,29 +12,52 @@ export function AppProgressBar() {
   const [progress, setProgress] = useState(0);
   const pendingRequests = useRef(0);
   const navigationPending = useRef(false);
+  const visible = useRef(false);
+  const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleFinishTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    function clearTimers() {
-      if (fallbackTimer.current) clearTimeout(fallbackTimer.current);
-      if (hideTimer.current) clearTimeout(hideTimer.current);
-      if (idleFinishTimer.current) clearTimeout(idleFinishTimer.current);
+    function isBusy() {
+      return pendingRequests.current > 0 || navigationPending.current;
     }
 
-    function start() {
-      clearTimers();
-      setProgress((current) => current > 0 ? current : 10);
-      fallbackTimer.current = setTimeout(() => setProgress((current) => current > 0 ? 85 : 0), 900);
-      hideTimer.current = setTimeout(() => {
-        navigationPending.current = false;
-        setProgress(0);
-      }, 30000);
+    function reveal() {
+      visible.current = true;
+      setProgress((current) => (current > 0 ? current : 10));
+      fallbackTimer.current = setTimeout(() => setProgress((current) => (current > 0 ? 85 : 0)), 900);
+    }
+
+    // An operation started (click/submit/fetch). Nothing becomes visible yet -
+    // we only reveal the overlay if the operation is still running after
+    // SHOW_AFTER_MS, so fast interactions (the overwhelming majority) never
+    // dim the screen or show a progress bar at all.
+    function markBusy() {
+      if (visible.current || showTimer.current) return;
+      showTimer.current = setTimeout(() => {
+        showTimer.current = null;
+        if (isBusy()) reveal();
+      }, SHOW_AFTER_MS);
+    }
+
+    // An operation finished. If the overlay was never revealed (finished
+    // within the 45s grace period), just cancel the pending reveal - no
+    // visual ever appears. If it was already revealed, run the normal
+    // finish animation.
+    function markIdle() {
+      if (isBusy()) return;
+      if (visible.current) {
+        finish();
+      } else if (showTimer.current) {
+        clearTimeout(showTimer.current);
+        showTimer.current = null;
+      }
     }
 
     function finish() {
-      clearTimers();
+      if (fallbackTimer.current) clearTimeout(fallbackTimer.current);
+      visible.current = false;
       navigationPending.current = false;
       setProgress(100);
       hideTimer.current = setTimeout(() => setProgress(0), 350);
@@ -41,7 +66,7 @@ export function AppProgressBar() {
     function finishWhenIdle() {
       if (idleFinishTimer.current) clearTimeout(idleFinishTimer.current);
       idleFinishTimer.current = setTimeout(() => {
-        if (pendingRequests.current === 0 && !navigationPending.current) finish();
+        if (!isBusy()) markIdle();
       }, 900);
     }
 
@@ -63,38 +88,41 @@ export function AppProgressBar() {
         !event.altKey
       ) {
         navigationPending.current = true;
-        start();
+        markBusy();
         return;
       }
 
       const button = target.closest<HTMLButtonElement>("button");
       if (button && !button.disabled) {
-        start();
+        markBusy();
         finishWhenIdle();
       }
     }
 
     function handleSubmit() {
-      start();
+      markBusy();
       finishWhenIdle();
     }
 
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
       pendingRequests.current += 1;
-      start();
+      markBusy();
       try {
         return await originalFetch(...args);
       } finally {
         pendingRequests.current -= 1;
-        if (pendingRequests.current === 0 && !navigationPending.current) finish();
+        markIdle();
       }
     };
 
     document.addEventListener("click", handleClick, true);
     document.addEventListener("submit", handleSubmit, true);
     return () => {
-      clearTimers();
+      if (showTimer.current) clearTimeout(showTimer.current);
+      if (fallbackTimer.current) clearTimeout(fallbackTimer.current);
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      if (idleFinishTimer.current) clearTimeout(idleFinishTimer.current);
       document.removeEventListener("click", handleClick, true);
       document.removeEventListener("submit", handleSubmit, true);
       window.fetch = originalFetch;
@@ -104,6 +132,7 @@ export function AppProgressBar() {
   useEffect(() => {
     if (progress > 0) {
       navigationPending.current = false;
+      visible.current = false;
       setProgress(100);
       const timer = setTimeout(() => setProgress(0), 350);
       return () => clearTimeout(timer);
