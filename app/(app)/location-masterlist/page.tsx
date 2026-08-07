@@ -589,6 +589,7 @@ export default async function LocationMasterlistPage() {
                                   <span>
                                     <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Account Officer</span>
                                     <span className="ml-3 font-semibold text-slate-800">{officer.name}</span>
+                                    {officer.key !== "unassigned" ? <OfficerBranchSummary officerId={Number(officer.key)} officerName={officer.name} /> : null}
                                   </span>
                                   <MetricCells
                                     metrics={officer.metrics}
