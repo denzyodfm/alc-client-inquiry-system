@@ -2,6 +2,7 @@
 
 import { FileSpreadsheet, Printer, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { money } from "@/lib/format";
 
 type LocationOption = { id: number; province: string; municipality: string; barangay: string };
 type LoanRow = {
@@ -29,11 +30,6 @@ type Result = {
   total: number;
   totalPages: number;
 };
-
-function money(value: number) {
-  if (!value) return "-";
-  return value.toLocaleString("en-US", { style: "currency", currency: "PHP" });
-}
 
 export function UnlinkedLoansManager({
   count,

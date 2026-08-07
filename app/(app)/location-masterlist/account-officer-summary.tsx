@@ -3,6 +3,7 @@
 import { FileSpreadsheet, Printer, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { money } from "@/lib/format";
 
 export type AccountOfficerSummaryRow = {
   key: string;
@@ -18,11 +19,6 @@ export type AccountOfficerSummaryRow = {
   litigated: number;
   litigatedBalance: number;
 };
-
-function money(value: number) {
-  if (!value) return "-";
-  return value.toLocaleString("en-US", { style: "currency", currency: "PHP" });
-}
 
 function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (character) => ({

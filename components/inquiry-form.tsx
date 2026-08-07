@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, BarChart3, CheckCircle2, ChevronDown, ChevronRight, Search, UserRound, XCircle } from "lucide-react";
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { money, dateOnly } from "@/lib/format";
 import { amountDueAsOfToday } from "@/lib/loan-amounts";
 import { LoanDetailWindow } from "@/components/loan-detail-window";
@@ -247,6 +247,150 @@ function PermanentAddressEditor({ client }: { client: ClientResult }) {
   );
 }
 
+const ClientResultCard = memo(function ClientResultCard({
+  group,
+  groupIndex,
+  isExpanded,
+  activeSearchTokens,
+  onToggleExpand,
+  onSelectLoan,
+  onAnalyzeLoan,
+  onAnalyzeClient
+}: {
+  group: ClientGroup;
+  groupIndex: number;
+  isExpanded: boolean;
+  activeSearchTokens: string[];
+  onToggleExpand: (key: string) => void;
+  onSelectLoan: (loan: Loan & { client: ClientResult }) => void;
+  onAnalyzeLoan: (loan: Loan & { client: ClientResult }) => void;
+  onAnalyzeClient: (group: ClientGroup) => void;
+}) {
+  const primaryClient = group.clients[0];
+  const branches = Array.from(new Set(group.clients.map((client) => `${client.branch.branchName} - ${client.branch.branchCode}`)));
+
+  return (
+    <div className="panel p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="inline-flex h-11 min-w-11 items-center justify-center rounded-md bg-blue-50 px-3 font-bold text-brand-blue">
+            {groupIndex + 1}
+          </div>
+          <div className="rounded-md bg-blue-50 p-3 text-brand-blue">
+            <UserRound className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 text-left text-lg font-bold text-brand-blue hover:underline"
+                onClick={() => onToggleExpand(group.key)}
+              >
+                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                <Highlight value={primaryClient.fullName} tokens={activeSearchTokens} />
+              </button>
+              <button
+                type="button"
+                className="btn-secondary h-8 px-3 text-xs"
+                onClick={() => onAnalyzeClient(group)}
+              >
+                <BarChart3 className="h-3.5 w-3.5" />
+                Loan Analysis
+              </button>
+            </div>
+            <p className="text-sm text-slate-500">{branches.join(", ")}</p>
+          </div>
+        </div>
+        <span className="rounded-md bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700">
+          Customer No. {group.customerNo}
+        </span>
+      </div>
+      <dl className="mt-5 grid gap-3 text-sm md:grid-cols-4">
+        <div><dt className="font-semibold text-slate-500">Birthdate</dt><dd>{dateOnly(primaryClient.birthdate)}</dd></div>
+        <div><dt className="font-semibold text-slate-500">Contact</dt><dd><Highlight value={primaryClient.contactNumber} tokens={activeSearchTokens} /></dd></div>
+        <div><dt className="font-semibold text-slate-500">Valid ID</dt><dd><Highlight value={primaryClient.validIdNumber} tokens={activeSearchTokens} /></dd></div>
+        <div><dt className="font-semibold text-slate-500">Address</dt><dd><Highlight value={primaryClient.address} tokens={activeSearchTokens} /></dd></div>
+      </dl>
+      <PermanentAddressEditor client={primaryClient} />
+      {isExpanded ? (
+        <div className="mt-5 overflow-x-auto overflow-y-visible">
+          <table className="w-full min-w-[1240px] text-left text-sm">
+            <thead className="bg-slate-50 text-slate-500">
+              <tr>
+                <th className="px-3 py-2">Loan No.</th>
+                <th className="px-3 py-2">Branch</th>
+                <th className="px-3 py-2">Released</th>
+                <th className="px-3 py-2">Amount Granted</th>
+                <th className="px-3 py-2">Interest Rate</th>
+                <th className="px-3 py-2">Interest</th>
+                <th className="px-3 py-2">Penalty</th>
+                <th className="px-3 py-2">Due Today</th>
+                <th className="px-3 py-2">Total</th>
+                <th className="px-3 py-2">Terms</th>
+                <th className="px-3 py-2">Total Payments</th>
+                <th className="px-3 py-2">Balance</th>
+                <th className="px-3 py-2" title="The branch's own live balance, pulled directly from the source database">Remote Balance</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Status ID</th>
+                <th className="px-3 py-2">Status Label</th>
+                <th className="px-3 py-2">Analysis</th>
+              </tr>
+            </thead>
+            <tbody>
+              {group.loans.map((loan) => {
+                const total = Number(loan.principalAmount) + Number(loan.interestAmount) + Number(loan.penaltyAmount);
+                const dueToday = amountDueAsOfToday(loan);
+
+                return (
+                  <tr key={loan.id} className="border-t border-slate-100">
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        className="font-bold text-brand-blue hover:underline"
+                        onClick={() => onSelectLoan(loan)}
+                      >
+                        <Highlight value={loan.loanNumber ?? String(loan.id)} tokens={activeSearchTokens} />
+                      </button>
+                    </td>
+                    <td className="px-3 py-2">{loan.client.branch.branchName}</td>
+                    <td className="px-3 py-2">{dateOnly(loan.releasedAt)}</td>
+                    <td className="px-3 py-2">{money(loan.principalAmount)}</td>
+                    <td className="px-3 py-2">{percent(loan.interestRate)}</td>
+                    <td className="px-3 py-2">{money(loan.interestAmount)}</td>
+                    <td className="px-3 py-2">{money(loan.penaltyAmount)}</td>
+                    <td className="px-3 py-2 font-bold text-red-700">{money(dueToday)}</td>
+                    <td className="px-3 py-2 font-semibold">{money(total)}</td>
+                    <td className="px-3 py-2">{loan.terms ?? "-"}</td>
+                    <td className="px-3 py-2 text-brand-green">{money(loan.paidAmount)}</td>
+                    <td className={`px-3 py-2 font-bold ${displayBalance(loan) > 0 ? "text-red-700" : "text-brand-green"}`}>{money(displayBalance(loan))}</td>
+                    <td className="px-3 py-2 font-bold text-slate-700">{loan.remoteBalance === null ? "Not synced" : money(Number(loan.remoteBalance))}</td>
+                    <td className="px-3 py-2 font-semibold text-slate-900">{appStatusText(loan.status)}</td>
+                    <td className="px-3 py-2 font-bold text-slate-900">{loanStatusCode(loan)}</td>
+                    <td className="px-3 py-2">{loanStatusText(loan)}</td>
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        className="btn-secondary h-8 px-3 text-xs"
+                        onClick={() => onAnalyzeLoan(loan)}
+                      >
+                        <BarChart3 className="h-3.5 w-3.5" />
+                        Analyze
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!group.loans.length ? (
+                <tr><td className="px-3 py-3 text-slate-500" colSpan={17}>No loans with remaining balance for this client.</td></tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </div>
+  );
+});
+
 export function InquiryForm() {
   const [result, setResult] = useState<InquiryResult | null>(null);
   const [selectedLoan, setSelectedLoan] = useState<(Loan & { client: ClientResult }) | null>(null);
@@ -256,6 +400,13 @@ export function InquiryForm() {
   const [loading, setLoading] = useState(false);
   const [quickSearch, setQuickSearch] = useState("");
   const skipInitialQuickSearch = useRef(true);
+
+  const toggleExpand = useCallback((key: string) => {
+    setExpandedClients((current) => ({ ...current, [key]: !current[key] }));
+  }, []);
+  const handleSelectLoan = useCallback((loan: Loan & { client: ClientResult }) => setSelectedLoan(loan), []);
+  const handleAnalyzeLoan = useCallback((loan: Loan & { client: ClientResult }) => setAnalysisLoan(loan), []);
+  const handleAnalyzeClient = useCallback((group: ClientGroup) => setAnalysisClient(group), []);
 
   const runInquiry = useCallback(async (payload: Record<string, FormDataEntryValue | string>) => {
     setLoading(true);
@@ -378,137 +529,19 @@ export function InquiryForm() {
           </div>
         </div>
 
-        {groups.map((group, groupIndex) => {
-          const primaryClient = group.clients[0];
-          const branches = Array.from(new Set(group.clients.map((client) => `${client.branch.branchName} - ${client.branch.branchCode}`)));
-          const isExpanded = Boolean(expandedClients[group.key]);
-
-          return (
-            <div key={group.key} className="panel p-5">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="inline-flex h-11 min-w-11 items-center justify-center rounded-md bg-blue-50 px-3 font-bold text-brand-blue">
-                    {groupIndex + 1}
-                  </div>
-                  <div className="rounded-md bg-blue-50 p-3 text-brand-blue">
-                    <UserRound className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-2 text-left text-lg font-bold text-brand-blue hover:underline"
-                        onClick={() =>
-                          setExpandedClients((current) => ({
-                            ...current,
-                            [group.key]: !current[group.key]
-                          }))
-                        }
-                      >
-                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                        <Highlight value={primaryClient.fullName} tokens={activeSearchTokens} />
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-secondary h-8 px-3 text-xs"
-                        onClick={() => setAnalysisClient(group)}
-                      >
-                        <BarChart3 className="h-3.5 w-3.5" />
-                        Loan Analysis
-                      </button>
-                    </div>
-                    <p className="text-sm text-slate-500">{branches.join(", ")}</p>
-                  </div>
-                </div>
-                <span className="rounded-md bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700">
-                  Customer No. {group.customerNo}
-                </span>
-              </div>
-              <dl className="mt-5 grid gap-3 text-sm md:grid-cols-4">
-                <div><dt className="font-semibold text-slate-500">Birthdate</dt><dd>{dateOnly(primaryClient.birthdate)}</dd></div>
-                <div><dt className="font-semibold text-slate-500">Contact</dt><dd><Highlight value={primaryClient.contactNumber} tokens={activeSearchTokens} /></dd></div>
-                <div><dt className="font-semibold text-slate-500">Valid ID</dt><dd><Highlight value={primaryClient.validIdNumber} tokens={activeSearchTokens} /></dd></div>
-                <div><dt className="font-semibold text-slate-500">Address</dt><dd><Highlight value={primaryClient.address} tokens={activeSearchTokens} /></dd></div>
-              </dl>
-              <PermanentAddressEditor client={primaryClient} />
-              {isExpanded ? (
-                <div className="mt-5 overflow-x-auto overflow-y-visible">
-                  <table className="w-full min-w-[1240px] text-left text-sm">
-                    <thead className="bg-slate-50 text-slate-500">
-                      <tr>
-                        <th className="px-3 py-2">Loan No.</th>
-                        <th className="px-3 py-2">Branch</th>
-                        <th className="px-3 py-2">Released</th>
-                        <th className="px-3 py-2">Amount Granted</th>
-                        <th className="px-3 py-2">Interest Rate</th>
-                        <th className="px-3 py-2">Interest</th>
-                        <th className="px-3 py-2">Penalty</th>
-                        <th className="px-3 py-2">Due Today</th>
-                        <th className="px-3 py-2">Total</th>
-                        <th className="px-3 py-2">Terms</th>
-                        <th className="px-3 py-2">Total Payments</th>
-                        <th className="px-3 py-2">Balance</th>
-                        <th className="px-3 py-2" title="The branch's own live balance, pulled directly from the source database">Remote Balance</th>
-                        <th className="px-3 py-2">Status</th>
-                        <th className="px-3 py-2">Status ID</th>
-                        <th className="px-3 py-2">Status Label</th>
-                        <th className="px-3 py-2">Analysis</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {group.loans.map((loan) => {
-                        const total = Number(loan.principalAmount) + Number(loan.interestAmount) + Number(loan.penaltyAmount);
-                        const dueToday = amountDueAsOfToday(loan);
-
-                        return (
-                          <tr key={loan.id} className="border-t border-slate-100">
-                            <td className="px-3 py-2">
-                              <button
-                                type="button"
-                                className="font-bold text-brand-blue hover:underline"
-                                onClick={() => setSelectedLoan(loan)}
-                              >
-                                <Highlight value={loan.loanNumber ?? String(loan.id)} tokens={activeSearchTokens} />
-                              </button>
-                            </td>
-                            <td className="px-3 py-2">{loan.client.branch.branchName}</td>
-                            <td className="px-3 py-2">{dateOnly(loan.releasedAt)}</td>
-                            <td className="px-3 py-2">{money(loan.principalAmount)}</td>
-                            <td className="px-3 py-2">{percent(loan.interestRate)}</td>
-                            <td className="px-3 py-2">{money(loan.interestAmount)}</td>
-                            <td className="px-3 py-2">{money(loan.penaltyAmount)}</td>
-                            <td className="px-3 py-2 font-bold text-red-700">{money(dueToday)}</td>
-                            <td className="px-3 py-2 font-semibold">{money(total)}</td>
-                            <td className="px-3 py-2">{loan.terms ?? "-"}</td>
-                            <td className="px-3 py-2 text-brand-green">{money(loan.paidAmount)}</td>
-                            <td className={`px-3 py-2 font-bold ${displayBalance(loan) > 0 ? "text-red-700" : "text-brand-green"}`}>{money(displayBalance(loan))}</td>
-                            <td className="px-3 py-2 font-bold text-slate-700">{loan.remoteBalance === null ? "Not synced" : money(Number(loan.remoteBalance))}</td>
-                            <td className="px-3 py-2 font-semibold text-slate-900">{appStatusText(loan.status)}</td>
-                            <td className="px-3 py-2 font-bold text-slate-900">{loanStatusCode(loan)}</td>
-                            <td className="px-3 py-2">{loanStatusText(loan)}</td>
-                            <td className="px-3 py-2">
-                              <button
-                                type="button"
-                                className="btn-secondary h-8 px-3 text-xs"
-                                onClick={() => setAnalysisLoan(loan)}
-                              >
-                                <BarChart3 className="h-3.5 w-3.5" />
-                                Analyze
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {!group.loans.length ? (
-                        <tr><td className="px-3 py-3 text-slate-500" colSpan={17}>No loans with remaining balance for this client.</td></tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
+        {groups.map((group, groupIndex) => (
+          <ClientResultCard
+            key={group.key}
+            group={group}
+            groupIndex={groupIndex}
+            isExpanded={Boolean(expandedClients[group.key])}
+            activeSearchTokens={activeSearchTokens}
+            onToggleExpand={toggleExpand}
+            onSelectLoan={handleSelectLoan}
+            onAnalyzeLoan={handleAnalyzeLoan}
+            onAnalyzeClient={handleAnalyzeClient}
+          />
+        ))}
       </section>
 
       {selectedLoan ? <LoanDetailWindow loan={selectedLoan} onClose={() => setSelectedLoan(null)} /> : null}

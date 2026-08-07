@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { money } from "@/lib/format";
 
 type LoanRow = {
   id: number;
@@ -50,11 +51,6 @@ const categoryLabels: Record<LocationReportCategory, string> = {
   pastDue: "Past Due",
   litigated: "Litigated"
 };
-
-function money(value: number) {
-  if (!value) return "-";
-  return value.toLocaleString("en-US", { style: "currency", currency: "PHP" });
-}
 
 function date(value: string | null) {
   return value ? new Date(value).toLocaleDateString("en-US") : "-";

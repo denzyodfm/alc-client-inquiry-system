@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { BarangayLoanReport } from "@/components/officer-barangay-loans";
+import { money } from "@/lib/format";
 
 type TotalsSummary = {
   numberOfClients: number;
@@ -23,11 +24,6 @@ type BranchSummaryRow = TotalsSummary & {
   branchName: string;
   branchCode: string;
 };
-
-function money(value: number) {
-  if (!value) return "-";
-  return value.toLocaleString("en-US", { style: "currency", currency: "PHP" });
-}
 
 export function OfficerBranchSummary({ officerId, officerName }: { officerId: number; officerName: string }) {
   const [open, setOpen] = useState(false);
