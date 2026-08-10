@@ -54,6 +54,8 @@ model User {
   email        String   @unique @db.VarChar(160)
   passwordHash String   @map("password_hash") @db.VarChar(255)
   role         UserRole @default(INQUIRY_USER)
+  position     String?  @db.VarChar(120)
+  baseBranchId Int?     @map("base_branch_id")
   allBranches  Boolean  @default(false) @map("all_branches")
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
@@ -67,7 +69,9 @@ model User {
   clientLogs   ClientLog[] @relation("ClientLogEncodedBy")
   localPaymentPostings LocalPaymentPosting[] @relation("LocalPaymentPostedBy")
   locationLinkRuns LocationLinkRun[] @relation("LocationLinkRunStartedBy")
+  baseBranch   Branch?  @relation("UserBaseBranch", fields: [baseBranchId], references: [id], onDelete: SetNull)
 
+  @@index([baseBranchId])
   @@map("users")
 }
 
@@ -93,6 +97,7 @@ model Branch {
   amortizationSchedules AmortizationSchedule[]
   syncLogs            SyncLog[]
   userAccess          UserBranchAccess[]
+  baseUsers           User[]       @relation("UserBaseBranch")
   remedialAssignments RemedialAssignment[]
   clientLogs          ClientLog[]
 

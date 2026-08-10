@@ -26,9 +26,12 @@ export async function GET() {
       name: true,
       email: true,
       role: true,
+      position: true,
+      baseBranchId: true,
       allBranches: true,
       isActive: true,
       createdAt: true,
+      baseBranch: { select: { id: true, branchName: true, branchCode: true } },
       branchAccess: { select: { branchId: true } }
     }
   });
@@ -55,6 +58,9 @@ export async function POST(request: Request) {
   const email = String(body.email ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");
   const confirmPassword = String(body.confirmPassword ?? "");
+  const position = String(body.position ?? "").trim() || null;
+  const requestedBaseBranchId = Number(body.baseBranchId);
+  const baseBranchId = Number.isInteger(requestedBaseBranchId) && requestedBaseBranchId > 0 ? requestedBaseBranchId : null;
   const role = parseRole(body.role);
   const isAdmin = currentUser!.role === "ADMIN";
   const accessibleBranchIds = await getAccessibleBranchIds(currentUser!);
@@ -79,6 +85,12 @@ export async function POST(request: Request) {
   if (!isAdmin && accessibleBranchIds !== null && branchIds.some((branchId) => !accessibleBranchIds.includes(branchId))) {
     return NextResponse.json({ error: "You can only grant access to your assigned branches." }, { status: 403 });
   }
+  if (!isAdmin && accessibleBranchIds !== null && baseBranchId !== null && !accessibleBranchIds.includes(baseBranchId)) {
+    return NextResponse.json({ error: "You can only select a base branch within your assigned branches." }, { status: 403 });
+  }
+  if (baseBranchId !== null && !(await prisma.branch.count({ where: { id: baseBranchId } }))) {
+    return NextResponse.json({ error: "Invalid base branch selected." }, { status: 400 });
+  }
 
   try {
     const passwordHash = await bcrypt.hash(password, 12);
@@ -88,11 +100,13 @@ export async function POST(request: Request) {
           name,
           email,
           role,
+          position,
+          baseBranchId,
           allBranches,
           isActive: body.isActive ?? true,
           passwordHash
         },
-        select: { id: true, name: true, email: true, role: true, allBranches: true, isActive: true }
+        select: { id: true, name: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, isActive: true }
       });
 
       if (!allBranches && branchIds.length) {

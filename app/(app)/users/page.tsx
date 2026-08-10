@@ -24,8 +24,11 @@ export default async function UsersPage() {
         name: true,
         email: true,
         role: true,
+        position: true,
+        baseBranchId: true,
         allBranches: true,
         isActive: true,
+        baseBranch: { select: { id: true, branchName: true, branchCode: true } },
         branchAccess: { select: { branchId: true } }
       }
     }),

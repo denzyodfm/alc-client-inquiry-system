@@ -1,13 +1,16 @@
 "use client";
 
 import { CheckCircle2, Pencil, Plus, Trash2, UserCog, X } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 
 type User = {
   id: number;
   name: string;
   email: string;
   role: string;
+  position: string | null;
+  baseBranchId: number | null;
+  baseBranch: BranchOption | null;
   allBranches: boolean;
   isActive: boolean;
   branchAccess: Array<{ branchId: number }>;
@@ -51,9 +54,23 @@ export function UserManager({
   const [users, setUsers] = useState(initialUsers);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [allBranches, setAllBranches] = useState(canGrantAllBranches);
+  const [positionFilter, setPositionFilter] = useState("ALL");
+  const [baseBranchFilter, setBaseBranchFilter] = useState("ALL");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const positions = useMemo(
+    () => Array.from(new Set(users.map((user) => user.position).filter((position): position is string => Boolean(position)))).sort(),
+    [users]
+  );
+  const visibleUsers = useMemo(
+    () => users.filter((user) => {
+      const matchesPosition = positionFilter === "ALL" || (positionFilter === "UNSET" ? !user.position : user.position === positionFilter);
+      const matchesBranch = baseBranchFilter === "ALL" || (baseBranchFilter === "UNSET" ? !user.baseBranchId : user.baseBranchId === Number(baseBranchFilter));
+      return matchesPosition && matchesBranch;
+    }),
+    [users, positionFilter, baseBranchFilter]
+  );
 
   async function refresh() {
     const response = await fetch("/api/users");
@@ -137,6 +154,8 @@ export function UserManager({
         name: user.name,
         email: user.email,
         role: user.role,
+        position: user.position ?? "",
+        baseBranchId: user.baseBranchId ?? "",
         allBranches: user.allBranches,
         branchIds: user.branchAccess.map((access) => access.branchId),
         isActive: !user.isActive
@@ -241,6 +260,23 @@ export function UserManager({
               <div className="field bg-slate-50 text-slate-700">Account Officer</div>
             </>
           )}
+          <input
+            name="position"
+            className="field"
+            placeholder="Position (optional)"
+            defaultValue={editingUser?.position ?? ""}
+            list="user-position-options"
+            maxLength={120}
+          />
+          <datalist id="user-position-options">
+            {positions.map((position) => <option key={position} value={position} />)}
+          </datalist>
+          <select name="baseBranchId" className="field" defaultValue={editingUser?.baseBranchId ?? ""}>
+            <option value="">No base branch</option>
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>{branch.branchName} - {branch.branchCode}</option>
+            ))}
+          </select>
           <div className="rounded-lg border border-slate-200 p-3">
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
               <input
@@ -293,20 +329,34 @@ export function UserManager({
       </form>
 
       <div className="panel overflow-hidden">
+        <div className="grid gap-3 border-b border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
+          <select className="field bg-white" value={positionFilter} onChange={(event) => setPositionFilter(event.target.value)} aria-label="Filter users by position">
+            <option value="ALL">All positions</option>
+            {positions.map((position) => <option key={position} value={position}>{position}</option>)}
+            <option value="UNSET">Position not set</option>
+          </select>
+          <select className="field bg-white" value={baseBranchFilter} onChange={(event) => setBaseBranchFilter(event.target.value)} aria-label="Filter users by base branch">
+            <option value="ALL">All base branches</option>
+            {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.branchName} - {branch.branchCode}</option>)}
+            <option value="UNSET">Base branch not set</option>
+          </select>
+        </div>
         <div className="overflow-x-auto overflow-y-visible">
-          <table className="w-full min-w-[760px] text-left text-sm">
+          <table className="w-full min-w-[1040px] text-left text-sm">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
                 <th className="px-4 py-3">User</th>
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Role</th>
+                <th className="px-4 py-3">Position</th>
+                <th className="px-4 py-3">Base Branch</th>
                 <th className="px-4 py-3">Branches</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => (
+              {visibleUsers.map((user) => (
                 <tr key={user.id} className="border-t border-slate-100">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 font-semibold text-slate-900">
@@ -316,6 +366,10 @@ export function UserManager({
                   </td>
                   <td className="px-4 py-3">{user.email}</td>
                   <td className="px-4 py-3">{roleLabel(user.role)}</td>
+                  <td className="px-4 py-3">{user.position || <span className="text-slate-400">-</span>}</td>
+                  <td className="px-4 py-3">
+                    {user.baseBranch ? `${user.baseBranch.branchName} - ${user.baseBranch.branchCode}` : <span className="text-slate-400">-</span>}
+                  </td>
                   <td className="px-4 py-3">
                     {user.role === "ADMIN" || user.allBranches ? (
                       <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-bold text-brand-blue">All branches</span>
@@ -352,9 +406,9 @@ export function UserManager({
                   </td>
                 </tr>
               ))}
-              {!users.length ? (
+              {!visibleUsers.length ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={6}>No users found.</td>
+                  <td className="px-4 py-6 text-slate-500" colSpan={8}>No users match the selected filters.</td>
                 </tr>
               ) : null}
             </tbody>

@@ -27,6 +27,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const email = String(body.email ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");
   const confirmPassword = String(body.confirmPassword ?? "");
+  const position = String(body.position ?? "").trim() || null;
+  const requestedBaseBranchId = Number(body.baseBranchId);
+  const baseBranchId = Number.isInteger(requestedBaseBranchId) && requestedBaseBranchId > 0 ? requestedBaseBranchId : null;
   const role = parseRole(body.role);
   const isAdmin = currentUser!.role === "ADMIN";
   const accessibleBranchIds = await getAccessibleBranchIds(currentUser!);
@@ -44,6 +47,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
   if (!isAdmin && accessibleBranchIds !== null && branchIds.some((branchId) => !accessibleBranchIds.includes(branchId))) {
     return NextResponse.json({ error: "You can only grant access to your assigned branches." }, { status: 403 });
+  }
+  if (!isAdmin && accessibleBranchIds !== null && baseBranchId !== null && !accessibleBranchIds.includes(baseBranchId)) {
+    return NextResponse.json({ error: "You can only select a base branch within your assigned branches." }, { status: 403 });
+  }
+  if (baseBranchId !== null && !(await prisma.branch.count({ where: { id: baseBranchId } }))) {
+    return NextResponse.json({ error: "Invalid base branch selected." }, { status: 400 });
   }
 
   if (!name || !email) {
@@ -72,11 +81,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           name,
           email,
           role,
+          position,
+          baseBranchId,
           allBranches,
           isActive: body.isActive,
           passwordHash: password ? await bcrypt.hash(password, 12) : undefined
         },
-        select: { id: true, name: true, email: true, role: true, allBranches: true, isActive: true }
+        select: { id: true, name: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, isActive: true }
       });
 
       await tx.userBranchAccess.deleteMany({ where: { userId } });
