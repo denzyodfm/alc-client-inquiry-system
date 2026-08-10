@@ -47,8 +47,35 @@ export function VerifyAddressWorkspace({
   const [errors, setErrors] = useState<Record<number, string>>({});
 
   const provinces = useMemo(() => Array.from(new Set(locationOptions.map((option) => option.province))).sort(), [locationOptions]);
-  const municipalities = useMemo(() => Array.from(new Set(locationOptions.map((option) => option.municipality))).sort(), [locationOptions]);
-  const barangays = useMemo(() => Array.from(new Set(locationOptions.map((option) => option.barangay))).sort(), [locationOptions]);
+
+  function municipalityOptionsFor(province: string) {
+    const normalizedProvince = province.trim().toLowerCase();
+    if (!normalizedProvince) return [];
+    return Array.from(
+      new Set(
+        locationOptions
+          .filter((option) => option.province.trim().toLowerCase() === normalizedProvince)
+          .map((option) => option.municipality)
+      )
+    ).sort();
+  }
+
+  function barangayOptionsFor(province: string, municipality: string) {
+    const normalizedProvince = province.trim().toLowerCase();
+    const normalizedMunicipality = municipality.trim().toLowerCase();
+    if (!normalizedProvince || !normalizedMunicipality) return [];
+    return Array.from(
+      new Set(
+        locationOptions
+          .filter(
+            (option) =>
+              option.province.trim().toLowerCase() === normalizedProvince &&
+              option.municipality.trim().toLowerCase() === normalizedMunicipality
+          )
+          .map((option) => option.barangay)
+      )
+    ).sort();
+  }
 
   function draftFor(row: VerifyAddressRow) {
     return draft[row.loanId] ?? { province: row.province, municipality: row.municipality, barangay: row.barangay };
@@ -112,6 +139,10 @@ export function VerifyAddressWorkspace({
             {rows.map((row) => {
               const value = draftFor(row);
               const isFixed = fixed.has(row.loanId);
+              const municipalityListId = `verify-address-municipalities-${row.loanId}`;
+              const barangayListId = `verify-address-barangays-${row.loanId}`;
+              const municipalityOptions = municipalityOptionsFor(value.province);
+              const barangayOptions = barangayOptionsFor(value.province, value.municipality);
               return (
                 <tr key={row.loanId} className={isFixed ? "bg-emerald-50" : undefined}>
                   <td className="px-3 py-3">
@@ -136,20 +167,28 @@ export function VerifyAddressWorkspace({
                   <td className="px-2 py-2">
                     <input
                       className="field h-9 min-w-[150px] bg-white text-xs"
-                      list="verify-address-municipalities"
+                      list={municipalityListId}
                       value={value.municipality}
                       disabled={isFixed}
+                      placeholder={municipalityOptions.length ? "Select or type" : "Type city/municipality"}
                       onChange={(event) => updateDraft(row.loanId, "municipality", event.target.value, row)}
                     />
+                    <datalist id={municipalityListId}>
+                      {municipalityOptions.map((option) => <option key={option} value={option} />)}
+                    </datalist>
                   </td>
                   <td className="px-2 py-2">
                     <input
                       className="field h-9 min-w-[160px] bg-white text-xs"
-                      list="verify-address-barangays"
+                      list={barangayListId}
                       value={value.barangay}
                       disabled={isFixed}
+                      placeholder={barangayOptions.length ? "Select or type" : "Type barangay"}
                       onChange={(event) => updateDraft(row.loanId, "barangay", event.target.value, row)}
                     />
+                    <datalist id={barangayListId}>
+                      {barangayOptions.map((option) => <option key={option} value={option} />)}
+                    </datalist>
                   </td>
                   <td className="px-2 py-2">
                     {isFixed ? (
@@ -181,12 +220,6 @@ export function VerifyAddressWorkspace({
       </div>
       <datalist id="verify-address-provinces">
         {provinces.map((option) => <option key={option} value={option} />)}
-      </datalist>
-      <datalist id="verify-address-municipalities">
-        {municipalities.map((option) => <option key={option} value={option} />)}
-      </datalist>
-      <datalist id="verify-address-barangays">
-        {barangays.map((option) => <option key={option} value={option} />)}
       </datalist>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-4">
         <Link className={`btn-secondary h-9 px-3 ${safePage <= 1 ? "pointer-events-none opacity-50" : ""}`} href={previousHref}>
