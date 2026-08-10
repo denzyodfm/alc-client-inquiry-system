@@ -14,7 +14,6 @@ const nav: NavConfig[] = [
   { href: "/dashboard", label: "Dashboard", icon: "Gauge", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
   { href: "/branches", label: "Branches", icon: "Building2", roles: ["ADMIN"] },
   { href: "/inquiry", label: "Client Inquiry", icon: "Search", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER"] },
-  { href: "/semantic-search", label: "Semantic Search", icon: "BrainCircuit", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
   { href: "/client-logs", label: "Client Logs", icon: "FileClock", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
   { href: "/current", label: "Current", icon: "ClipboardCheck", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER"] },
   { href: "/loans", label: "Loan Results", icon: "ClipboardList", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER"] },
