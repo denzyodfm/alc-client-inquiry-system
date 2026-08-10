@@ -10,66 +10,33 @@ export function AppProgressBar() {
   const searchParams = useSearchParams();
   const queryString = searchParams.toString();
   const [progress, setProgress] = useState(0);
-  const pendingRequests = useRef(0);
   const navigationPending = useRef(false);
   const visible = useRef(false);
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const idleFinishTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    function isBusy() {
-      return pendingRequests.current > 0 || navigationPending.current;
-    }
-
     function reveal() {
       visible.current = true;
       setProgress((current) => (current > 0 ? current : 10));
       fallbackTimer.current = setTimeout(() => setProgress((current) => (current > 0 ? 85 : 0)), 900);
     }
 
-    // An operation started (click/submit/fetch). Nothing becomes visible yet -
-    // we only reveal the overlay if the operation is still running after
-    // SHOW_AFTER_MS, so fast interactions (the overwhelming majority) never
-    // dim the screen or show a progress bar at all.
+    // A left-menu navigation started. Nothing becomes visible yet - we only
+    // reveal the overlay if the navigation is still pending after
+    // SHOW_AFTER_MS, so fast page changes never dim the screen at all.
     function markBusy() {
       if (visible.current || showTimer.current) return;
       showTimer.current = setTimeout(() => {
         showTimer.current = null;
-        if (isBusy()) reveal();
+        if (navigationPending.current) reveal();
       }, SHOW_AFTER_MS);
     }
 
-    // An operation finished. If the overlay was never revealed (finished
-    // within the 45s grace period), just cancel the pending reveal - no
-    // visual ever appears. If it was already revealed, run the normal
-    // finish animation.
-    function markIdle() {
-      if (isBusy()) return;
-      if (visible.current) {
-        finish();
-      } else if (showTimer.current) {
-        clearTimeout(showTimer.current);
-        showTimer.current = null;
-      }
-    }
-
-    function finish() {
-      if (fallbackTimer.current) clearTimeout(fallbackTimer.current);
-      visible.current = false;
-      navigationPending.current = false;
-      setProgress(100);
-      hideTimer.current = setTimeout(() => setProgress(0), 350);
-    }
-
-    function finishWhenIdle() {
-      if (idleFinishTimer.current) clearTimeout(idleFinishTimer.current);
-      idleFinishTimer.current = setTimeout(() => {
-        if (!isBusy()) markIdle();
-      }, 900);
-    }
-
+    // Only left-menu navigation triggers the overlay. Buttons, form
+    // submissions, and in-page fetches (search, save, etc.) never do - they
+    // must stay interactive even while a request is in flight.
     function handleClick(event: MouseEvent) {
       const target = event.target;
       if (!(target instanceof Element)) return;
@@ -77,6 +44,7 @@ export function AppProgressBar() {
       const link = target.closest<HTMLAnchorElement>("a[href]");
       if (
         link &&
+        link.closest("[data-primary-nav]") &&
         link.origin === window.location.origin &&
         link.href !== window.location.href &&
         (link.pathname !== window.location.pathname || link.search !== window.location.search) &&
@@ -89,43 +57,15 @@ export function AppProgressBar() {
       ) {
         navigationPending.current = true;
         markBusy();
-        return;
-      }
-
-      const button = target.closest<HTMLButtonElement>("button");
-      if (button && !button.disabled) {
-        markBusy();
-        finishWhenIdle();
       }
     }
-
-    function handleSubmit() {
-      markBusy();
-      finishWhenIdle();
-    }
-
-    const originalFetch = window.fetch;
-    window.fetch = async (...args) => {
-      pendingRequests.current += 1;
-      markBusy();
-      try {
-        return await originalFetch(...args);
-      } finally {
-        pendingRequests.current -= 1;
-        markIdle();
-      }
-    };
 
     document.addEventListener("click", handleClick, true);
-    document.addEventListener("submit", handleSubmit, true);
     return () => {
       if (showTimer.current) clearTimeout(showTimer.current);
       if (fallbackTimer.current) clearTimeout(fallbackTimer.current);
       if (hideTimer.current) clearTimeout(hideTimer.current);
-      if (idleFinishTimer.current) clearTimeout(idleFinishTimer.current);
       document.removeEventListener("click", handleClick, true);
-      document.removeEventListener("submit", handleSubmit, true);
-      window.fetch = originalFetch;
     };
   }, []);
 

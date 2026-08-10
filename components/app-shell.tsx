@@ -102,7 +102,7 @@ export function AppShell({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4">
+        <nav data-primary-nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4">
           {nav.map((item) => {
             const Icon = icons[item.icon];
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
