@@ -213,9 +213,15 @@ export function BarangayLoanReport({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {result.rows.map((row) => (
+                    {result.rows.map((row, rowIndex) => (
                       <tr key={row.id}>
-                        <td className="px-3 py-3"><p className="font-bold text-slate-950">{row.clientName}</p><p className="text-slate-500">{row.clientNumber || "-"}</p></td>
+                        <td className="px-3 py-3">
+                          <p className="font-bold text-slate-950">
+                            <span className="mr-1 text-brand-blue">{(result.page - 1) * result.pageSize + rowIndex + 1}.</span>
+                            {row.clientName}
+                          </p>
+                          <p className="text-slate-500">{row.clientNumber || "-"}</p>
+                        </td>
                         <td className="px-3 py-3">{row.contactNumber || "-"}</td><td className="px-3 py-3 font-bold text-brand-blue">{row.loanNumber}</td>
                         <td className="px-3 py-3">{row.branch}</td><td className="px-3 py-3">{row.product || "-"}</td>
                         <td className="px-3 py-3">{date(row.releasedAt)}</td><td className="px-3 py-3">{date(row.maturityAt)}</td>

@@ -74,6 +74,12 @@ type AreaTeamLeaderNode = {
   accountOfficers: AccountOfficerNode[];
 };
 
+type AssignmentSummaryNode = {
+  key: string;
+  name: string;
+  metrics: Metrics;
+};
+
 type MetricAccumulator = {
   clients: Set<number>;
   assignedClients: Set<number>;
@@ -327,7 +333,9 @@ export default async function LocationMasterlistPage() {
             assignedToId: true,
             assignedTo: { select: { name: true } },
             areaTeamLeaderId: true,
-            areaTeamLeader: { select: { name: true } }
+            areaTeamLeader: { select: { name: true } },
+            zone: true,
+            division: true
           }
         }
       }
@@ -369,12 +377,16 @@ export default async function LocationMasterlistPage() {
   const metricsByMunicipalityOfficer = new Map<string, MetricAccumulator>();
   const metricsByLocationOfficer = new Map<string, MetricAccumulator>();
   const metricsByAreaTeamLeader = new Map<string, MetricAccumulator>();
+  const metricsByZone = new Map<string, MetricAccumulator>();
+  const metricsByDistrict = new Map<string, MetricAccumulator>();
   const metricsByAreaTeamLeaderOfficer = new Map<string, MetricAccumulator>();
   const metricsByProvinceAreaTeamLeaderOfficer = new Map<string, MetricAccumulator>();
   const metricsByMunicipalityAreaTeamLeaderOfficer = new Map<string, MetricAccumulator>();
   const metricsByLocationAreaTeamLeaderOfficer = new Map<string, MetricAccumulator>();
   const officerNames = new Map<string, string>();
   const areaTeamLeaderNames = new Map<string, string>();
+  const zoneNames = new Map<string, string>();
+  const districtNames = new Map<string, string>();
   const todayKey = manilaDateKey(new Date());
   const matchedLoanCount = loans.length;
   for (const loan of loans) {
@@ -402,6 +414,14 @@ export default async function LocationMasterlistPage() {
         (assignment.areaTeamLeader?.name ?? "AREA TL NOT SET").toLocaleUpperCase("en")
       );
       addLoanMetrics(metricsByAreaTeamLeader, areaTeamLeaderKey, loan, true, principalBalance, category);
+      const zoneName = assignment.zone?.trim() || "ZONE NOT SET";
+      const zoneKey = normalizedText(zoneName);
+      zoneNames.set(zoneKey, zoneName.toLocaleUpperCase("en"));
+      addLoanMetrics(metricsByZone, zoneKey, loan, true, principalBalance, category);
+      const districtName = assignment.division?.trim() || "DISTRICT NOT SET";
+      const districtKey = normalizedText(districtName);
+      districtNames.set(districtKey, districtName.toLocaleUpperCase("en"));
+      addLoanMetrics(metricsByDistrict, districtKey, loan, true, principalBalance, category);
       addLoanMetrics(metricsByAreaTeamLeaderOfficer, areaTeamLeaderOfficerKey, loan, true, principalBalance, category);
       addLoanMetrics(metricsByProvinceAreaTeamLeaderOfficer, `${provinceKey}\u0000${areaTeamLeaderOfficerKey}`, loan, true, principalBalance, category);
       addLoanMetrics(metricsByMunicipalityAreaTeamLeaderOfficer, `${municipalityKey}\u0000${areaTeamLeaderOfficerKey}`, loan, true, principalBalance, category);
@@ -509,6 +529,17 @@ export default async function LocationMasterlistPage() {
     });
   const accountOfficerCount = areaTeamLeaders.reduce((sum, areaTeamLeader) => sum + areaTeamLeader.accountOfficers.length, 0);
   const accountOfficerTotal = accumulatedMetrics(metricsByAssignedOverall.get("assigned"));
+  const areaTeamLeaderSummary: AssignmentSummaryNode[] = areaTeamLeaders.map((areaTeamLeader) => ({
+    key: areaTeamLeader.key,
+    name: areaTeamLeader.name,
+    metrics: areaTeamLeader.metrics
+  }));
+  const zoneSummary: AssignmentSummaryNode[] = Array.from(zoneNames.entries())
+    .map(([key, name]) => ({ key, name, metrics: accumulatedMetrics(metricsByZone.get(key)) }))
+    .sort(byPortfolioDesc);
+  const districtSummary: AssignmentSummaryNode[] = Array.from(districtNames.entries())
+    .map(([key, name]) => ({ key, name, metrics: accumulatedMetrics(metricsByDistrict.get(key)) }))
+    .sort(byPortfolioDesc);
   const linkSchedule = getLocationLinkSchedule();
 
   return (
@@ -760,6 +791,28 @@ export default async function LocationMasterlistPage() {
         </div>
       </section>
 
+      <AssignmentSummaryTable
+        title="Area Team Leader Summary"
+        label="Area Team Leader"
+        rows={areaTeamLeaderSummary}
+        total={accountOfficerTotal}
+      />
+
+      <AssignmentSummaryTable
+        title="Zone Summary"
+        label="Zone"
+        rows={zoneSummary}
+        total={accountOfficerTotal}
+      />
+
+      <AssignmentSummaryTable
+        title="District Summary"
+        label="District"
+        rows={districtSummary}
+        total={accountOfficerTotal}
+        description="District uses the Division value recorded in Account Tagging."
+      />
+
       <section className="panel overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-5">
           <div>
@@ -799,6 +852,55 @@ export default async function LocationMasterlistPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+function AssignmentSummaryTable({
+  title,
+  label,
+  rows,
+  total,
+  description
+}: {
+  title: string;
+  label: string;
+  rows: AssignmentSummaryNode[];
+  total: Metrics;
+  description?: string;
+}) {
+  return (
+    <section className="panel overflow-hidden">
+      <div className="border-b border-slate-200 p-5">
+        <h3 className="text-lg font-bold text-slate-950">{title}</h3>
+        <p className="mt-1 text-sm text-slate-600">
+          {description ?? `Assigned outstanding-loan portfolio summarized by ${label}.`}
+          {" "}The grand total counts each client only once.
+        </p>
+      </div>
+      <div className="overflow-x-auto text-sm">
+        <div className={`${officerRowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 shadow-sm`}>
+          <span>{label}</span><span className="text-right">No. of Clients</span>
+          <span className="text-right">Portfolio</span>
+          <StatusHeader label="Current" /><StatusHeader label="Delayed" />
+          <StatusHeader label="Past Due" /><StatusHeader label="Litigated" />
+        </div>
+        <div className="min-w-[1350px] divide-y divide-slate-100">
+          {rows.map((row) => (
+            <div key={row.key} className={`${officerRowGrid} px-4 py-3`}>
+              <span className="font-bold text-slate-900">{row.name}</span>
+              <MetricCells metrics={row.metrics} />
+            </div>
+          ))}
+          {!rows.length ? <p className="px-4 py-8 text-center font-semibold text-slate-500">No assigned {label.toLocaleLowerCase("en-US")} data found.</p> : null}
+        </div>
+        {rows.length ? (
+          <div className={`${officerRowGrid} border-t-2 border-slate-300 bg-slate-50 px-4 py-3 font-extrabold text-slate-950`}>
+            <span>Grand Total</span>
+            <MetricCells metrics={total} />
+          </div>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
