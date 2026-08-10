@@ -146,6 +146,8 @@ export function BarangayLoanReport({
     }
   }
 
+  if (clientCount === 0) return <span>-</span>;
+
   return (
     <>
       <button

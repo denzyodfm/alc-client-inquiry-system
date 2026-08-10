@@ -266,7 +266,7 @@ function aggregateMetrics(items: Metrics[]): Metrics {
 }
 
 function count(value: number | null) {
-  return value === null ? "—" : value.toLocaleString("en-US");
+  return value ? value.toLocaleString("en-US") : "-";
 }
 
 function money(value: number | null) {
@@ -787,9 +787,9 @@ export default async function LocationMasterlistPage() {
                   <td className="px-4 py-3 font-semibold">{run.trigger}</td>
                   <td className="px-4 py-3">{run.startedBy?.name ?? "System"}</td>
                   <td className={`px-4 py-3 font-bold ${run.status === "SUCCESS" ? "text-green-700" : run.status === "FAILED" ? "text-red-700" : "text-blue-700"}`}>{run.status}</td>
-                  <td className="px-4 py-3 text-right">{run.loansScanned.toLocaleString("en-US")}</td>
-                  <td className="px-4 py-3 text-right font-bold text-green-700">{run.loansLinked.toLocaleString("en-US")}</td>
-                  <td className="px-4 py-3 text-right font-bold text-amber-700">{run.loansUnmatched.toLocaleString("en-US")}</td>
+                  <td className="px-4 py-3 text-right">{count(run.loansScanned)}</td>
+                  <td className="px-4 py-3 text-right font-bold text-green-700">{count(run.loansLinked)}</td>
+                  <td className="px-4 py-3 text-right font-bold text-amber-700">{count(run.loansUnmatched)}</td>
                   <td className="max-w-sm whitespace-normal px-4 py-3 text-slate-600">{run.message ?? "-"}</td>
                 </tr>
               ))}

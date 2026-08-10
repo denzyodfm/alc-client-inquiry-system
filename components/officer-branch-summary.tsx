@@ -25,6 +25,10 @@ type BranchSummaryRow = TotalsSummary & {
   branchCode: string;
 };
 
+function countValue(value: number) {
+  return value ? value.toLocaleString("en-US") : "-";
+}
+
 export function OfficerBranchSummary({ officerId, officerName }: { officerId: number; officerName: string }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<BranchSummaryRow[] | null>(null);
@@ -175,7 +179,7 @@ function SummaryHeader({ label }: { label: string }) {
 function SummaryMetric({ count, balance }: { count: number; balance: number }) {
   return (
     <span className="text-right">
-      <span className="block font-bold text-slate-950">{count.toLocaleString("en-US")}</span>
+      <span className="block font-bold text-slate-950">{countValue(count)}</span>
       <span className="block text-[10px] font-semibold text-red-700">{money(balance)}</span>
     </span>
   );

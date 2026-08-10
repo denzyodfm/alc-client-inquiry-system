@@ -14,7 +14,6 @@ export function AppProgressBar() {
   const visible = useRef(false);
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     function reveal() {
@@ -64,14 +63,26 @@ export function AppProgressBar() {
     return () => {
       if (showTimer.current) clearTimeout(showTimer.current);
       if (fallbackTimer.current) clearTimeout(fallbackTimer.current);
-      if (hideTimer.current) clearTimeout(hideTimer.current);
       document.removeEventListener("click", handleClick, true);
     };
   }, []);
 
   useEffect(() => {
+    // Route changes are the completion signal for primary-menu navigation.
+    // Always cancel the pending reveal, even when the 45-second delay meant
+    // the overlay never became visible. Otherwise that old timer can fire
+    // later while the user is clicking buttons inside the destination page.
+    navigationPending.current = false;
+    if (showTimer.current) {
+      clearTimeout(showTimer.current);
+      showTimer.current = null;
+    }
+    if (fallbackTimer.current) {
+      clearTimeout(fallbackTimer.current);
+      fallbackTimer.current = null;
+    }
+
     if (progress > 0) {
-      navigationPending.current = false;
       visible.current = false;
       setProgress(100);
       const timer = setTimeout(() => setProgress(0), 350);

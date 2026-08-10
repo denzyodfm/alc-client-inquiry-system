@@ -20,6 +20,10 @@ export type AccountOfficerSummaryRow = {
   litigatedBalance: number;
 };
 
+function countValue(value: number) {
+  return value ? value.toLocaleString("en-US") : "-";
+}
+
 function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (character) => ({
     "&": "&amp;",
@@ -175,7 +179,7 @@ export function AccountOfficerSummary({
               {rows.map((row) => (
                 <div key={row.key} className="grid min-w-[940px] grid-cols-[minmax(180px,1fr)_80px_130px_repeat(4,125px)] gap-2 border-b border-slate-100 px-4 py-3 last:border-b-0">
                   <span className="font-semibold text-slate-800">{row.name.toLocaleUpperCase("en")}</span>
-                  <span className="text-right font-bold text-brand-blue">{row.numberOfClients.toLocaleString("en-US")}</span>
+                  <span className="text-right font-bold text-brand-blue">{countValue(row.numberOfClients)}</span>
                   <span className="text-right font-bold text-red-700">{money(row.portfolio)}</span>
                   <SummaryMetric count={row.current} balance={row.currentBalance} />
                   <SummaryMetric count={row.delayed} balance={row.delayedBalance} />
@@ -200,7 +204,7 @@ function SummaryHeader({ label }: { label: string }) {
 function SummaryMetric({ count, balance }: { count: number; balance: number }) {
   return (
     <span className="text-right">
-      <span className="block font-bold text-slate-900">{count.toLocaleString("en-US")}</span>
+      <span className="block font-bold text-slate-900">{countValue(count)}</span>
       <span className="mt-0.5 block text-[10px] font-bold text-red-700">{money(balance)}</span>
     </span>
   );
