@@ -59,6 +59,12 @@ type ClientResult = {
   loans: Loan[];
 };
 
+type LocationOption = {
+  province: string;
+  municipality: string;
+  barangay: string;
+};
+
 type InquiryResult = {
   status: "EMPTY_QUERY" | "NO_RECORD" | "FULLY_PAID" | "ACTIVE_BALANCE";
   message: string;
@@ -141,7 +147,7 @@ function Highlight({ value, tokens }: { value: string | null | undefined; tokens
   );
 }
 
-function PermanentAddressEditor({ client }: { client: ClientResult }) {
+function PermanentAddressEditor({ client, locationOptions }: { client: ClientResult; locationOptions: LocationOption[] }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -155,6 +161,29 @@ function PermanentAddressEditor({ client }: { client: ClientResult }) {
   const showsPermanent = Boolean(
     current.permanentAddress || current.permanentProvince || current.permanentMunicipality || current.permanentBarangay
   );
+  const provinces = useMemo(
+    () => Array.from(new Set([...locationOptions.map((option) => option.province), province].filter(Boolean))).sort(),
+    [locationOptions, province]
+  );
+  const municipalities = useMemo(() => {
+    const selectedProvince = province.trim().toLocaleLowerCase("en");
+    const options = locationOptions
+      .filter((option) => option.province.trim().toLocaleLowerCase("en") === selectedProvince)
+      .map((option) => option.municipality);
+    return Array.from(new Set([...options, municipality].filter(Boolean))).sort();
+  }, [locationOptions, municipality, province]);
+  const barangays = useMemo(() => {
+    const selectedProvince = province.trim().toLocaleLowerCase("en");
+    const selectedMunicipality = municipality.trim().toLocaleLowerCase("en");
+    const options = locationOptions
+      .filter(
+        (option) =>
+          option.province.trim().toLocaleLowerCase("en") === selectedProvince &&
+          option.municipality.trim().toLocaleLowerCase("en") === selectedMunicipality
+      )
+      .map((option) => option.barangay);
+    return Array.from(new Set([...options, barangay].filter(Boolean))).sort();
+  }, [barangay, locationOptions, municipality, province]);
 
   async function save(clear: boolean) {
     setSaving(true);
@@ -218,15 +247,45 @@ function PermanentAddressEditor({ client }: { client: ClientResult }) {
         </label>
         <label className="text-xs font-bold uppercase tracking-wide text-slate-600">
           Province
-          <input className="field mt-1 h-9 text-xs" value={province} onChange={(event) => setProvince(event.target.value)} />
+          <select
+            className="field mt-1 h-9 text-xs"
+            value={province}
+            onChange={(event) => {
+              setProvince(event.target.value);
+              setMunicipality("");
+              setBarangay("");
+            }}
+          >
+            <option value="">Select province</option>
+            {provinces.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
         </label>
         <label className="text-xs font-bold uppercase tracking-wide text-slate-600">
           City/Municipality
-          <input className="field mt-1 h-9 text-xs" value={municipality} onChange={(event) => setMunicipality(event.target.value)} />
+          <select
+            className="field mt-1 h-9 text-xs"
+            value={municipality}
+            disabled={!province}
+            onChange={(event) => {
+              setMunicipality(event.target.value);
+              setBarangay("");
+            }}
+          >
+            <option value="">{province ? "Select city/municipality" : "Select province first"}</option>
+            {municipalities.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
         </label>
         <label className="text-xs font-bold uppercase tracking-wide text-slate-600 md:col-start-1">
           Barangay
-          <input className="field mt-1 h-9 text-xs" value={barangay} onChange={(event) => setBarangay(event.target.value)} />
+          <select
+            className="field mt-1 h-9 text-xs"
+            value={barangay}
+            disabled={!province || !municipality}
+            onChange={(event) => setBarangay(event.target.value)}
+          >
+            <option value="">{municipality ? "Select barangay" : "Select city/municipality first"}</option>
+            {barangays.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
         </label>
       </div>
       {error ? <p className="text-xs font-semibold text-red-600">{error}</p> : null}
@@ -255,7 +314,8 @@ const ClientResultCard = memo(function ClientResultCard({
   onToggleExpand,
   onSelectLoan,
   onAnalyzeLoan,
-  onAnalyzeClient
+  onAnalyzeClient,
+  locationOptions
 }: {
   group: ClientGroup;
   groupIndex: number;
@@ -265,6 +325,7 @@ const ClientResultCard = memo(function ClientResultCard({
   onSelectLoan: (loan: Loan & { client: ClientResult }) => void;
   onAnalyzeLoan: (loan: Loan & { client: ClientResult }) => void;
   onAnalyzeClient: (group: ClientGroup) => void;
+  locationOptions: LocationOption[];
 }) {
   const primaryClient = group.clients[0];
   const branches = Array.from(new Set(group.clients.map((client) => `${client.branch.branchName} - ${client.branch.branchCode}`)));
@@ -311,7 +372,7 @@ const ClientResultCard = memo(function ClientResultCard({
         <div><dt className="font-semibold text-slate-500">Valid ID</dt><dd><Highlight value={primaryClient.validIdNumber} tokens={activeSearchTokens} /></dd></div>
         <div><dt className="font-semibold text-slate-500">Address</dt><dd><Highlight value={primaryClient.address} tokens={activeSearchTokens} /></dd></div>
       </dl>
-      <PermanentAddressEditor client={primaryClient} />
+      <PermanentAddressEditor client={primaryClient} locationOptions={locationOptions} />
       {isExpanded ? (
         <div className="mt-5 overflow-x-auto overflow-y-visible">
           <table className="w-full min-w-[1240px] text-left text-sm">
@@ -391,7 +452,7 @@ const ClientResultCard = memo(function ClientResultCard({
   );
 });
 
-export function InquiryForm() {
+export function InquiryForm({ locationOptions }: { locationOptions: LocationOption[] }) {
   const [result, setResult] = useState<InquiryResult | null>(null);
   const [selectedLoan, setSelectedLoan] = useState<(Loan & { client: ClientResult }) | null>(null);
   const [analysisLoan, setAnalysisLoan] = useState<(Loan & { client: ClientResult }) | null>(null);
@@ -540,6 +601,7 @@ export function InquiryForm() {
             onSelectLoan={handleSelectLoan}
             onAnalyzeLoan={handleAnalyzeLoan}
             onAnalyzeClient={handleAnalyzeClient}
+            locationOptions={locationOptions}
           />
         ))}
       </section>
