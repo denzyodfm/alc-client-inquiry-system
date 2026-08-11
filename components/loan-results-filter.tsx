@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useState } from "react";
 
 type BranchOption = {
   id: number;
@@ -33,7 +33,6 @@ export function LoanResultsFilter({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(searchText);
-  const mounted = useRef(false);
 
   const buildHref = useCallback(
     (formData?: FormData, nextQuery = query) => {
@@ -48,25 +47,13 @@ export function LoanResultsFilter({
       status === "ALL" ? params.delete("status") : params.set("status", status);
       product === "ALL" ? params.delete("product") : params.set("product", product);
       normalizedQuery ? params.set("q", normalizedQuery) : params.delete("q");
+      params.set("searched", "1");
 
       const next = params.toString();
       return next ? `${pathname}?${next}` : pathname;
     },
     [pathname, query, searchParams, selectedBranchId, selectedProduct, selectedStatus]
   );
-
-  useEffect(() => {
-    if (!mounted.current) {
-      mounted.current = true;
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      router.replace(buildHref(undefined, query));
-    }, 350);
-
-    return () => window.clearTimeout(timeout);
-  }, [buildHref, query, router]);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { LoanResultsFilter } from "@/components/loan-results-filter";
 import { LoanResultsTable, type LoanResultRow } from "@/components/loan-results-table";
+import { LoanResultsSummary } from "@/components/loan-results-summary";
 import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { inactiveStatus12Where } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
@@ -95,7 +96,7 @@ function toLoanRow(loan: LoanWithRelations): LoanResultRow {
 export default async function LoansPage({
   searchParams
 }: {
-  searchParams?: Promise<{ status?: string; branchId?: string; product?: string; q?: string; page?: string }>;
+  searchParams?: Promise<{ status?: string; branchId?: string; product?: string; q?: string; page?: string; searched?: string }>;
 }) {
   const user = await requireFunction("LOAN_RESULTS");
   const params = await searchParams;
@@ -104,6 +105,7 @@ export default async function LoansPage({
   const requestedBranchId = params?.branchId?.trim() || "ALL";
   const selectedProduct = params?.product?.trim() || "ALL";
   const searchText = params?.q?.trim() || "";
+  const hasSearch = params?.searched === "1" || Boolean(params?.q || params?.status || params?.branchId || params?.product);
   const currentPage = Math.max(1, Number(params?.page ?? 1) || 1);
   const pageSize = 100;
   const accountOfficerBranchIds = user.role === "ACCOUNT_OFFICER" ? await getAccessibleBranchIds(user) : null;
@@ -158,8 +160,8 @@ export default async function LoansPage({
       : {})
   };
 
-  const [loans, totalLoans, branches, statusOptions, productOptions] = await Promise.all([
-    prisma.loan.findMany({
+  const [loans, totalLoans, branches, statusOptions, productOptions, totals, statusGroups, branchGroups, productGroups] = await Promise.all([
+    hasSearch ? prisma.loan.findMany({
       skip: (currentPage - 1) * pageSize,
       take: pageSize,
       where,
@@ -174,8 +176,8 @@ export default async function LoansPage({
           orderBy: { paidAt: "asc" }
         }
       }
-    }),
-    prisma.loan.count({ where }),
+    }) : Promise.resolve([]),
+    hasSearch ? prisma.loan.count({ where }) : Promise.resolve(0),
     prisma.branch.findMany({
       where: {
         ...(accountOfficerBranchIds === null ? {} : { id: { in: accountOfficerBranchIds } }),
@@ -204,7 +206,11 @@ export default async function LoansPage({
       },
       select: { loanProduct: true },
       orderBy: { loanProduct: "asc" }
-    })
+    }),
+    !hasSearch ? prisma.loan.aggregate({ where, _count: { _all: true }, _sum: { principalAmount: true, paidAmount: true, balance: true } }) : Promise.resolve(null),
+    !hasSearch ? prisma.loan.groupBy({ by: ["sourceStatusName"], where, _count: { _all: true }, _sum: { principalAmount: true, paidAmount: true, balance: true }, orderBy: { _sum: { balance: "desc" } } }) : Promise.resolve([]),
+    !hasSearch ? prisma.loan.groupBy({ by: ["branchId"], where, _count: { _all: true }, _sum: { principalAmount: true, paidAmount: true, balance: true }, orderBy: { _sum: { balance: "desc" } } }) : Promise.resolve([]),
+    !hasSearch ? prisma.loan.groupBy({ by: ["loanProduct"], where, _count: { _all: true }, _sum: { principalAmount: true, paidAmount: true, balance: true }, orderBy: { _sum: { balance: "desc" } } }) : Promise.resolve([])
   ]);
 
   const totalPages = Math.max(1, Math.ceil(totalLoans / pageSize));
@@ -217,6 +223,7 @@ export default async function LoansPage({
     if (selectedStatus !== "ALL") nextParams.set("status", selectedStatus);
     if (selectedProduct !== "ALL") nextParams.set("product", selectedProduct);
     if (searchText) nextParams.set("q", searchText);
+    nextParams.set("searched", "1");
     if (page > 1) nextParams.set("page", String(page));
     const query = nextParams.toString();
     return query ? `/loans?${query}` : "/loans";
@@ -263,6 +270,18 @@ export default async function LoansPage({
     map[loan.clientId] = rows;
     return map;
   }, {});
+  const summaryRow = (label: string, row: { _count: { _all: number }; _sum: { principalAmount: unknown; paidAmount: unknown; balance: unknown } }) => ({
+    label,
+    loans: row._count._all,
+    principal: Number(row._sum.principalAmount ?? 0),
+    paid: Number(row._sum.paidAmount ?? 0),
+    balance: Number(row._sum.balance ?? 0)
+  });
+  const branchNameById = new Map(branches.map((branch) => [branch.id, `${branch.branchName} - ${branch.branchCode}`]));
+  const summaryTotals = totals ? summaryRow("All Loans", totals) : { label: "All Loans", loans: 0, principal: 0, paid: 0, balance: 0 };
+  const statusSummaries = statusGroups.map((row) => summaryRow(row.sourceStatusName || "Unspecified", row));
+  const branchSummaries = branchGroups.map((row) => summaryRow(branchNameById.get(row.branchId) || `Branch ${row.branchId}`, row));
+  const productSummaries = productGroups.map((row) => summaryRow(row.loanProduct || "Unspecified", row));
 
   return (
     <div className="space-y-6">
@@ -281,7 +300,7 @@ export default async function LoansPage({
         searchText={searchText}
       />
 
-      <LoanResultsTable
+      {!hasSearch ? <LoanResultsSummary totals={summaryTotals} statuses={statusSummaries} branches={branchSummaries} products={productSummaries} /> : <LoanResultsTable
         loans={loanRows}
         clientLoansByClientId={clientLoansByClientId}
         firstRowNumber={(safePage - 1) * pageSize + 1}
@@ -293,7 +312,7 @@ export default async function LoansPage({
         previousHref={pageHref(safePage - 1)}
         nextHref={pageHref(safePage + 1)}
         pageLinks={pageLinks}
-      />
+      />}
     </div>
   );
 }
