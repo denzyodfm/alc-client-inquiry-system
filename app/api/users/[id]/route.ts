@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 import { Prisma, UserRole } from "@prisma/client";
 import { requireApiUser } from "@/lib/api";
 import { getAccessibleBranchIds } from "@/lib/auth";
@@ -25,8 +24,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const body = await request.json();
   const name = String(body.name ?? "").trim();
   const email = String(body.email ?? "").trim().toLowerCase();
-  const password = String(body.password ?? "");
-  const confirmPassword = String(body.confirmPassword ?? "");
   const position = String(body.position ?? "").trim() || null;
   const requestedBaseBranchId = Number(body.baseBranchId);
   const baseBranchId = Number.isInteger(requestedBaseBranchId) && requestedBaseBranchId > 0 ? requestedBaseBranchId : null;
@@ -41,6 +38,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   });
   if (!existingUser) {
     return NextResponse.json({ error: "User not found." }, { status: 404 });
+  }
+  if (body.password || body.confirmPassword) {
+    return NextResponse.json({ error: "Managed user passwords cannot be changed here. Users must change their own password." }, { status: 400 });
+  }
+  if (existingUser.role === "ADMIN" && (role !== "ADMIN" || body.isActive === false)) {
+    return NextResponse.json({ error: "Admin privileges and active status are protected." }, { status: 400 });
   }
   if (!isAdmin && (existingUser.role === "ADMIN" || role !== "ACCOUNT_OFFICER")) {
     return NextResponse.json({ error: "Area Team Leaders can only edit Account Officer users." }, { status: 403 });
@@ -57,14 +60,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   if (!name || !email) {
     return NextResponse.json({ error: "Name and email are required." }, { status: 400 });
-  }
-  if (password || confirmPassword) {
-    if (password !== confirmPassword) {
-      return NextResponse.json({ error: "Passwords do not match." }, { status: 400 });
-    }
-  }
-  if (password && password.length < 8) {
-    return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
   }
   if (currentUser?.id === userId && body.isActive === false) {
     return NextResponse.json({ error: "You cannot deactivate your own account." }, { status: 400 });
@@ -84,8 +79,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           position,
           baseBranchId,
           allBranches,
-          isActive: body.isActive,
-          passwordHash: password ? await bcrypt.hash(password, 12) : undefined
+          isActive: body.isActive
         },
         select: { id: true, name: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, isActive: true }
       });
@@ -120,6 +114,13 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   const userId = Number(id);
   if (currentUser?.id === userId) {
     return NextResponse.json({ error: "You cannot delete your own account." }, { status: 400 });
+  }
+  const existingUser = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  if (!existingUser) {
+    return NextResponse.json({ error: "User not found." }, { status: 404 });
+  }
+  if (existingUser.role === "ADMIN") {
+    return NextResponse.json({ error: "Admin accounts cannot be deleted." }, { status: 400 });
   }
 
   try {

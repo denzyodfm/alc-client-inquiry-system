@@ -110,7 +110,7 @@ export function UserManager({
     resetMessages();
 
     try {
-      if (password || confirmPassword) {
+      if (!editingUser && (password || confirmPassword)) {
         if (password !== confirmPassword) {
           throw new Error("Passwords do not match.");
         }
@@ -230,30 +230,23 @@ export function UserManager({
 
           <input name="name" className="field" placeholder="Full name" defaultValue={editingUser?.name ?? ""} required />
           <input name="email" className="field" type="email" placeholder="Email" defaultValue={editingUser?.email ?? ""} required />
-          <input
-            name="password"
-            className="field"
-            type="password"
-            placeholder={editingUser ? "New password (optional)" : "Temporary password"}
-            required={!editingUser}
-          />
-          <input
-            name="confirmPassword"
-            className="field"
-            type="password"
-            placeholder={editingUser ? "Confirm new password" : "Confirm temporary password"}
-            required={!editingUser}
-          />
+          {!editingUser ? <>
+            <input name="password" className="field" type="password" placeholder="Temporary password" required />
+            <input name="confirmPassword" className="field" type="password" placeholder="Confirm temporary password" required />
+          </> : null}
           {isAdmin ? (
-            <select name="role" className="field" defaultValue={editingUser?.role ?? "INQUIRY_USER"}>
-              <option value="ADMIN">Admin</option>
-              <option value="INQUIRY_USER">Inquiry User</option>
-              <option value="AUDITOR">Auditor</option>
-              <option value="ACCOUNT_OFFICER">Account Officer</option>
-              <option value="AREA_TEAM_LEADER">Area Team Leader</option>
-              <option value="CREDIT_COMMITTEE">Credit Committee</option>
-              <option value="HO_CASHIER">HO Cashier</option>
-            </select>
+            editingUser?.role === "ADMIN" ? <>
+              <input type="hidden" name="role" value="ADMIN" />
+              <div className="field bg-slate-50 text-slate-700">Admin (protected)</div>
+            </> : <select name="role" className="field" defaultValue={editingUser?.role ?? "INQUIRY_USER"}>
+                <option value="ADMIN">Admin</option>
+                <option value="INQUIRY_USER">Inquiry User</option>
+                <option value="AUDITOR">Auditor</option>
+                <option value="ACCOUNT_OFFICER">Account Officer</option>
+                <option value="AREA_TEAM_LEADER">Area Team Leader</option>
+                <option value="CREDIT_COMMITTEE">Credit Committee</option>
+                <option value="HO_CASHIER">HO Cashier</option>
+              </select>
           ) : (
             <>
               <input type="hidden" name="role" value="ACCOUNT_OFFICER" />
@@ -312,15 +305,18 @@ export function UserManager({
               </div>
             ) : null}
           </div>
-          <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <input
-              name="isActive"
-              type="checkbox"
-              className="h-4 w-4 rounded border-slate-300"
-              defaultChecked={editingUser?.isActive ?? true}
-            />
-            Active user
-          </label>
+          {editingUser?.role === "ADMIN" ? <>
+            <input type="hidden" name="isActive" value="on" />
+            <div className="text-sm font-semibold text-brand-green">Active admin account (protected)</div>
+          </> : <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <input
+                name="isActive"
+                type="checkbox"
+                className="h-4 w-4 rounded border-slate-300"
+                defaultChecked={editingUser?.isActive ?? true}
+              />
+              Active user
+            </label>}
           <button className="btn-primary" disabled={loading}>
             <Plus className="h-4 w-4" />
             {loading ? "Saving..." : editingUser ? "Update User" : "Save User"}
@@ -390,10 +386,10 @@ export function UserManager({
                         <Pencil className="h-4 w-4" />
                         Edit
                       </button>
-                      <button type="button" className="btn-secondary h-9 px-3 text-xs" onClick={() => toggleUser(user)} disabled={loading}>
+                      {user.role !== "ADMIN" ? <button type="button" className="btn-secondary h-9 px-3 text-xs" onClick={() => toggleUser(user)} disabled={loading}>
                         {user.isActive ? "Deactivate" : "Activate"}
-                      </button>
-                      {isAdmin ? <button
+                      </button> : <span className="inline-flex items-center px-2 text-xs font-semibold text-slate-500">Protected</span>}
+                      {isAdmin && user.role !== "ADMIN" ? <button
                         type="button"
                         className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-red-200 bg-white px-3 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                         onClick={() => deleteUser(user)}

@@ -151,7 +151,7 @@ export default async function PaymentReportsPage({
 }: {
   searchParams?: Promise<{ branchId?: string; month?: string; period?: string; product?: string; q?: string; page?: string }>;
 }) {
-  const user = await requireUser(["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
+  const user = await requireUser(["ADMIN"]);
   const params = await searchParams;
   const selectedMonth = normalizeMonth(params?.month);
   const selectedPeriod = normalizePeriod(params?.period);

@@ -94,7 +94,7 @@ function automaticBreakdown(loan: AutomaticLoan) {
 }
 
 export async function POST(request: Request) {
-  const { user, response } = await requireApiUser(["ADMIN", "HO_CASHIER"]);
+  const { user, response } = await requireApiUser(["ADMIN"]);
   if (response) return response;
 
   const body = await request.json();

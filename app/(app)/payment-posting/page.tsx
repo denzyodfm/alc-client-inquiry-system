@@ -146,7 +146,7 @@ export default async function PaymentPostingPage({
 }: {
   searchParams?: Promise<{ q?: string; includeClosed?: string }>;
 }) {
-  await requireUser(["ADMIN", "HO_CASHIER"]);
+  await requireUser(["ADMIN"]);
   const params = await searchParams;
   const searchText = params?.q?.trim() || "";
   const includeClosed = params?.includeClosed === "1";

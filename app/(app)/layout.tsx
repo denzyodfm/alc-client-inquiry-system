@@ -6,7 +6,7 @@ import { AppProgressBar } from "@/components/app-progress-bar";
 type NavConfig = {
   href: string;
   label: string;
-  icon: "Gauge" | "Building2" | "Banknote" | "Search" | "BrainCircuit" | "ClipboardCheck" | "ClipboardList" | "FileClock" | "Hourglass" | "ReceiptText" | "UserRoundCheck" | "MapPinned" | "Tag" | "History" | "Users" | "Settings" | "MapPin";
+  icon: "Gauge" | "Building2" | "Banknote" | "Search" | "BrainCircuit" | "ClipboardCheck" | "ClipboardList" | "FileClock" | "Hourglass" | "ReceiptText" | "UserRoundCheck" | "MapPinned" | "Tag" | "History" | "Users" | "Settings" | "MapPin" | "KeyRound";
   roles: string[];
 };
 
@@ -18,8 +18,8 @@ const nav: NavConfig[] = [
   { href: "/current", label: "Current", icon: "ClipboardCheck", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER"] },
   { href: "/loans", label: "Loan Results", icon: "ClipboardList", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER"] },
   { href: "/aging", label: "Aging Report", icon: "Hourglass", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
-  { href: "/payments", label: "Payment Reports", icon: "ReceiptText", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
-  { href: "/payment-posting", label: "Payment Posting", icon: "Banknote", roles: ["ADMIN", "HO_CASHIER"] },
+  { href: "/payments", label: "Payment Reports", icon: "ReceiptText", roles: ["ADMIN"] },
+  { href: "/payment-posting", label: "Payment Posting", icon: "Banknote", roles: ["ADMIN"] },
   { href: "/co-makers", label: "Co Makers", icon: "UserRoundCheck", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "AREA_TEAM_LEADER"] },
   { href: "/remedial", label: "Remedial", icon: "MapPinned", roles: ["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
   { href: "/account-tagging", label: "Account Tagging", icon: "Tag", roles: ["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] },
@@ -28,6 +28,7 @@ const nav: NavConfig[] = [
   { href: "/client-conditions", label: "Client Condition", icon: "UserRoundCheck", roles: ["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER"] },
   { href: "/sync-logs", label: "Sync Logs", icon: "History", roles: ["ADMIN", "AUDITOR"] },
   { href: "/users", label: "Users", icon: "Users", roles: ["ADMIN", "AREA_TEAM_LEADER"] },
+  { href: "/change-password", label: "Change Password", icon: "KeyRound", roles: ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE", "HO_CASHIER"] },
   { href: "/settings", label: "Settings", icon: "Settings", roles: ["ADMIN"] }
 ];
 
@@ -39,11 +40,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .filter((item) => item.roles.includes(user.role))
     .filter((item) =>
       user.role !== "ACCOUNT_OFFICER" ||
-      ["/inquiry", "/client-logs", "/loans", "/account-tagging", "/location-masterlist", "/client-conditions"].includes(item.href)
+      ["/inquiry", "/client-logs", "/loans", "/account-tagging", "/location-masterlist", "/client-conditions", "/change-password"].includes(item.href)
     )
     .filter((item) =>
       user.role !== "AREA_TEAM_LEADER" ||
-      ["/inquiry", "/client-logs", "/loans", "/co-makers", "/account-tagging", "/location-masterlist", "/client-conditions", "/users"].includes(item.href)
+      ["/inquiry", "/client-logs", "/loans", "/co-makers", "/account-tagging", "/location-masterlist", "/client-conditions", "/users", "/change-password"].includes(item.href)
     )
     .map((item) =>
       user.role === "ACCOUNT_OFFICER" && item.href === "/account-tagging"
