@@ -11,8 +11,8 @@ export async function GET() {
     orderBy: { name: "asc" },
     include: {
       permissions: { select: { functionKey: true } },
-      users: { select: { id: true, name: true, email: true, role: true } }
-    }
+      _count: { select: { users: true } }
+    },
   }));
 }
 

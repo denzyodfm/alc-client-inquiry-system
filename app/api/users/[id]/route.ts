@@ -34,7 +34,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const branchIds = allBranches ? [] : parseBranchIds(body.branchIds);
   const existingUser = await prisma.user.findUnique({
     where: { id: userId },
-    select: { role: true }
+    select: { role: true, privilegeTemplateId: true }
   });
   if (!existingUser) {
     return NextResponse.json({ error: "User not found." }, { status: 404 });
@@ -67,6 +67,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!role) {
     return NextResponse.json({ error: "Invalid role selected." }, { status: 400 });
   }
+  const requestedPrivilegeTemplateId = Number(body.privilegeTemplateId);
+  const privilegeTemplateId = existingUser.role === "ADMIN" || role === "ADMIN"
+    ? null
+    : isAdmin && Number.isInteger(requestedPrivilegeTemplateId) && requestedPrivilegeTemplateId > 0
+      ? requestedPrivilegeTemplateId
+      : isAdmin ? null : existingUser.privilegeTemplateId;
+  if (privilegeTemplateId !== null && !(await prisma.privilegeTemplate.count({ where: { id: privilegeTemplateId } }))) {
+    return NextResponse.json({ error: "Invalid privilege selected." }, { status: 400 });
+  }
 
   try {
     const user = await prisma.$transaction(async (tx) => {
@@ -79,7 +88,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           position,
           baseBranchId,
           allBranches,
-          isActive: body.isActive
+          isActive: body.isActive,
+          privilegeTemplateId
         },
         select: { id: true, name: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, isActive: true }
       });

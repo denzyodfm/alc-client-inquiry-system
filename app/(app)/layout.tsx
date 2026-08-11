@@ -2,13 +2,14 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { AppShell } from "@/components/app-shell";
 import { AppProgressBar } from "@/components/app-progress-bar";
-import { canAccessFunction, type AppFunctionKey } from "@/lib/access-control";
+import { canAccessAnyFunction, canAccessFunction, type AppFunctionKey } from "@/lib/access-control";
 
 type NavConfig = {
   href: string;
   label: string;
   icon: "Gauge" | "Building2" | "Banknote" | "Search" | "BrainCircuit" | "ClipboardCheck" | "ClipboardList" | "FileClock" | "Hourglass" | "ReceiptText" | "UserRoundCheck" | "MapPinned" | "Tag" | "History" | "Users" | "Settings" | "MapPin" | "KeyRound";
   functionKey?: AppFunctionKey;
+  functionKeys?: AppFunctionKey[];
 };
 
 const nav: NavConfig[] = [
@@ -28,16 +29,17 @@ const nav: NavConfig[] = [
   { href: "/verify-address", label: "Verify Address", icon: "MapPin", functionKey: "VERIFY_ADDRESS" },
   { href: "/client-conditions", label: "Client Condition", icon: "UserRoundCheck", functionKey: "CLIENT_CONDITION" },
   { href: "/sync-logs", label: "Sync Logs", icon: "History", functionKey: "SYNC_LOGS" },
-  { href: "/users", label: "Users", icon: "Users", functionKey: "USER_MANAGEMENT" },
   { href: "/change-password", label: "Change Password", icon: "KeyRound" },
-  { href: "/settings", label: "Settings", icon: "Settings", functionKey: "SETTINGS_ACCESS" }
+  { href: "/settings", label: "Settings", icon: "Settings", functionKeys: ["SETTINGS_ACCESS", "BRANCH_MANAGEMENT", "USER_MANAGEMENT"] }
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const access = await Promise.all(nav.map(async (item) => !item.functionKey || canAccessFunction(user, item.functionKey)));
+  const access = await Promise.all(nav.map(async (item) =>
+    item.functionKey ? canAccessFunction(user, item.functionKey) : item.functionKeys ? canAccessAnyFunction(user, item.functionKeys) : true
+  ));
   const allowedNav = nav
     .filter((_item, index) => access[index])
     .map((item) =>

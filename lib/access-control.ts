@@ -60,6 +60,15 @@ export async function canAccessFunction(user: { role: UserRole; privilegeTemplat
   }));
 }
 
+export async function canAccessAnyFunction(
+  user: { role: UserRole; privilegeTemplateId?: number | null },
+  functionKeys: readonly AppFunctionKey[]
+) {
+  if (user.role === "ADMIN") return true;
+  const access = await Promise.all(functionKeys.map((functionKey) => canAccessFunction(user, functionKey)));
+  return access.some(Boolean);
+}
+
 export function isAppFunctionKey(value: string): value is AppFunctionKey {
   return APP_FUNCTIONS.some((item) => item.key === value);
 }

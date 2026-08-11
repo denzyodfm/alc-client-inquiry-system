@@ -14,7 +14,11 @@ type User = {
   allBranches: boolean;
   isActive: boolean;
   branchAccess: Array<{ branchId: number }>;
+  privilegeTemplateId: number | null;
+  privilegeTemplate: PrivilegeOption | null;
 };
+
+type PrivilegeOption = { id: number; name: string };
 
 type BranchOption = {
   id: number;
@@ -42,12 +46,14 @@ export function UserManager({
   initialUsers,
   branches,
   currentUserRole,
-  canGrantAllBranches
+  canGrantAllBranches,
+  privileges
 }: {
   initialUsers: User[];
   branches: BranchOption[];
   currentUserRole: string;
   canGrantAllBranches: boolean;
+  privileges: PrivilegeOption[];
 }) {
   const isAdmin = currentUserRole === "ADMIN";
   const canEditUsers = isAdmin || currentUserRole === "AREA_TEAM_LEADER";
@@ -158,6 +164,7 @@ export function UserManager({
         baseBranchId: user.baseBranchId ?? "",
         allBranches: user.allBranches,
         branchIds: user.branchAccess.map((access) => access.branchId),
+        privilegeTemplateId: user.privilegeTemplateId ?? "",
         isActive: !user.isActive
       })
       });
@@ -253,6 +260,12 @@ export function UserManager({
               <div className="field bg-slate-50 text-slate-700">Account Officer</div>
             </>
           )}
+          {isAdmin ? (
+            editingUser?.role === "ADMIN" ? <div className="field bg-emerald-50 font-semibold text-brand-green">Admin - full access (protected)</div> : <select name="privilegeTemplateId" className="field" defaultValue={editingUser?.privilegeTemplateId ?? ""}>
+              <option value="">Use role-based access</option>
+              {privileges.map((privilege) => <option key={privilege.id} value={privilege.id}>{privilege.name}</option>)}
+            </select>
+          ) : <input type="hidden" name="privilegeTemplateId" value={editingUser?.privilegeTemplateId ?? ""} />}
           <input
             name="position"
             className="field"
@@ -344,6 +357,7 @@ export function UserManager({
                 <th className="px-4 py-3">User</th>
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Role</th>
+                <th className="px-4 py-3">Privilege</th>
                 <th className="px-4 py-3">Position</th>
                 <th className="px-4 py-3">Base Branch</th>
                 <th className="px-4 py-3">Branches</th>
@@ -362,6 +376,7 @@ export function UserManager({
                   </td>
                   <td className="px-4 py-3">{user.email}</td>
                   <td className="px-4 py-3">{roleLabel(user.role)}</td>
+                  <td className="px-4 py-3">{user.role === "ADMIN" ? <span className="font-semibold text-brand-green">Full access</span> : user.privilegeTemplate?.name || <span className="text-slate-400">Role-based</span>}</td>
                   <td className="px-4 py-3">{user.position || <span className="text-slate-400">-</span>}</td>
                   <td className="px-4 py-3">
                     {user.baseBranch ? `${user.baseBranch.branchName} - ${user.baseBranch.branchCode}` : <span className="text-slate-400">-</span>}
@@ -404,7 +419,7 @@ export function UserManager({
               ))}
               {!visibleUsers.length ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={8}>No users match the selected filters.</td>
+                  <td className="px-4 py-6 text-slate-500" colSpan={9}>No users match the selected filters.</td>
                 </tr>
               ) : null}
             </tbody>

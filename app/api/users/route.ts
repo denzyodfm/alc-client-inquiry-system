@@ -30,6 +30,8 @@ export async function GET() {
       baseBranchId: true,
       allBranches: true,
       isActive: true,
+      privilegeTemplateId: true,
+      privilegeTemplate: { select: { id: true, name: true } },
       createdAt: true,
       baseBranch: { select: { id: true, branchName: true, branchCode: true } },
       branchAccess: { select: { branchId: true } }
@@ -66,6 +68,8 @@ export async function POST(request: Request) {
   const accessibleBranchIds = await getAccessibleBranchIds(currentUser!);
   const allBranches = Boolean(body.allBranches) && (isAdmin || accessibleBranchIds === null);
   const branchIds = allBranches ? [] : parseBranchIds(body.branchIds);
+  const requestedPrivilegeTemplateId = Number(body.privilegeTemplateId);
+  const privilegeTemplateId = isAdmin && role !== "ADMIN" && Number.isInteger(requestedPrivilegeTemplateId) && requestedPrivilegeTemplateId > 0 ? requestedPrivilegeTemplateId : null;
 
   if (!name || !email || !password) {
     return NextResponse.json({ error: "Name, email, and password are required." }, { status: 400 });
@@ -91,6 +95,9 @@ export async function POST(request: Request) {
   if (baseBranchId !== null && !(await prisma.branch.count({ where: { id: baseBranchId } }))) {
     return NextResponse.json({ error: "Invalid base branch selected." }, { status: 400 });
   }
+  if (privilegeTemplateId !== null && !(await prisma.privilegeTemplate.count({ where: { id: privilegeTemplateId } }))) {
+    return NextResponse.json({ error: "Invalid privilege selected." }, { status: 400 });
+  }
 
   try {
     const passwordHash = await bcrypt.hash(password, 12);
@@ -104,6 +111,7 @@ export async function POST(request: Request) {
           baseBranchId,
           allBranches,
           isActive: body.isActive ?? true,
+          privilegeTemplateId,
           passwordHash
         },
         select: { id: true, name: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, isActive: true }

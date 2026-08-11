@@ -8,7 +8,7 @@ export default async function UsersPage() {
   const currentUser = await requireFunction("USER_MANAGEMENT");
   const accessibleBranchIds = await getAccessibleBranchIds(currentUser);
   const isAdmin = currentUser.role === "ADMIN";
-  const [users, branches] = await Promise.all([
+  const [users, branches, privileges] = await Promise.all([
     prisma.user.findMany({
       where: isAdmin
         ? undefined
@@ -28,6 +28,8 @@ export default async function UsersPage() {
         baseBranchId: true,
         allBranches: true,
         isActive: true,
+        privilegeTemplateId: true,
+        privilegeTemplate: { select: { id: true, name: true } },
         baseBranch: { select: { id: true, branchName: true, branchCode: true } },
         branchAccess: { select: { branchId: true } }
       }
@@ -36,7 +38,8 @@ export default async function UsersPage() {
       where: accessibleBranchIds === null ? undefined : { id: { in: accessibleBranchIds } },
       orderBy: { branchName: "asc" },
       select: { id: true, branchName: true, branchCode: true }
-    })
+    }),
+    prisma.privilegeTemplate.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } })
   ]);
 
   return (
@@ -50,6 +53,7 @@ export default async function UsersPage() {
         branches={branches}
         currentUserRole={currentUser.role}
         canGrantAllBranches={isAdmin || accessibleBranchIds === null}
+        privileges={privileges}
       />
     </div>
   );

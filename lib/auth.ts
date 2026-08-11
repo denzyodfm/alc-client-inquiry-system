@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import type { UserRole } from "@prisma/client";
-import { canAccessFunction, type AppFunctionKey } from "@/lib/access-control";
+import { canAccessAnyFunction, canAccessFunction, type AppFunctionKey } from "@/lib/access-control";
 
 export type SessionUser = {
   id: number;
@@ -85,6 +85,13 @@ export async function requireFunction(functionKey: AppFunctionKey) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
   if (!(await canAccessFunction(user, functionKey))) redirect("/change-password");
+  return user;
+}
+
+export async function requireAnyFunction(functionKeys: readonly AppFunctionKey[]) {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  if (!(await canAccessAnyFunction(user, functionKeys))) redirect("/change-password");
   return user;
 }
 
