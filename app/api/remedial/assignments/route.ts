@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { canAccessBranch, canAssignRemedial } from "@/lib/auth";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { remedialEligibleLoanWhere, REMEDIAL_ROLES } from "@/lib/remedial";
 import { prisma } from "@/lib/prisma";
 
@@ -26,7 +26,7 @@ function parseLoanIds(value: unknown, fallbackLoanId: number) {
 }
 
 export async function POST(request: Request) {
-  const { user, response } = await requireApiUser(REMEDIAL_ROLES);
+  const { user, response } = await requireApiFunction("REMEDIAL");
   if (response) return response;
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

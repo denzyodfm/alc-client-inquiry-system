@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import type { UserRole } from "@prisma/client";
+import { canAccessFunction, type AppFunctionKey } from "@/lib/access-control";
 
 export type SessionUser = {
   id: number;
@@ -10,6 +11,7 @@ export type SessionUser = {
   email: string;
   role: UserRole;
   allBranches?: boolean;
+  privilegeTemplateId?: number | null;
 };
 
 const COOKIE_NAME = "alc_session";
@@ -66,7 +68,7 @@ export async function getSessionUser() {
 
   const user = await prisma.user.findFirst({
     where: { id: session.id, isActive: true },
-    select: { id: true, name: true, email: true, role: true, allBranches: true }
+    select: { id: true, name: true, email: true, role: true, allBranches: true, privilegeTemplateId: true }
   });
 
   return user;
@@ -76,6 +78,13 @@ export async function requireUser(roles?: UserRole[]) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
   if (roles?.length && !roles.includes(user.role)) redirect("/dashboard");
+  return user;
+}
+
+export async function requireFunction(functionKey: AppFunctionKey) {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  if (!(await canAccessFunction(user, functionKey))) redirect("/change-password");
   return user;
 }
 

@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { PaymentPostingWorkspace, type PaymentPostingLoanRow } from "@/components/payment-posting-workspace";
 import type { LoanDetailLoan } from "@/components/loan-detail-window";
-import { requireUser } from "@/lib/auth";
+import { requireFunction } from "@/lib/auth";
 import { numberValue } from "@/lib/loan-amounts";
 import { toLoanDetail } from "@/lib/loan-detail";
 import { prisma } from "@/lib/prisma";
@@ -146,7 +146,7 @@ export default async function PaymentPostingPage({
 }: {
   searchParams?: Promise<{ q?: string; includeClosed?: string }>;
 }) {
-  await requireUser(["ADMIN"]);
+  await requireFunction("PAYMENT_POSTING");
   const params = await searchParams;
   const searchText = params?.q?.trim() || "";
   const includeClosed = params?.includeClosed === "1";

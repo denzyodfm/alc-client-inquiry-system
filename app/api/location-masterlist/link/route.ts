@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { isLocationLinkingRunning, linkUnlinkedLoans } from "@/lib/location-linker";
 
 export async function POST() {
-  const { user, response } = await requireApiUser(["ADMIN"]);
+  const { user, response } = await requireApiFunction("LOCATION_MASTERLIST");
   if (response) return response;
   if (isLocationLinkingRunning()) {
     return NextResponse.json({ error: "A location-linking run is already in progress." }, { status: 409 });

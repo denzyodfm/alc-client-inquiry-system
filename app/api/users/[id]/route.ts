@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Prisma, UserRole } from "@prisma/client";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { getAccessibleBranchIds } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -16,7 +16,7 @@ function parseBranchIds(value: unknown) {
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const { user: currentUser, response } = await requireApiUser(["ADMIN", "AREA_TEAM_LEADER"]);
+  const { user: currentUser, response } = await requireApiFunction("USER_MANAGEMENT");
   if (response) return response;
 
   const { id } = await context.params;
@@ -107,7 +107,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const { user: currentUser, response } = await requireApiUser(["ADMIN"]);
+  const { user: currentUser, response } = await requireApiFunction("USER_MANAGEMENT");
   if (response) return response;
 
   const { id } = await context.params;

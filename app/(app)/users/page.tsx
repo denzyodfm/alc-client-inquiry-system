@@ -1,11 +1,11 @@
 import { UserManager } from "@/components/user-manager";
-import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
+import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 export default async function UsersPage() {
-  const currentUser = await requireUser(["ADMIN", "AREA_TEAM_LEADER"]);
+  const currentUser = await requireFunction("USER_MANAGEMENT");
   const accessibleBranchIds = await getAccessibleBranchIds(currentUser);
   const isAdmin = currentUser.role === "ADMIN";
   const [users, branches] = await Promise.all([

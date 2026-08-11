@@ -4,6 +4,7 @@ import { DashboardBranchStatus, type DashboardBranchAnalysis } from "@/component
 import { inactiveStatus12Where } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 import { dateTime } from "@/lib/format";
+import { requireFunction } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -106,6 +107,7 @@ async function getBranchAnalysis(branch: { id: number; branchName: string; branc
 }
 
 export default async function DashboardPage() {
+  await requireFunction("DASHBOARD");
   const [branchCount, activeBranchCount, clientCount, activeLoanCount, logs, branches] = await Promise.all([
     prisma.branch.count(),
     prisma.branch.count({ where: { status: "ACTIVE" } }),

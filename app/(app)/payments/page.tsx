@@ -6,7 +6,7 @@ import type { LoanDetailLoan } from "@/components/loan-detail-window";
 import { PaymentReportFilter } from "@/components/payment-report-filter";
 import { PrintReportButton } from "@/components/print-report-button";
 import { ScopedPrintButton } from "@/components/scoped-print-button";
-import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
+import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { dateOnly, dateTime, money } from "@/lib/format";
 import { numberValue } from "@/lib/loan-amounts";
 import { toLoanDetail } from "@/lib/loan-detail";
@@ -151,7 +151,7 @@ export default async function PaymentReportsPage({
 }: {
   searchParams?: Promise<{ branchId?: string; month?: string; period?: string; product?: string; q?: string; page?: string }>;
 }) {
-  const user = await requireUser(["ADMIN"]);
+  const user = await requireFunction("PAYMENT_REPORTS");
   const params = await searchParams;
   const selectedMonth = normalizeMonth(params?.month);
   const selectedPeriod = normalizePeriod(params?.period);

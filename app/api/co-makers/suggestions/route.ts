@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { inactiveStatus12Where } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 
@@ -48,7 +48,7 @@ function normalizeCoMakerKey(coMaker: { clientRemoteId: string | null; validIdNu
 }
 
 export async function GET(request: Request) {
-  const { response } = await requireApiUser();
+  const { response } = await requireApiFunction("CO_MAKERS");
   if (response) return response;
 
   const url = new URL(request.url);

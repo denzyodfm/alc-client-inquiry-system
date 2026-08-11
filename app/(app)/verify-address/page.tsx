@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+import { requireFunction } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { VerifyAddressWorkspace, type VerifyAddressRow } from "@/components/verify-address-workspace";
 
@@ -31,7 +31,7 @@ export default async function VerifyAddressPage({
 }: {
   searchParams?: Promise<{ page?: string; q?: string }>;
 }) {
-  await requireUser(["ADMIN"]);
+  await requireFunction("VERIFY_ADDRESS");
   const params = await searchParams;
   const searchText = params?.q?.trim().toLowerCase() ?? "";
   const currentPage = Math.max(1, Number(params?.page ?? 1) || 1);

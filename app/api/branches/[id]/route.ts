@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { encryptSecret } from "@/lib/crypto";
 import { Prisma } from "@prisma/client";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const { response } = await requireApiUser(["ADMIN"]);
+  const { response } = await requireApiFunction("BRANCH_MANAGEMENT");
   if (response) return response;
 
   try {
@@ -49,7 +49,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const { response } = await requireApiUser(["ADMIN"]);
+  const { response } = await requireApiFunction("BRANCH_MANAGEMENT");
   if (response) return response;
 
   try {

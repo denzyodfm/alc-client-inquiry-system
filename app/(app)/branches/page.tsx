@@ -1,11 +1,11 @@
-import { requireUser } from "@/lib/auth";
+import { requireFunction } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { BranchManager } from "@/components/branch-manager";
 
 export const dynamic = "force-dynamic";
 
 export default async function BranchesPage() {
-  await requireUser(["ADMIN"]);
+  await requireFunction("BRANCH_MANAGEMENT");
   const branches = await prisma.branch.findMany({ orderBy: { branchName: "asc" } });
   const safeBranches = branches.map(({ encryptedDbPassword: _encryptedDbPassword, ...safeBranch }) => safeBranch);
 

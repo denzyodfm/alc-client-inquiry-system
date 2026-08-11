@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { getMidnightSyncSchedule } from "@/lib/midnight-sync-scheduler";
 
 export async function GET() {
-  const { response } = await requireApiUser(["ADMIN"]);
+  const { response } = await requireApiFunction("SETTINGS_ACCESS");
   if (response) return response;
 
   return NextResponse.json({

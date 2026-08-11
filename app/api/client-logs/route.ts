@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { getAccessibleBranchIds } from "@/lib/auth";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { visibleSyncedLoanWhere } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 
@@ -17,7 +17,7 @@ function branchAccessWhere(branchIds: number[] | null): Prisma.ClientWhereInput 
 }
 
 export async function POST(request: Request) {
-  const { user, response } = await requireApiUser([...CLIENT_LOG_ROLES]);
+  const { user, response } = await requireApiFunction("CLIENT_LOGS");
   if (response) return response;
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

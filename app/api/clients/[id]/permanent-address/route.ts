@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const { response } = await requireApiUser(["ADMIN", "INQUIRY_USER", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER"]);
+  const { response } = await requireApiFunction("CLIENT_INQUIRY");
   if (response) return response;
 
   const { id } = await context.params;

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { inactiveStatus12Where } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  const { response } = await requireApiUser();
+  const { response } = await requireApiFunction("DASHBOARD");
   if (response) return response;
 
   const [branches, activeBranches, clients, activeLoans, lastSync, failedSyncs] = await Promise.all([

@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { ClientConditionList, type ClientConditionRow } from "@/components/client-condition-list";
-import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
+import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { getClientConditionOptions } from "@/lib/client-condition-options";
 import { prisma } from "@/lib/prisma";
 
@@ -21,7 +21,7 @@ export default async function ClientConditionsPage({
 }: {
   searchParams?: Promise<{ q?: string; condition?: string; page?: string; print?: string }>;
 }) {
-  const user = await requireUser(["ADMIN", "AREA_TEAM_LEADER", "ACCOUNT_OFFICER"]);
+  const user = await requireFunction("CLIENT_CONDITION");
   const params = await searchParams;
   const query = params?.q?.trim() || "";
   const requestedCondition = params?.condition?.trim().toUpperCase() || "ALL";

@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { AlertTriangle, CalendarDays, ClipboardList } from "lucide-react";
-import { requireUser, canApproveRemedial, canAssignRemedial, getAccessibleBranchIds } from "@/lib/auth";
+import { requireFunction, canApproveRemedial, canAssignRemedial, getAccessibleBranchIds } from "@/lib/auth";
 import { branchScopeWhere, remedialEligibleLoanWhere, remedialLoanSearchWhere, remedialOfficerOptions, REMEDIAL_ROLES } from "@/lib/remedial";
 import { prisma } from "@/lib/prisma";
 import { amountDueAsOfToday, numberValue, scheduleIsPaid, schedulePaidTotal } from "@/lib/loan-amounts";
@@ -140,7 +140,7 @@ export default async function RemedialPage({
 }: {
   searchParams?: Promise<{ branchId?: string; product?: string; q?: string; page?: string }>;
 }) {
-  const user = await requireUser(REMEDIAL_ROLES);
+  const user = await requireFunction("REMEDIAL");
   const params = await searchParams;
   const selectedBranchId = params?.branchId?.trim() || "ALL";
   const selectedProduct = params?.product?.trim() || "ALL";

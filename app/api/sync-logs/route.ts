@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  const { response } = await requireApiUser(["ADMIN", "AUDITOR"]);
+  const { response } = await requireApiFunction("SYNC_LOGS");
   if (response) return response;
 
   const logs = await prisma.syncLog.findMany({

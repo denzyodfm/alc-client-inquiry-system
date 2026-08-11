@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 const PAGE_SIZE = 30;
@@ -69,7 +69,7 @@ const loanSelect = {
 } satisfies Prisma.LoanSelect;
 
 export async function GET(request: NextRequest) {
-  const { response } = await requireApiUser(["ADMIN"]);
+  const { response } = await requireApiFunction("LOCATION_MASTERLIST");
   if (response) return response;
 
   const search = request.nextUrl.searchParams.get("search")?.trim() || "";
@@ -148,7 +148,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { user, response } = await requireApiUser(["ADMIN"]);
+  const { user, response } = await requireApiFunction("LOCATION_MASTERLIST");
   if (response) return response;
 
   const body = await request.json().catch(() => null);
@@ -220,4 +220,3 @@ export async function POST(request: NextRequest) {
     location: `${location.barangay}, ${location.municipality}, ${location.province}`
   });
 }
-

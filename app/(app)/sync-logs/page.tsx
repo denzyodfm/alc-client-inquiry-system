@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+import { requireFunction } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { dateTime } from "@/lib/format";
 
@@ -9,7 +9,7 @@ function wholeNumber(value: number) {
 }
 
 export default async function SyncLogsPage() {
-  await requireUser(["ADMIN", "AUDITOR"]);
+  await requireFunction("SYNC_LOGS");
   const logs = await prisma.syncLog.findMany({
     take: 100,
     orderBy: { startedAt: "desc" },

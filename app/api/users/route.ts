@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { Prisma, UserRole } from "@prisma/client";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { getAccessibleBranchIds } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  const { user: currentUser, response } = await requireApiUser(["ADMIN", "AREA_TEAM_LEADER"]);
+  const { user: currentUser, response } = await requireApiFunction("USER_MANAGEMENT");
   if (response) return response;
   const accessibleBranchIds = await getAccessibleBranchIds(currentUser!);
   const isAdmin = currentUser!.role === "ADMIN";
@@ -50,7 +50,7 @@ function parseBranchIds(value: unknown) {
 }
 
 export async function POST(request: Request) {
-  const { user: currentUser, response } = await requireApiUser(["ADMIN", "AREA_TEAM_LEADER"]);
+  const { user: currentUser, response } = await requireApiFunction("USER_MANAGEMENT");
   if (response) return response;
 
   const body = await request.json();

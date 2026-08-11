@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
-  const { user, response } = await requireApiUser(["ADMIN", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
+  const { user, response } = await requireApiFunction("ACCOUNT_TAGGING");
   if (response) return response;
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

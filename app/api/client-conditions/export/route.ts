@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
-import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
+import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { getClientConditionOptions } from "@/lib/client-condition-options";
 import { dateOnly } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
@@ -35,7 +35,7 @@ function searchFilter(query: string): Prisma.RemedialAssignmentWhereInput {
 }
 
 export async function GET(request: Request) {
-  const user = await requireUser(["ADMIN", "AREA_TEAM_LEADER", "ACCOUNT_OFFICER"]);
+  const user = await requireFunction("CLIENT_CONDITION");
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q")?.trim() || "";
   const requested = searchParams.get("condition")?.trim().toUpperCase() || "ALL";

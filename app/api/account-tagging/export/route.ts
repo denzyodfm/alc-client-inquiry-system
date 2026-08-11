@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
-import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
+import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { dateOnly } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
@@ -126,7 +126,7 @@ function loanAmountBreakdown(loan: {
 }
 
 export async function GET(request: Request) {
-  const user = await requireUser(["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
+  const user = await requireFunction("ACCOUNT_TAGGING");
   const { searchParams } = new URL(request.url);
   const selectedBranchId = searchParams.get("branchId")?.trim() || "ALL";
   const selectedProduct = searchParams.get("product")?.trim() || "ALL";

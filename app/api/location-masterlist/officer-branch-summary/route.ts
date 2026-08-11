@@ -1,7 +1,7 @@
 import type { Prisma, UserRole } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { getAccessibleBranchIds } from "@/lib/auth";
 import { effectiveLocationCategory, higherRiskLocationCategory, manilaDateKey, type LocationClientCategory } from "@/lib/location-loan-aging";
 import { prisma } from "@/lib/prisma";
@@ -66,7 +66,7 @@ function summarize(accumulator: Accumulator) {
 }
 
 export async function GET(request: NextRequest) {
-  const { user, response } = await requireApiUser(allowedRoles);
+  const { user, response } = await requireApiFunction("LOCATION_MASTERLIST");
   if (response) return response;
 
   const officerParam = request.nextUrl.searchParams.get("officerId");

@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { LoanResultsFilter } from "@/components/loan-results-filter";
 import { LoanResultsTable, type LoanResultRow } from "@/components/loan-results-table";
-import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
+import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { inactiveStatus12Where } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 
@@ -97,7 +97,7 @@ export default async function LoansPage({
 }: {
   searchParams?: Promise<{ status?: string; branchId?: string; product?: string; q?: string; page?: string }>;
 }) {
-  const user = await requireUser(["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER"]);
+  const user = await requireFunction("LOAN_RESULTS");
   const params = await searchParams;
   const requestedStatus = params?.status?.trim() || "ALL";
   const selectedStatus = requestedStatus.toUpperCase() === "ACTIVE" ? "ALL" : requestedStatus;

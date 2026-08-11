@@ -4,7 +4,7 @@ import { ClipboardCheck, Layers3, WalletCards } from "lucide-react";
 import { CurrentDetailReport, type CurrentDetailRow } from "@/components/current-detail-report";
 import { CurrentLoansFilter } from "@/components/current-loans-filter";
 import type { LoanDetailLoan } from "@/components/loan-detail-window";
-import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
+import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { inactiveStatus12Where } from "@/lib/loan-filters";
 import { amountDueAsOfToday, numberValue, schedulePaidTotal } from "@/lib/loan-amounts";
 import { toLoanDetail } from "@/lib/loan-detail";
@@ -74,7 +74,7 @@ export default async function CurrentLoansPage({
 }: {
   searchParams?: Promise<{ branchId?: string; product?: string; q?: string; detailBranchId?: string }>;
 }) {
-  const user = await requireUser(["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER"]);
+  const user = await requireFunction("CURRENT_LOANS");
   const params = await searchParams;
   const requestedBranchId = params?.branchId?.trim() || "ALL";
   const selectedProduct = params?.product?.trim() || "ALL";

@@ -26,7 +26,8 @@ export async function POST(request: Request) {
     name: user.name,
     email: user.email,
     role: user.role,
-    allBranches: user.allBranches
+    allBranches: user.allBranches,
+    privilegeTemplateId: user.privilegeTemplateId
   });
 
   return NextResponse.json({ ok: true });

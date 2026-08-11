@@ -6,7 +6,7 @@ import type { LoanDetailLoan } from "@/components/loan-detail-window";
 import { LocationReportLoanList } from "@/components/location-report-loan-row";
 import { PrintReportButton } from "@/components/print-report-button";
 import { accountTaggingHref, accountTaggingSearchWhere } from "@/lib/account-tagging";
-import { canAssignRemedial, getAccessibleBranchIds, requireUser } from "@/lib/auth";
+import { canAssignRemedial, getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { money } from "@/lib/format";
 import { toLoanDetail } from "@/lib/loan-detail";
 import { prisma } from "@/lib/prisma";
@@ -179,7 +179,7 @@ export default async function AccountTaggingPage({
 }: {
   searchParams?: Promise<{ branchId?: string; product?: string; address?: string; address2?: string; customer?: string; status?: string; branchAo?: string; resultSearch?: string; page?: string; print?: string; view?: string; officerId?: string; assignmentZone?: string; searched?: string; report?: string }>;
 }) {
-  const user = await requireUser(["ADMIN", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
+  const user = await requireFunction("ACCOUNT_TAGGING");
   const params = await searchParams;
   const requestedBranchId = params?.branchId?.trim() || "ALL";
   const selectedProduct = params?.product?.trim() || "ALL";

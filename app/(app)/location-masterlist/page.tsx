@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
-import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
+import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { getLocationLinkSchedule } from "@/lib/location-link-scheduler";
 import {
   effectiveLocationCategory,
@@ -285,7 +285,7 @@ const locationRowGrid = "grid min-w-[1480px] grid-cols-[minmax(300px,1fr)_100px_
 const officerRowGrid = "grid min-w-[1350px] grid-cols-[minmax(300px,1fr)_100px_160px_repeat(4,150px)] items-center";
 
 export default async function LocationMasterlistPage() {
-  const user = await requireUser(["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
+  const user = await requireFunction("LOCATION_MASTERLIST");
   const accessibleBranchIds = user.role === "ACCOUNT_OFFICER" ? null : await getAccessibleBranchIds(user);
   const branchWhere: Prisma.LoanWhereInput =
     accessibleBranchIds === null ? {} : accessibleBranchIds.length ? { branchId: { in: accessibleBranchIds } } : { branchId: -1 };

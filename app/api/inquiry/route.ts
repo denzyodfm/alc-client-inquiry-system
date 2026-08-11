@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { searchClientInquiry } from "@/lib/inquiry";
 
 export async function POST(request: Request) {
-  const { user, response } = await requireApiUser();
+  const { user, response } = await requireApiFunction("CLIENT_INQUIRY");
   if (response) return response;
 
   const payload = await request.json();

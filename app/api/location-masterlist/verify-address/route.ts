@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
-  const { response } = await requireApiUser(["ADMIN"]);
+  const { response } = await requireApiFunction("VERIFY_ADDRESS");
   if (response) return response;
 
   const body = await request.json().catch(() => null);

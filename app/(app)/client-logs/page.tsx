@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { FileClock } from "lucide-react";
 import { ClientLogsWorkspace } from "@/components/client-logs-workspace";
-import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
+import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { visibleSyncedLoanWhere } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 
@@ -48,7 +48,7 @@ export default async function ClientLogsPage({
 }: {
   searchParams?: Promise<{ q?: string; clientId?: string }>;
 }) {
-  const user = await requireUser(["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
+  const user = await requireFunction("CLIENT_LOGS");
   const params = await searchParams;
   const searchText = params?.q?.trim() ?? "";
   const selectedClientId = Number(params?.clientId ?? 0) || null;

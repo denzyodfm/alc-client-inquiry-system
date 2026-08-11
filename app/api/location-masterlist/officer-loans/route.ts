@@ -1,7 +1,7 @@
 import type { Prisma, UserRole } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { canAccessBranch, getAccessibleBranchIds } from "@/lib/auth";
 import {
   effectiveLocationCategory,
@@ -44,7 +44,7 @@ function money(value: number) {
 }
 
 export async function GET(request: NextRequest) {
-  const { user, response } = await requireApiUser(allowedRoles);
+  const { user, response } = await requireApiFunction("LOCATION_MASTERLIST");
   if (response) return response;
 
   const officerParam = request.nextUrl.searchParams.get("officerId");
@@ -250,7 +250,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { user, response } = await requireApiUser(["ADMIN", "AREA_TEAM_LEADER"]);
+  const { user, response } = await requireApiFunction("LOCATION_MASTERLIST");
   if (response) return response;
 
   const body = await request.json().catch(() => null);

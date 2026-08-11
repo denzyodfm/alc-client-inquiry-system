@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { canAccessBranch, getAccessibleBranchIds } from "@/lib/auth";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 const ASSIGNMENT_ROLES = ["ADMIN", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] as const;
@@ -52,7 +52,7 @@ async function validateAreaTeamLeader(areaTeamLeaderId: number, branchIds: numbe
 }
 
 export async function POST(request: Request) {
-  const { user, response } = await requireApiUser([...ASSIGNMENT_ROLES]);
+  const { user, response } = await requireApiFunction("ACCOUNT_TAGGING");
   if (response) return response;
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

@@ -4,7 +4,7 @@ import { AlertTriangle, Building2, Hourglass, Layers3, UserRound } from "lucide-
 import { AgingDetailReport, type AgingDetailRow } from "@/components/aging-detail-report";
 import { AgingReportFilter } from "@/components/aging-report-filter";
 import type { LoanDetailLoan } from "@/components/loan-detail-window";
-import { getAccessibleBranchIds, requireUser } from "@/lib/auth";
+import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { amountDueAsOfToday, loanContractAmount, numberValue, scheduleIsPaid, schedulePaidTotal } from "@/lib/loan-amounts";
 import { toLoanDetail } from "@/lib/loan-detail";
 import { pastDueLoanWhere } from "@/lib/remedial";
@@ -177,7 +177,7 @@ export default async function AgingReportPage({
 }: {
   searchParams?: Promise<{ branchId?: string; product?: string; q?: string; page?: string; bucket?: string; detailBranchId?: string; detail?: string; officerId?: string }>;
 }) {
-  const user = await requireUser(["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"]);
+  const user = await requireFunction("AGING_REPORT");
   const params = await searchParams;
   const requestedBranchId = params?.branchId?.trim() || "ALL";
   const selectedProduct = params?.product?.trim() || "ALL";

@@ -56,6 +56,7 @@ model User {
   role         UserRole @default(INQUIRY_USER)
   position     String?  @db.VarChar(120)
   baseBranchId Int?     @map("base_branch_id")
+  privilegeTemplateId Int? @map("privilege_template_id")
   allBranches  Boolean  @default(false) @map("all_branches")
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
@@ -70,9 +71,34 @@ model User {
   localPaymentPostings LocalPaymentPosting[] @relation("LocalPaymentPostedBy")
   locationLinkRuns LocationLinkRun[] @relation("LocationLinkRunStartedBy")
   baseBranch   Branch?  @relation("UserBaseBranch", fields: [baseBranchId], references: [id], onDelete: SetNull)
+  privilegeTemplate PrivilegeTemplate? @relation(fields: [privilegeTemplateId], references: [id], onDelete: SetNull)
 
   @@index([baseBranchId])
+  @@index([privilegeTemplateId])
   @@map("users")
+}
+
+model PrivilegeTemplate {
+  id          Int                   @id @default(autoincrement())
+  name        String                @unique @db.VarChar(120)
+  description String?               @db.VarChar(255)
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+  users       User[]
+  permissions PrivilegePermission[]
+
+  @@map("privilege_templates")
+}
+
+model PrivilegePermission {
+  id                  Int               @id @default(autoincrement())
+  privilegeTemplateId Int               @map("privilege_template_id")
+  functionKey         String            @map("function_key") @db.VarChar(80)
+  privilegeTemplate   PrivilegeTemplate @relation(fields: [privilegeTemplateId], references: [id], onDelete: Cascade)
+
+  @@unique([privilegeTemplateId, functionKey])
+  @@index([functionKey])
+  @@map("privilege_permissions")
 }
 
 model Branch {

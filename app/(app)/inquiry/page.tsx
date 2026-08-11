@@ -1,9 +1,11 @@
 import { InquiryForm } from "@/components/inquiry-form";
 import { prisma } from "@/lib/prisma";
+import { requireFunction } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function InquiryPage() {
+  await requireFunction("CLIENT_INQUIRY");
   const locationOptions = await prisma.locationMasterlist.findMany({
     distinct: ["province", "municipality", "barangay"],
     select: { province: true, municipality: true, barangay: true },

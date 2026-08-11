@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { numberValue } from "@/lib/loan-amounts";
 import { prisma } from "@/lib/prisma";
 
@@ -94,7 +94,7 @@ function automaticBreakdown(loan: AutomaticLoan) {
 }
 
 export async function POST(request: Request) {
-  const { user, response } = await requireApiUser(["ADMIN"]);
+  const { user, response } = await requireApiFunction("PAYMENT_POSTING");
   if (response) return response;
 
   const body = await request.json();

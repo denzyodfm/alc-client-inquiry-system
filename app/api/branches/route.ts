@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { requireApiUser } from "@/lib/api";
+import { requireApiFunction } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { encryptSecret } from "@/lib/crypto";
 import { Prisma } from "@prisma/client";
 
 export async function GET() {
-  const { response } = await requireApiUser();
+  const { response } = await requireApiFunction("BRANCH_MANAGEMENT");
   if (response) return response;
 
   const branches = await prisma.branch.findMany({
@@ -23,7 +23,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { response } = await requireApiUser(["ADMIN"]);
+  const { response } = await requireApiFunction("BRANCH_MANAGEMENT");
   if (response) return response;
 
   try {
