@@ -15,7 +15,7 @@ export default function LoginPage() {
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.98)_0%,rgba(255,255,255,0.9)_30%,rgba(255,255,255,0.18)_58%,rgba(255,255,255,0.02)_100%)]" />
       <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-brand-navy via-brand-blue to-brand-yellow" />
 
-      <div className="relative z-10 flex min-h-0 flex-1 items-center justify-center lg:w-1/2 lg:self-start">
+      <div className="relative z-10 flex min-h-0 flex-1 items-center justify-center">
       <section className="w-full max-w-sm">
         <div className="rounded-2xl border border-white/90 bg-white/90 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.17)] backdrop-blur-xl sm:p-6">
           <Image src="/branding/alc-logo.png" alt="Agusan Lending Corporation" width={700} height={224} priority className="mb-4 h-auto w-full" />
