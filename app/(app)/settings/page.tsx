@@ -9,17 +9,21 @@ import { BranchManager } from "@/components/branch-manager";
 import { PrivilegeManager } from "@/components/privilege-manager";
 import { AccessControlMatrix } from "@/components/access-control-matrix";
 import { UserManager } from "@/components/user-manager";
+import { SyncLogsTable } from "@/components/sync-logs-table";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 export const dynamic = "force-dynamic";
 
-type Tab = "general" | "branches" | "privileges" | "matrix" | "users";
+type Tab = "general" | "branches" | "privileges" | "matrix" | "users" | "sync-logs" | "system-logs";
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const currentUser = await requireAnyFunction(["SETTINGS_ACCESS", "BRANCH_MANAGEMENT", "USER_MANAGEMENT"]);
-  const [canSettings, canBranches, canUsers] = await Promise.all([
+  const currentUser = await requireAnyFunction(["SETTINGS_ACCESS", "BRANCH_MANAGEMENT", "USER_MANAGEMENT", "SYNC_LOGS"]);
+  const [canSettings, canBranches, canUsers, canSyncLogs] = await Promise.all([
     canAccessFunction(currentUser, "SETTINGS_ACCESS"),
     canAccessFunction(currentUser, "BRANCH_MANAGEMENT"),
-    canAccessFunction(currentUser, "USER_MANAGEMENT")
+    canAccessFunction(currentUser, "USER_MANAGEMENT"),
+    canAccessFunction(currentUser, "SYNC_LOGS")
   ]);
   const tabs: Array<{ key: Tab; label: string; allowed: boolean }> = [
     { key: "general", label: "General", allowed: canSettings },
@@ -27,6 +31,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     { key: "privileges", label: "Privileges", allowed: canSettings },
     { key: "matrix", label: "Access Matrix", allowed: canSettings },
     { key: "users", label: "Users", allowed: canUsers }
+    ,{ key: "sync-logs", label: "Sync Logs", allowed: canSyncLogs }
+    ,{ key: "system-logs", label: "System Logs", allowed: currentUser.role === "ADMIN" }
   ];
   const allowedTabs = tabs.filter((tab) => tab.allowed);
   const requested = (await searchParams).tab as Tab | undefined;
@@ -35,7 +41,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const accessibleBranchIds = await getAccessibleBranchIds(currentUser);
   const isAdmin = currentUser.role === "ADMIN";
 
-  const [allBranches, privileges, users, userBranches] = await Promise.all([
+  const [allBranches, privileges, users, userBranches, syncLogs, systemLogText] = await Promise.all([
     canBranches ? prisma.branch.findMany({ orderBy: { branchName: "asc" } }) : [],
     canSettings ? prisma.privilegeTemplate.findMany({ orderBy: { name: "asc" }, include: { permissions: { select: { functionKey: true } }, _count: { select: { users: true } } } }) : [],
     canUsers ? prisma.user.findMany({
@@ -43,7 +49,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       orderBy: { name: "asc" },
       select: { id: true, name: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, isActive: true, privilegeTemplateId: true, privilegeTemplate: { select: { id: true, name: true } }, baseBranch: { select: { id: true, branchName: true, branchCode: true } }, branchAccess: { select: { branchId: true } } }
     }) : [],
-    canUsers ? prisma.branch.findMany({ where: accessibleBranchIds === null ? undefined : { id: { in: accessibleBranchIds } }, orderBy: { branchName: "asc" }, select: { id: true, branchName: true, branchCode: true } }) : []
+    canUsers ? prisma.branch.findMany({ where: accessibleBranchIds === null ? undefined : { id: { in: accessibleBranchIds } }, orderBy: { branchName: "asc" }, select: { id: true, branchName: true, branchCode: true } }) : [],
+    canSyncLogs ? prisma.syncLog.findMany({ take: 100, orderBy: { startedAt: "desc" }, include: { branch: { select: { branchName: true } } } }) : [],
+    currentUser.role === "ADMIN" ? readFile(path.join(process.cwd(), "logs", "location-link.log"), "utf8").then((text) => text.split(/\r?\n/).filter(Boolean).slice(-250).join("\n")).catch(() => "No application system log file is available.") : ""
   ]);
   const safeBranches = allBranches.map(({ encryptedDbPassword: _encryptedDbPassword, ...branch }) => branch);
   const privilegeOptions = privileges.map(({ id, name }) => ({ id, name }));
@@ -63,5 +71,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     {activeTab === "privileges" ? <PrivilegeManager initialPrivileges={JSON.parse(JSON.stringify(privileges))} /> : null}
     {activeTab === "matrix" ? <AccessControlMatrix privileges={JSON.parse(JSON.stringify(privileges))} functions={APP_FUNCTIONS.map((item) => ({ ...item }))} /> : null}
     {activeTab === "users" ? <UserManager initialUsers={users} branches={userBranches} currentUserRole={currentUser.role} canGrantAllBranches={isAdmin || accessibleBranchIds === null} privileges={privilegeOptions} /> : null}
+    {activeTab === "sync-logs" ? <div className="space-y-4"><div><h3 className="text-xl font-bold text-slate-950">Sync Logs</h3><p className="mt-1 text-sm text-slate-600">Recent branch synchronization activity.</p></div><SyncLogsTable logs={syncLogs} /></div> : null}
+    {activeTab === "system-logs" ? <div className="space-y-4"><div><h3 className="text-xl font-bold text-slate-950">System Logs</h3><p className="mt-1 text-sm text-slate-600">Administrator-only application and automated location-link activity.</p></div><div className="panel overflow-hidden"><pre className="max-h-[650px] overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-5 text-slate-700">{systemLogText}</pre></div></div> : null}
   </div>;
 }

@@ -10,6 +10,7 @@ import {
   BrainCircuit,
   ClipboardCheck,
   ClipboardList,
+  ChevronDown,
   FileClock,
   Gauge,
   History,
@@ -31,9 +32,10 @@ import {
 import { LogoutButton } from "@/components/logout-button";
 
 type NavItem = {
-  href: string;
+  href?: string;
   label: string;
   icon: keyof typeof icons;
+  children?: NavItem[];
 };
 
 const icons = {
@@ -73,6 +75,15 @@ export function AppShell({
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [desktopSidebarHidden, setDesktopSidebarHidden] = useState(false);
+  const [openGroups, setOpenGroups] = useState(() => new Set<string>());
+
+  function toggleGroup(label: string, forceOpen?: boolean) {
+    setOpenGroups((current) => {
+      const next = new Set(current);
+      if (forceOpen || !next.has(label)) next.add(label); else next.delete(label);
+      return next;
+    });
+  }
 
   return (
     <div className="min-h-screen overflow-x-hidden lg:flex">
@@ -90,11 +101,11 @@ export function AppShell({
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         } ${desktopSidebarHidden ? "lg:-translate-x-full" : "lg:translate-x-0"}`}
       >
-        <div className="relative flex h-24 items-center justify-between gap-3 overflow-hidden border-b border-blue-100 bg-white px-4">
+        <div className="relative flex h-28 items-center justify-between gap-3 overflow-hidden border-b border-blue-100 bg-white px-3">
           <span className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-navy via-brand-blue to-brand-yellow" />
           <div className="min-w-0 flex-1">
-            <Image src="/branding/alc-logo.png" alt="Agusan Lending Corporation" width={700} height={224} priority className="h-auto w-full max-w-[218px]" />
-            <p className="mt-1 pl-1 text-[10px] font-bold uppercase tracking-[0.17em] text-brand-blue">Client Inquiry System</p>
+            <Image src="/branding/alc-logo.png" alt="Agusan Lending Corporation" width={700} height={224} priority className="h-auto w-full max-w-[250px]" />
+            <p className="mt-1 pl-1 text-[11px] font-bold uppercase tracking-[0.2em] text-brand-blue">ALC Central</p>
           </div>
           <button type="button" className="btn-secondary h-9 w-9 px-0 lg:hidden" aria-label="Close menu" onClick={() => setMobileMenuOpen(false)}>
             <X className="h-4 w-4" />
@@ -103,12 +114,25 @@ export function AppShell({
         <nav data-primary-nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4">
           {nav.map((item) => {
             const Icon = icons[item.icon];
+            const groupActive = item.children?.some((child) => child.href && (pathname === child.href.split("?")[0] || pathname.startsWith(`${child.href.split("?")[0]}/`))) ?? false;
+            const open = openGroups.has(item.label) || groupActive;
+            if (item.children) return <div key={item.label} onMouseEnter={() => toggleGroup(item.label, true)}>
+              <button type="button" onClick={() => toggleGroup(item.label)} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold transition ${groupActive ? "bg-blue-50 text-brand-blue ring-1 ring-blue-100" : "text-slate-600 hover:bg-blue-50 hover:text-brand-blue"}`}>
+                <Icon className="h-4 w-4" /><span className="flex-1 text-left">{item.label}</span><ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+              </button>
+              {open ? <div className="ml-5 mt-1 space-y-1 border-l-2 border-blue-100 pl-2">{item.children.map((child) => {
+                const ChildIcon = icons[child.icon];
+                const childPath = child.href!.split("?")[0];
+                const active = pathname === childPath || pathname.startsWith(`${childPath}/`);
+                return <Link key={child.href} href={child.href!} onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition ${active ? "bg-blue-50 text-brand-blue" : "text-slate-500 hover:bg-blue-50 hover:text-brand-blue"}`}><ChildIcon className="h-3.5 w-3.5" />{child.label}</Link>;
+              })}</div> : null}
+            </div>;
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
 
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={item.href!}
                 onClick={() => setMobileMenuOpen(false)}
                 className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold transition ${
                   active ? "bg-blue-50 text-brand-blue ring-1 ring-blue-100" : "text-slate-600 hover:bg-blue-50 hover:text-brand-blue"
@@ -150,6 +174,12 @@ export function AppShell({
           </div>
         </header>
         <div className="min-w-0 px-3 py-5 sm:px-5 sm:py-6 lg:px-8">{children}</div>
+        <footer className="mx-3 mb-5 border-t border-blue-100 px-3 py-5 text-center text-xs text-slate-500 sm:mx-5 lg:mx-8">
+          <p className="font-semibold text-slate-600">Agusan Lending Corporation. Copyright {new Date().getFullYear()}. All rights reserved.</p>
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+            <span>Powered by</span><Image src="/branding/valdemeer-resources.png" alt="Valdemeer Resources, Inc" width={2048} height={768} className="h-6 w-auto object-contain" /><span>IT Team DJ-DL.</span>
+          </div>
+        </footer>
       </main>
     </div>
   );
