@@ -115,7 +115,7 @@ export function AppShell({
           {nav.map((item) => {
             const Icon = icons[item.icon];
             const groupActive = item.children?.some((child) => child.href && (pathname === child.href.split("?")[0] || pathname.startsWith(`${child.href.split("?")[0]}/`))) ?? false;
-            const open = openGroups.has(item.label) || groupActive;
+            const open = openGroups.has(item.label);
             if (item.children) return <div key={item.label}>
               <button type="button" onClick={() => toggleGroup(item.label)} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold transition ${groupActive ? "bg-blue-50 text-brand-blue ring-1 ring-blue-100" : "text-slate-600 hover:bg-blue-50 hover:text-brand-blue"}`}>
                 <span className="flex h-7 w-7 items-center justify-center rounded-md bg-yellow-100 text-brand-blue"><Icon className="h-[18px] w-[18px]" /></span><span className="flex-1 text-left">{item.label}</span><ChevronDown className={`h-4 w-4 text-brand-blue transition-transform ${open ? "rotate-180" : ""}`} />
