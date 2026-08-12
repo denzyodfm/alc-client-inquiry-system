@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { KeyRound, ServerCog, TimerReset } from "lucide-react";
-import { requireAnyFunction, getAccessibleBranchIds } from "@/lib/auth";
+import { requireUser, getAccessibleBranchIds } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
 import { getMidnightSyncSchedule } from "@/lib/midnight-sync-scheduler";
 import { prisma } from "@/lib/prisma";
@@ -10,15 +10,16 @@ import { PrivilegeManager } from "@/components/privilege-manager";
 import { AccessControlMatrix } from "@/components/access-control-matrix";
 import { UserManager } from "@/components/user-manager";
 import { SyncLogsTable } from "@/components/sync-logs-table";
+import { ChangePasswordForm } from "@/components/change-password-form";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 export const dynamic = "force-dynamic";
 
-type Tab = "general" | "branches" | "privileges" | "matrix" | "users" | "sync-logs" | "system-logs";
+type Tab = "general" | "branches" | "privileges" | "matrix" | "users" | "sync-logs" | "system-logs" | "change-password";
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  const currentUser = await requireAnyFunction(["SETTINGS_ACCESS", "BRANCH_MANAGEMENT", "USER_MANAGEMENT", "SYNC_LOGS"]);
+  const currentUser = await requireUser();
   const [canSettings, canBranches, canUsers, canSyncLogs] = await Promise.all([
     canAccessFunction(currentUser, "SETTINGS_ACCESS"),
     canAccessFunction(currentUser, "BRANCH_MANAGEMENT"),
@@ -30,9 +31,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     { key: "branches", label: "Branches", allowed: canBranches },
     { key: "privileges", label: "Privileges", allowed: canSettings },
     { key: "matrix", label: "Access Matrix", allowed: canSettings },
-    { key: "users", label: "Users", allowed: canUsers }
-    ,{ key: "sync-logs", label: "Sync Logs", allowed: canSyncLogs }
-    ,{ key: "system-logs", label: "System Logs", allowed: currentUser.role === "ADMIN" }
+    { key: "users", label: "Users", allowed: canUsers },
+    { key: "sync-logs", label: "Sync Logs", allowed: canSyncLogs },
+    { key: "system-logs", label: "System Logs", allowed: currentUser.role === "ADMIN" },
+    { key: "change-password", label: "Change Password", allowed: true }
   ];
   const allowedTabs = tabs.filter((tab) => tab.allowed);
   const requested = (await searchParams).tab as Tab | undefined;
@@ -73,5 +75,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     {activeTab === "users" ? <UserManager initialUsers={users} branches={userBranches} currentUserRole={currentUser.role} canGrantAllBranches={isAdmin || accessibleBranchIds === null} privileges={privilegeOptions} /> : null}
     {activeTab === "sync-logs" ? <div className="space-y-4"><div><h3 className="text-xl font-bold text-slate-950">Sync Logs</h3><p className="mt-1 text-sm text-slate-600">Recent branch synchronization activity.</p></div><SyncLogsTable logs={syncLogs} /></div> : null}
     {activeTab === "system-logs" ? <div className="space-y-4"><div><h3 className="text-xl font-bold text-slate-950">System Logs</h3><p className="mt-1 text-sm text-slate-600">Administrator-only application and automated location-link activity.</p></div><div className="panel overflow-hidden"><pre className="max-h-[650px] overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-5 text-slate-700">{systemLogText}</pre></div></div> : null}
+    {activeTab === "change-password" ? <div className="mx-auto max-w-xl space-y-4"><div><h3 className="text-xl font-bold text-slate-950">Change Password</h3><p className="mt-1 text-sm text-slate-600">Update your own password after confirming your current password.</p></div><ChangePasswordForm /></div> : null}
   </div>;
 }

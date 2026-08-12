@@ -14,22 +14,23 @@ const nav: NavConfig[] = [
     { href: "/client-logs", label: "Client Logs", icon: "FileClock", functionKey: "CLIENT_LOGS" },
     { href: "/client-conditions", label: "Client Condition", icon: "UserRoundCheck", functionKey: "CLIENT_CONDITION" }
   ] },
+  { href: "/co-makers", label: "Co Makers", icon: "UserRoundCheck", functionKey: "CO_MAKERS" },
   { label: "Loans", icon: "ClipboardList", children: [
     { href: "/current", label: "Current", icon: "ClipboardCheck", functionKey: "CURRENT_LOANS" },
     { href: "/remedial", label: "Remedial", icon: "MapPinned", functionKey: "REMEDIAL" },
     { href: "/aging", label: "Aging Report", icon: "Hourglass", functionKey: "AGING_REPORT" },
     { href: "/loans", label: "Loan Results", icon: "ClipboardList", functionKey: "LOAN_RESULTS" }
   ] },
-  { href: "/payments", label: "Payment Reports", icon: "ReceiptText", functionKey: "PAYMENT_REPORTS" },
-  { href: "/payment-posting", label: "Payment Posting", icon: "Banknote", functionKey: "PAYMENT_POSTING" },
-  { href: "/co-makers", label: "Co Makers", icon: "UserRoundCheck", functionKey: "CO_MAKERS" },
+  { label: "Payments", icon: "Banknote", children: [
+    { href: "/payments", label: "Payment Reports", icon: "ReceiptText", functionKey: "PAYMENT_REPORTS" },
+    { href: "/payment-posting", label: "Payment Posting", icon: "Banknote", functionKey: "PAYMENT_POSTING" }
+  ] },
   { label: "Tagging", icon: "Tag", children: [
     { href: "/account-tagging", label: "Account Tagging", icon: "Tag", functionKey: "ACCOUNT_TAGGING" },
     { href: "/location-masterlist", label: "Location Masterlist", icon: "MapPinned", functionKey: "LOCATION_MASTERLIST" },
     { href: "/verify-address", label: "Verify Address", icon: "MapPin", functionKey: "VERIFY_ADDRESS" }
   ] },
-  { href: "/change-password", label: "Change Password", icon: "KeyRound" },
-  { href: "/settings", label: "Settings", icon: "Settings", functionKeys: ["SETTINGS_ACCESS", "BRANCH_MANAGEMENT", "USER_MANAGEMENT", "SYNC_LOGS"] }
+  { href: "/settings", label: "Settings", icon: "Settings" }
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {

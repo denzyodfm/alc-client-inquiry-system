@@ -101,11 +101,11 @@ export function AppShell({
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         } ${desktopSidebarHidden ? "lg:-translate-x-full" : "lg:translate-x-0"}`}
       >
-        <div className="relative flex h-28 items-center justify-between gap-3 overflow-hidden border-b border-blue-100 bg-white px-3">
+        <div className="relative flex min-h-32 items-center justify-between gap-3 overflow-hidden border-b border-blue-100 bg-white px-3 py-3">
           <span className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-navy via-brand-blue to-brand-yellow" />
           <div className="min-w-0 flex-1">
-            <Image src="/branding/alc-logo.png" alt="Agusan Lending Corporation" width={700} height={224} priority className="h-auto w-full max-w-[250px]" />
-            <p className="mt-1 pl-1 text-[11px] font-bold uppercase tracking-[0.2em] text-brand-blue">ALC Central</p>
+            <p className="mb-1.5 pl-1 text-xl font-extrabold uppercase tracking-[0.12em] text-brand-navy">ALC Central</p>
+            <Image src="/branding/alc-logo.png" alt="Agusan Lending Corporation" width={700} height={224} priority className="h-auto w-full max-w-[255px]" />
           </div>
           <button type="button" className="btn-secondary h-9 w-9 px-0 lg:hidden" aria-label="Close menu" onClick={() => setMobileMenuOpen(false)}>
             <X className="h-4 w-4" />
@@ -118,13 +118,13 @@ export function AppShell({
             const open = openGroups.has(item.label) || groupActive;
             if (item.children) return <div key={item.label} onMouseEnter={() => toggleGroup(item.label, true)}>
               <button type="button" onClick={() => toggleGroup(item.label)} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold transition ${groupActive ? "bg-blue-50 text-brand-blue ring-1 ring-blue-100" : "text-slate-600 hover:bg-blue-50 hover:text-brand-blue"}`}>
-                <Icon className="h-4 w-4" /><span className="flex-1 text-left">{item.label}</span><ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+                <span className="flex h-7 w-7 items-center justify-center rounded-md bg-yellow-100 text-brand-blue"><Icon className="h-[18px] w-[18px]" /></span><span className="flex-1 text-left">{item.label}</span><ChevronDown className={`h-4 w-4 text-brand-blue transition-transform ${open ? "rotate-180" : ""}`} />
               </button>
               {open ? <div className="ml-5 mt-1 space-y-1 border-l-2 border-blue-100 pl-2">{item.children.map((child) => {
                 const ChildIcon = icons[child.icon];
                 const childPath = child.href!.split("?")[0];
                 const active = pathname === childPath || pathname.startsWith(`${childPath}/`);
-                return <Link key={child.href} href={child.href!} onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition ${active ? "bg-blue-50 text-brand-blue" : "text-slate-500 hover:bg-blue-50 hover:text-brand-blue"}`}><ChildIcon className="h-3.5 w-3.5" />{child.label}</Link>;
+                return <Link key={child.href} href={child.href!} onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition ${active ? "bg-blue-50 text-brand-blue" : "text-slate-500 hover:bg-blue-50 hover:text-brand-blue"}`}><span className="flex h-6 w-6 items-center justify-center rounded bg-yellow-50 text-brand-blue"><ChildIcon className="h-4 w-4" /></span>{child.label}</Link>;
               })}</div> : null}
             </div>;
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -138,7 +138,7 @@ export function AppShell({
                   active ? "bg-blue-50 text-brand-blue ring-1 ring-blue-100" : "text-slate-600 hover:bg-blue-50 hover:text-brand-blue"
                 }`}
               >
-                <Icon className="h-4 w-4" />
+                <span className="flex h-7 w-7 items-center justify-center rounded-md bg-yellow-100 text-brand-blue"><Icon className="h-[18px] w-[18px]" /></span>
                 {item.label}
               </Link>
             );
@@ -146,7 +146,7 @@ export function AppShell({
         </nav>
       </aside>
 
-      <main className={`min-w-0 flex-1 transition-[padding] ${desktopSidebarHidden ? "lg:pl-0" : "lg:pl-72"}`}>
+      <main className={`flex min-h-screen min-w-0 flex-1 flex-col transition-[padding] ${desktopSidebarHidden ? "lg:pl-0" : "lg:pl-72"}`}>
         <header className="sticky top-0 z-20 flex min-h-20 flex-wrap items-center justify-between gap-3 border-b border-blue-100 bg-white/95 px-4 py-3 shadow-sm backdrop-blur sm:px-5 lg:flex-nowrap lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <button type="button" className="btn-secondary h-10 w-10 shrink-0 px-0 lg:hidden" aria-label="Open menu" onClick={() => setMobileMenuOpen(true)}>
@@ -160,24 +160,17 @@ export function AppShell({
             >
               {desktopSidebarHidden ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
             </button>
-            <div className="min-w-0">
-              <p className="text-sm text-slate-500">Signed in as</p>
-              <p className="truncate font-semibold text-slate-900">{user.name}</p>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Privilege: {roleLabel(user.role)}</p>
-            </div>
           </div>
           <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
-            <span className="hidden rounded-md bg-emerald-50 px-3 py-2 text-xs font-bold text-brand-green sm:inline-flex">
-              {roleLabel(user.role)}
-            </span>
+            <div className="hidden text-right sm:block"><p className="text-xs text-slate-500">Signed in as</p><p className="max-w-48 truncate text-sm font-bold text-slate-900">{user.name}</p><p className="text-[10px] font-bold uppercase tracking-wide text-brand-blue">Privilege: {roleLabel(user.role)}</p></div>
             <LogoutButton />
           </div>
         </header>
-        <div className="min-w-0 px-3 py-5 sm:px-5 sm:py-6 lg:px-8">{children}</div>
-        <footer className="mx-3 mb-5 border-t border-blue-100 px-3 py-5 text-center text-xs text-slate-500 sm:mx-5 lg:mx-8">
-          <p className="font-semibold text-slate-600">Agusan Lending Corporation. Copyright {new Date().getFullYear()}. All rights reserved.</p>
+        <div className="min-w-0 flex-1 px-3 py-4 sm:px-5 sm:py-5 lg:px-8">{children}</div>
+        <footer className="mx-3 mb-3 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-yellow-50 px-4 py-4 text-center text-sm text-slate-600 shadow-sm sm:mx-5 lg:mx-8">
+          <p className="font-bold text-brand-navy">Agusan Lending Corporation. Copyright (c) {new Date().getFullYear()}. All rights reserved.</p>
           <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-            <span>Powered by</span><Image src="/branding/valdemeer-resources.png" alt="Valdemeer Resources, Inc" width={2048} height={768} className="h-6 w-auto object-contain" /><span>IT Team DJ-DL.</span>
+            <span className="font-semibold">Powered by</span><Image src="/branding/valdemeer-resources.png" alt="Valdemeer Resources, Inc" width={2048} height={768} className="h-9 w-auto object-contain" /><span className="font-semibold">IT Team DJ-DL.</span>
           </div>
         </footer>
       </main>
