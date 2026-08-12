@@ -103,9 +103,9 @@ export function AppShell({
       >
         <div className="relative flex min-h-32 items-center justify-between gap-3 overflow-hidden border-b border-blue-100 bg-white px-3 py-3">
           <span className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-navy via-brand-blue to-brand-yellow" />
-          <div className="min-w-0 flex-1">
-            <p className="mb-1.5 pl-1 text-xl font-extrabold uppercase tracking-[0.12em] text-brand-navy">ALC Central</p>
-            <Image src="/branding/alc-logo.png" alt="Agusan Lending Corporation" width={700} height={224} priority className="h-auto w-full max-w-[255px]" />
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+            <p className="shrink-0 text-xl font-extrabold uppercase tracking-[0.12em] text-brand-navy">ALC Central</p>
+            <Image src="/branding/alc-logo.png" alt="Agusan Lending Corporation" width={700} height={224} priority className="h-auto w-full max-w-[118px]" />
           </div>
           <button type="button" className="btn-secondary h-9 w-9 px-0 lg:hidden" aria-label="Close menu" onClick={() => setMobileMenuOpen(false)}>
             <X className="h-4 w-4" />
@@ -167,10 +167,10 @@ export function AppShell({
           </div>
         </header>
         <div className="min-w-0 flex-1 px-3 py-4 sm:px-5 sm:py-5 lg:px-8">{children}</div>
-        <footer className="mx-3 mb-3 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-yellow-50 px-4 py-4 text-center text-sm text-slate-600 shadow-sm sm:mx-5 lg:mx-8">
-          <p className="font-bold text-brand-navy">Agusan Lending Corporation. Copyright (c) {new Date().getFullYear()}. All rights reserved.</p>
+        <footer className="mx-3 mb-3 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-yellow-50 px-4 py-3 text-center text-xs text-slate-600 shadow-sm sm:mx-5 lg:mx-8">
+          <p className="font-bold text-brand-navy">© {new Date().getFullYear()} Agusan Lending Corporation. All rights reserved.</p>
           <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-            <span className="rounded-full bg-gradient-to-r from-brand-navy to-brand-blue px-3 py-1 font-extrabold italic tracking-wide text-white shadow-sm ring-2 ring-brand-yellow/70">Powered by</span><Image src="/branding/valdemeer-resources.png" alt="Valdemeer Resources, Inc" width={2048} height={768} className="h-9 w-auto object-contain" /><span className="font-semibold">IT Team dEnNiSjErRyDaNhIlLleEgEr.</span>
+            <span className="rounded-full bg-gradient-to-r from-brand-navy to-brand-blue px-3 py-1 font-extrabold italic tracking-wide text-white shadow-sm ring-2 ring-brand-yellow/70">Powered by</span><Image src="/branding/valdemeer-resources.png" alt="Valdemeer Resources, Inc" width={2048} height={768} className="h-11 w-auto object-contain" /><span className="font-semibold">IT Team dEnNiSjErRyDaNhIlLleEgEr.</span>
           </div>
         </footer>
       </main>
