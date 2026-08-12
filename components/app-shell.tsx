@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
@@ -22,7 +23,6 @@ import {
   ReceiptText,
   Search,
   Settings,
-  ShieldCheck,
   Tag,
   UserRoundCheck,
   Users,
@@ -90,15 +90,11 @@ export function AppShell({
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         } ${desktopSidebarHidden ? "lg:-translate-x-full" : "lg:translate-x-0"}`}
       >
-        <div className="flex h-20 items-center justify-between gap-3 border-b border-slate-200 px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-md bg-brand-navy text-white">
-              <ShieldCheck className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">ALC</p>
-              <h1 className="text-lg font-bold text-slate-950">Client Inquiry</h1>
-            </div>
+        <div className="relative flex h-24 items-center justify-between gap-3 overflow-hidden border-b border-blue-100 bg-white px-4">
+          <span className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-navy via-brand-blue to-brand-yellow" />
+          <div className="min-w-0 flex-1">
+            <Image src="/branding/alc-logo.png" alt="Agusan Lending Corporation" width={700} height={224} priority className="h-auto w-full max-w-[218px]" />
+            <p className="mt-1 pl-1 text-[10px] font-bold uppercase tracking-[0.17em] text-brand-blue">Client Inquiry System</p>
           </div>
           <button type="button" className="btn-secondary h-9 w-9 px-0 lg:hidden" aria-label="Close menu" onClick={() => setMobileMenuOpen(false)}>
             <X className="h-4 w-4" />
@@ -127,7 +123,7 @@ export function AppShell({
       </aside>
 
       <main className={`min-w-0 flex-1 transition-[padding] ${desktopSidebarHidden ? "lg:pl-0" : "lg:pl-72"}`}>
-        <header className="sticky top-0 z-20 flex min-h-20 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white/90 px-4 py-3 backdrop-blur sm:px-5 lg:flex-nowrap lg:px-8">
+        <header className="sticky top-0 z-20 flex min-h-20 flex-wrap items-center justify-between gap-3 border-b border-blue-100 bg-white/95 px-4 py-3 shadow-sm backdrop-blur sm:px-5 lg:flex-nowrap lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <button type="button" className="btn-secondary h-10 w-10 shrink-0 px-0 lg:hidden" aria-label="Open menu" onClick={() => setMobileMenuOpen(true)}>
               <Menu className="h-5 w-5" />

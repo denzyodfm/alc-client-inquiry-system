@@ -11,7 +11,7 @@
 }
 
 body {
-  background: #f5f8fb;
+  background: #f6f8fc;
   color: #172033;
   overflow-x: hidden;
 }
@@ -24,7 +24,7 @@ button {
 
 @layer components {
   .panel {
-    @apply min-w-0 rounded-lg border border-slate-200 bg-white shadow-panel;
+    @apply min-w-0 rounded-lg border border-slate-200/90 bg-white shadow-panel;
   }
 
   .field {
@@ -32,7 +32,7 @@ button {
   }
 
   .btn-primary {
-    @apply inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-md bg-brand-blue px-4 text-sm font-semibold text-white transition hover:bg-brand-navy disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-md bg-brand-blue px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-navy hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .btn-secondary {

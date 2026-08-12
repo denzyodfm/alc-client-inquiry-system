@@ -4,7 +4,7 @@ import { startLocationLinkScheduler } from "@/lib/location-link-scheduler";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ALC Client Inquiry System",
+  title: { default: "ALC Client Inquiry System", template: "%s | ALC" },
   description: "Centralized client inquiry and branch loan verification system"
 };
 
