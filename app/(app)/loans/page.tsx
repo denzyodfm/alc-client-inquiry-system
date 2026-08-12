@@ -105,7 +105,7 @@ export default async function LoansPage({
   const requestedBranchId = params?.branchId?.trim() || "ALL";
   const selectedProduct = params?.product?.trim() || "ALL";
   const searchText = params?.q?.trim() || "";
-  const hasSearch = params?.searched === "1" || Boolean(params?.q || params?.status || params?.branchId || params?.product);
+  const hasSearch = params?.searched === "1";
   const currentPage = Math.max(1, Number(params?.page ?? 1) || 1);
   const pageSize = 100;
   const accountOfficerBranchIds = user.role === "ACCOUNT_OFFICER" ? await getAccessibleBranchIds(user) : null;
