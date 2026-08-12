@@ -101,12 +101,9 @@ export function AppShell({
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         } ${desktopSidebarHidden ? "lg:-translate-x-full" : "lg:translate-x-0"}`}
       >
-        <div className="relative flex min-h-32 items-center justify-between gap-3 overflow-hidden border-b border-blue-100 bg-white px-3 py-3">
+        <div className="relative flex min-h-20 items-center justify-between gap-3 overflow-hidden border-b border-blue-100 bg-white px-4 py-3">
           <span className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-navy via-brand-blue to-brand-yellow" />
-          <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
-            <p className="shrink-0 text-xl font-extrabold uppercase tracking-[0.12em] text-brand-navy">ALC Central</p>
-            <Image src="/branding/alc-logo.png" alt="Agusan Lending Corporation" width={700} height={224} priority className="h-auto w-full max-w-[118px]" />
-          </div>
+          <p className="min-w-0 flex-1 text-xl font-extrabold uppercase tracking-[0.12em] text-brand-navy">ALC Central</p>
           <button type="button" className="btn-secondary h-9 w-9 px-0 lg:hidden" aria-label="Close menu" onClick={() => setMobileMenuOpen(false)}>
             <X className="h-4 w-4" />
           </button>
@@ -162,6 +159,7 @@ export function AppShell({
             </button>
           </div>
           <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
+            <Image src="/branding/alc-logo.png" alt="Agusan Lending Corporation" width={700} height={224} priority className="hidden h-auto w-[210px] object-contain md:block xl:w-[250px]" />
             <div className="hidden text-right sm:block"><p className="text-xs text-slate-500">Signed in as</p><p className="max-w-48 truncate text-sm font-bold text-slate-900">{user.name}</p><p className="text-[10px] font-bold uppercase tracking-wide text-brand-blue">Privilege: {roleLabel(user.role)}</p></div>
             <LogoutButton />
           </div>
