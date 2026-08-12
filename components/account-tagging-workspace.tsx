@@ -173,11 +173,28 @@ export function AccountTaggingWorkspace({
   const mounted = useRef(false);
   const topScrollRef = useRef<HTMLDivElement | null>(null);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const [tableScrollWidth, setTableScrollWidth] = useState(0);
   const syncingScroll = useRef(false);
   const hasFilters = forceHasFilters || Boolean(selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || selectedBranchAo !== "ALL" || address.trim() || address2.trim() || customerName.trim() || resultSearch.trim());
   const selectedBranch = branches.find((branch) => String(branch.id) === selectedBranchId);
   const branchLabel = selectedBranch ? `${selectedBranch.branchName} (${selectedBranch.branchCode})` : "All branches";
-  const tableMinWidth = reportOnly ? 2580 : 2300;
+  const tableMinWidth = reportOnly ? 2280 : 2000;
+
+  useEffect(() => {
+    const container = tableScrollRef.current;
+    if (!container) return;
+    const measure = () => setTableScrollWidth(container.scrollWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    const table = container.querySelector("table");
+    if (table) observer.observe(table);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [loans.length, reportOnly]);
   const visibleTotals = useMemo(
     () =>
       loans.reduce(
@@ -421,6 +438,12 @@ export function AccountTaggingWorkspace({
     });
   }
 
+  function scrollTableFromWheel(event: React.WheelEvent<HTMLDivElement>) {
+    if (!event.shiftKey || !tableScrollRef.current || Math.abs(event.deltaY) < Math.abs(event.deltaX)) return;
+    event.preventDefault();
+    tableScrollRef.current.scrollLeft += event.deltaY;
+  }
+
   return (
     <div className="space-y-4">
       {!reportOnly ? <form onSubmit={submitSearch} className="panel grid gap-3 p-4 no-print md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
@@ -652,9 +675,18 @@ export function AccountTaggingWorkspace({
           onScroll={() => syncHorizontalScroll("top")}
           aria-label="Account tagging horizontal scroll"
         >
-          <div style={{ width: `${tableMinWidth}px`, height: 1 }} />
+          <span className="pointer-events-none sticky left-1/2 z-10 inline-flex -translate-x-1/2 rounded-b-md bg-white/90 px-3 py-1 text-[10px] font-semibold text-slate-500 shadow-sm">
+            Shift + mouse wheel to scroll horizontally
+          </span>
+          <div style={{ width: `${Math.max(tableMinWidth, tableScrollWidth)}px`, height: 1 }} />
         </div>
-        <div ref={tableScrollRef} className="overflow-x-auto overflow-y-visible" onScroll={() => syncHorizontalScroll("table")}>
+        <div
+          ref={tableScrollRef}
+          className="relative overflow-x-auto overflow-y-visible"
+          onScroll={() => syncHorizontalScroll("table")}
+          onWheel={scrollTableFromWheel}
+          title="Hold Shift while using the mouse wheel to scroll horizontally"
+        >
           {canAssign
             ? loans.map((loan) => (
                 <form key={loan.id} id={`tagging-row-${loan.id}`} onSubmit={updateLoanTagging} className="hidden">
@@ -667,9 +699,6 @@ export function AccountTaggingWorkspace({
               <col className="w-9" />
               <col className="w-[168px]" />
               <col className="w-[204px]" />
-              <col className="w-[104px]" />
-              <col className="w-[120px]" />
-              <col className="w-[78px]" />
               <col className="w-[92px]" />
               <col className="w-[92px]" />
               <col className="w-[70px]" />
@@ -693,9 +722,6 @@ export function AccountTaggingWorkspace({
                 <th className="px-2 py-2">No.</th>
                 <th className="px-2 py-2">Client</th>
                 <th className="px-2 py-2">Address</th>
-                <th className="px-2 py-2">Province</th>
-                <th className="px-2 py-2">City/Municipality</th>
-                <th className="px-2 py-2">Barangay</th>
                 <th className="px-2 py-2">Branch / Loan</th>
                 <th className="px-2 py-2">Product / Branch AO</th>
                 <th className="px-2 py-2">Maturity</th>
@@ -725,9 +751,6 @@ export function AccountTaggingWorkspace({
                     <p className="mt-1 text-[11px] text-slate-500">{[loan.clientId, loan.contactNumber].filter(Boolean).join(" - ") || "-"}</p>
                   </td>
                   <td className="px-2 py-2 text-slate-700">{loan.address || "-"}</td>
-                  <LocationTagCell canAssign={canAssign} formId={`tagging-row-${loan.id}`} name="province" value={loan.province} />
-                  <LocationTagCell canAssign={canAssign} formId={`tagging-row-${loan.id}`} name="municipality" value={loan.municipality} placeholder="City/Municipality" />
-                  <LocationTagCell canAssign={canAssign} formId={`tagging-row-${loan.id}`} name="barangay" value={loan.barangay} />
                   <td className="px-2 py-2">
                     <p className="font-semibold text-slate-700">{loan.branchName}</p>
                     <span className="mt-1 block no-print">
@@ -877,7 +900,7 @@ export function AccountTaggingWorkspace({
               ))}
               {!loans.length ? (
                 <tr>
-                  <td className="px-4 py-8 text-sm font-semibold text-slate-500" colSpan={reportOnly ? 24 : 23}>
+                  <td className="px-4 py-8 text-sm font-semibold text-slate-500" colSpan={reportOnly ? 21 : 20}>
                     {hasFilters ? "No matching loans found." : "Use branch, address, or customer filters to load accounts for tagging."}
                   </td>
                 </tr>
@@ -886,7 +909,7 @@ export function AccountTaggingWorkspace({
             {loans.length ? (
               <tfoot className="border-t-2 border-slate-200 bg-slate-50 text-[11px]">
                 <tr className="align-top">
-                  <td className="px-2 py-2 font-bold uppercase tracking-wide text-slate-600" colSpan={6}>
+                  <td className="px-2 py-2 font-bold uppercase tracking-wide text-slate-600" colSpan={3}>
                     {printAllResults ? "Grand total" : "Page total"}
                   </td>
                   <TotalAmountCell value={visibleTotals.principal} tone="red" />
