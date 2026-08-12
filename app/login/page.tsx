@@ -3,7 +3,7 @@ import { LoginForm } from "@/components/login-form";
 
 export default function LoginPage() {
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-white px-4 py-8 sm:px-8 lg:justify-start lg:px-[8vw]">
+    <main className="relative flex min-h-screen flex-col overflow-hidden bg-white px-4 pb-3 pt-6 sm:px-8">
       <Image
         src="/branding/alc-login-wallpaper.jpg"
         alt="Agusan Lending Corporation"
@@ -15,7 +15,8 @@ export default function LoginPage() {
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.98)_0%,rgba(255,255,255,0.9)_30%,rgba(255,255,255,0.18)_58%,rgba(255,255,255,0.02)_100%)]" />
       <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-brand-navy via-brand-blue to-brand-yellow" />
 
-      <section className="relative z-10 w-full max-w-sm">
+      <div className="relative z-10 flex min-h-0 flex-1 items-center justify-center lg:justify-start">
+      <section className="w-full max-w-sm lg:ml-2 xl:ml-6">
         <div className="rounded-2xl border border-white/90 bg-white/90 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.17)] backdrop-blur-xl sm:p-6">
           <Image src="/branding/alc-logo.png" alt="Agusan Lending Corporation" width={700} height={224} priority className="mb-4 h-auto w-full" />
           <div className="mb-5">
@@ -25,6 +26,16 @@ export default function LoginPage() {
           <LoginForm />
         </div>
       </section>
+      </div>
+
+      <footer className="relative z-10 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50/95 via-white/95 to-yellow-50/95 px-4 py-3 text-center text-sm text-slate-600 shadow-sm backdrop-blur sm:mx-auto sm:w-fit sm:min-w-[620px]">
+        <p className="font-bold text-brand-navy">Agusan Lending Corporation. Copyright (c) {new Date().getFullYear()}. All rights reserved.</p>
+        <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2">
+          <span className="font-semibold">Powered by</span>
+          <Image src="/branding/valdemeer-resources.png" alt="Valdemeer Resources, Inc" width={2048} height={768} className="h-8 w-auto object-contain" />
+          <span className="font-semibold">IT Team DJ-DL.</span>
+        </div>
+      </footer>
     </main>
   );
 }
