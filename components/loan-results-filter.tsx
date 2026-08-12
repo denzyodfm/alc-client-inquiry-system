@@ -47,7 +47,7 @@ export function LoanResultsFilter({
       status === "ALL" ? params.delete("status") : params.set("status", status);
       product === "ALL" ? params.delete("product") : params.set("product", product);
       normalizedQuery ? params.set("q", normalizedQuery) : params.delete("q");
-      params.set("searched", "1");
+      normalizedQuery ? params.set("searched", "1") : params.delete("searched");
 
       const next = params.toString();
       return next ? `${pathname}?${next}` : pathname;
@@ -105,7 +105,7 @@ export function LoanResultsFilter({
           placeholder="Type name, client no., or loan no."
         />
       </label>
-      <button className="btn-primary self-end" type="submit">
+      <button className="btn-primary self-end" type="submit" disabled={!query.trim()}>
         Search
       </button>
       <Link className="btn-secondary self-end" href="/loans">
