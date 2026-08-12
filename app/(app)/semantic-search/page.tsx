@@ -19,8 +19,6 @@ type SemanticLoan = Prisma.LoanGetPayload<{
   };
 }>;
 
-const roles = ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] as const;
-
 function searchTerms(value: string) {
   return value
     .trim()
@@ -216,7 +214,7 @@ export default async function SemanticSearchPage({
 }: {
   searchParams?: Promise<{ q?: string }>;
 }) {
-  await requireUser([...roles]);
+  await requireUser(["ADMIN"]);
   const params = await searchParams;
   const query = params?.q?.trim() ?? "";
 

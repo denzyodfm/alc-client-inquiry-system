@@ -38,7 +38,7 @@ export function PrivilegeManager({ initialPrivileges }: { initialPrivileges: Pri
   }
 
   async function remove(privilege: Privilege) {
-    if (!window.confirm(`Delete privilege "${privilege.name}"? Assigned users will return to role-based access.`)) return;
+    if (!window.confirm(`Delete privilege "${privilege.name}"? Assigned users will lose app-function access until another privilege is assigned.`)) return;
     setLoading(true); setError(null); setNotice(null);
     try {
       const response = await fetch(`/api/privileges/${privilege.id}`, { method: "DELETE" });

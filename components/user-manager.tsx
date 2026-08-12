@@ -262,7 +262,7 @@ export function UserManager({
           )}
           {isAdmin ? (
             editingUser?.role === "ADMIN" ? <div className="field bg-emerald-50 font-semibold text-brand-green">Admin - full access (protected)</div> : <select name="privilegeTemplateId" className="field" defaultValue={editingUser?.privilegeTemplateId ?? ""}>
-              <option value="">Use role-based access</option>
+              <option value="">No app access</option>
               {privileges.map((privilege) => <option key={privilege.id} value={privilege.id}>{privilege.name}</option>)}
             </select>
           ) : <input type="hidden" name="privilegeTemplateId" value={editingUser?.privilegeTemplateId ?? ""} />}
@@ -376,7 +376,7 @@ export function UserManager({
                   </td>
                   <td className="px-4 py-3">{user.email}</td>
                   <td className="px-4 py-3">{roleLabel(user.role)}</td>
-                  <td className="px-4 py-3">{user.role === "ADMIN" ? <span className="font-semibold text-brand-green">Full access</span> : user.privilegeTemplate?.name || <span className="text-slate-400">Role-based</span>}</td>
+                  <td className="px-4 py-3">{user.role === "ADMIN" ? <span className="font-semibold text-brand-green">Full access</span> : user.privilegeTemplate?.name || <span className="font-semibold text-red-600">No app access</span>}</td>
                   <td className="px-4 py-3">{user.position || <span className="text-slate-400">-</span>}</td>
                   <td className="px-4 py-3">
                     {user.baseBranch ? `${user.baseBranch.branchName} - ${user.baseBranch.branchCode}` : <span className="text-slate-400">-</span>}
