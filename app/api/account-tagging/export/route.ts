@@ -39,10 +39,10 @@ const provinceAliases: Record<string, string> = {
 };
 
 const provinceLabels: Record<string, string> = {
-  "agusan del norte": "Agusan del Norte",
-  "agusan del sur": "Agusan del Sur",
-  "surigao del sur": "Surigao del Sur",
-  "surigao del norte": "Surigao del Norte"
+  "agusan del norte": "AGUSAN DEL NORTE",
+  "agusan del sur": "AGUSAN DEL SUR",
+  "surigao del sur": "SURIGAO DEL SUR",
+  "surigao del norte": "SURIGAO DEL NORTE"
 };
 
 function normalizedProvinceKey(value: string) {
@@ -58,7 +58,7 @@ function normalizedMunicipalityKey(value: string) {
 
 function canonicalProvinceLabel(value: string) {
   const key = normalizedProvinceKey(value);
-  return provinceLabels[key] ?? value;
+  return provinceLabels[key] ?? value.toLocaleUpperCase("en");
 }
 
 function canonicalMunicipalityLabel(value: string) {

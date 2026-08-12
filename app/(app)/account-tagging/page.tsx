@@ -142,10 +142,10 @@ const provinceAliases: Record<string, string> = {
 };
 
 const provinceLabels: Record<string, string> = {
-  "agusan del norte": "Agusan del Norte",
-  "agusan del sur": "Agusan del Sur",
-  "surigao del sur": "Surigao del Sur",
-  "surigao del norte": "Surigao del Norte"
+  "agusan del norte": "AGUSAN DEL NORTE",
+  "agusan del sur": "AGUSAN DEL SUR",
+  "surigao del sur": "SURIGAO DEL SUR",
+  "surigao del norte": "SURIGAO DEL NORTE"
 };
 
 function normalizedProvinceKey(value: string) {
@@ -161,7 +161,7 @@ function normalizedMunicipalityKey(value: string) {
 
 function canonicalProvinceLabel(value: string) {
   const key = normalizedProvinceKey(value);
-  return provinceLabels[key] ?? value;
+  return provinceLabels[key] ?? value.toLocaleUpperCase("en");
 }
 
 function canonicalMunicipalityLabel(value: string) {
@@ -366,14 +366,14 @@ export default async function AccountTaggingPage({
   });
   const provinceSummaryMap = new Map<string, { count: number; customers: Set<number>; principalBalance: number }>();
   for (const assignment of assignmentRows) {
-    const province = assignment.province?.trim() || "Province not set";
+    const province = canonicalProvinceLabel(assignment.province?.trim() || "Province not set");
     const summary = provinceSummaryMap.get(province) ?? { count: 0, customers: new Set<number>(), principalBalance: 0 };
     summary.count += 1;
     summary.customers.add(assignment.loan.clientId);
     summary.principalBalance += distributionPrincipalBalance(assignment.loan);
     provinceSummaryMap.set(province, summary);
   }
-  const provinceOrder = ["Agusan del Norte", "Agusan del Sur", "Surigao del Norte", "Surigao del Sur", "Province not set"];
+  const provinceOrder = ["AGUSAN DEL NORTE", "AGUSAN DEL SUR", "SURIGAO DEL NORTE", "SURIGAO DEL SUR", "PROVINCE NOT SET"];
   const provinceEntries = [
     ...Array.from(provinceSummaryMap.entries())
       .map(([name, summary], index) => ({
@@ -391,11 +391,11 @@ export default async function AccountTaggingPage({
   const provinceDistributionTotal = provinceEntries.reduce((sum, entry) => sum + entry.count, 0);
   let provinceDistributionCursor = 0;
   const provinceColors: Record<string, string> = {
-    "Agusan del Norte": "#2563eb",
-    "Agusan del Sur": "#16a34a",
-    "Surigao del Norte": "#7c3aed",
-    "Surigao del Sur": "#ea580c",
-    "Province not set": "#eab308",
+    "AGUSAN DEL NORTE": "#2563eb",
+    "AGUSAN DEL SUR": "#16a34a",
+    "SURIGAO DEL NORTE": "#7c3aed",
+    "SURIGAO DEL SUR": "#ea580c",
+    "PROVINCE NOT SET": "#eab308",
     Unassigned: "#94a3b8"
   };
   const provinceDistributionSegments = provinceEntries.map((entry) => {
