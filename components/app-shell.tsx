@@ -77,10 +77,10 @@ export function AppShell({
   const [desktopSidebarHidden, setDesktopSidebarHidden] = useState(false);
   const [openGroups, setOpenGroups] = useState(() => new Set<string>());
 
-  function toggleGroup(label: string, forceOpen?: boolean) {
+  function toggleGroup(label: string) {
     setOpenGroups((current) => {
       const next = new Set(current);
-      if (forceOpen || !next.has(label)) next.add(label); else next.delete(label);
+      if (!next.has(label)) next.add(label); else next.delete(label);
       return next;
     });
   }
@@ -116,7 +116,7 @@ export function AppShell({
             const Icon = icons[item.icon];
             const groupActive = item.children?.some((child) => child.href && (pathname === child.href.split("?")[0] || pathname.startsWith(`${child.href.split("?")[0]}/`))) ?? false;
             const open = openGroups.has(item.label) || groupActive;
-            if (item.children) return <div key={item.label} onMouseEnter={() => toggleGroup(item.label, true)}>
+            if (item.children) return <div key={item.label}>
               <button type="button" onClick={() => toggleGroup(item.label)} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold transition ${groupActive ? "bg-blue-50 text-brand-blue ring-1 ring-blue-100" : "text-slate-600 hover:bg-blue-50 hover:text-brand-blue"}`}>
                 <span className="flex h-7 w-7 items-center justify-center rounded-md bg-yellow-100 text-brand-blue"><Icon className="h-[18px] w-[18px]" /></span><span className="flex-1 text-left">{item.label}</span><ChevronDown className={`h-4 w-4 text-brand-blue transition-transform ${open ? "rotate-180" : ""}`} />
               </button>
@@ -170,7 +170,7 @@ export function AppShell({
         <footer className="mx-3 mb-3 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-yellow-50 px-4 py-4 text-center text-sm text-slate-600 shadow-sm sm:mx-5 lg:mx-8">
           <p className="font-bold text-brand-navy">Agusan Lending Corporation. Copyright (c) {new Date().getFullYear()}. All rights reserved.</p>
           <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-            <span className="font-semibold">Powered by</span><Image src="/branding/valdemeer-resources.png" alt="Valdemeer Resources, Inc" width={2048} height={768} className="h-9 w-auto object-contain" /><span className="font-semibold">IT Team DJ-DL.</span>
+            <span className="rounded-full bg-gradient-to-r from-brand-navy to-brand-blue px-3 py-1 font-extrabold italic tracking-wide text-white shadow-sm ring-2 ring-brand-yellow/70">Powered by</span><Image src="/branding/valdemeer-resources.png" alt="Valdemeer Resources, Inc" width={2048} height={768} className="h-9 w-auto object-contain" /><span className="font-semibold">IT Team dEnNiSjErRyDaNhIlLleEgEr.</span>
           </div>
         </footer>
       </main>

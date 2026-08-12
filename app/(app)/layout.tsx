@@ -9,7 +9,7 @@ type NavConfig = { href?: string; label: string; icon: IconName; functionKey?: A
 
 const nav: NavConfig[] = [
   { href: "/dashboard", label: "Dashboard", icon: "Gauge", functionKey: "DASHBOARD" },
-  { label: "Client", icon: "Users", children: [
+  { label: "Clients", icon: "Users", children: [
     { href: "/inquiry", label: "Client Inquiry", icon: "Search", functionKey: "CLIENT_INQUIRY" },
     { href: "/client-logs", label: "Client Logs", icon: "FileClock", functionKey: "CLIENT_LOGS" },
     { href: "/client-conditions", label: "Client Condition", icon: "UserRoundCheck", functionKey: "CLIENT_CONDITION" }
@@ -25,7 +25,7 @@ const nav: NavConfig[] = [
     { href: "/payments", label: "Payment Reports", icon: "ReceiptText", functionKey: "PAYMENT_REPORTS" },
     { href: "/payment-posting", label: "Payment Posting", icon: "Banknote", functionKey: "PAYMENT_POSTING" }
   ] },
-  { label: "Tagging", icon: "Tag", children: [
+  { label: "Taggings", icon: "Tag", children: [
     { href: "/account-tagging", label: "Account Tagging", icon: "Tag", functionKey: "ACCOUNT_TAGGING" },
     { href: "/location-masterlist", label: "Location Masterlist", icon: "MapPinned", functionKey: "LOCATION_MASTERLIST" },
     { href: "/verify-address", label: "Verify Address", icon: "MapPin", functionKey: "VERIFY_ADDRESS" }

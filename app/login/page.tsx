@@ -31,9 +31,9 @@ export default function LoginPage() {
       <footer className="relative z-10 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50/95 via-white/95 to-yellow-50/95 px-4 py-3 text-center text-sm text-slate-600 shadow-sm backdrop-blur sm:mx-auto sm:w-fit sm:min-w-[620px]">
         <p className="font-bold text-brand-navy">Agusan Lending Corporation. Copyright (c) {new Date().getFullYear()}. All rights reserved.</p>
         <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2">
-          <span className="font-semibold">Powered by</span>
+          <span className="rounded-full bg-gradient-to-r from-brand-navy to-brand-blue px-3 py-1 font-extrabold italic tracking-wide text-white shadow-sm ring-2 ring-brand-yellow/70">Powered by</span>
           <Image src="/branding/valdemeer-resources.png" alt="Valdemeer Resources, Inc" width={2048} height={768} className="h-8 w-auto object-contain" />
-          <span className="font-semibold">IT Team DJ-DL.</span>
+          <span className="font-semibold">IT Team dEnNiSjErRyDaNhIlLleEgEr.</span>
         </div>
       </footer>
     </main>
