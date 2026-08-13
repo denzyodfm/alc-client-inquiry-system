@@ -58,10 +58,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const safeBranches = allBranches.map(({ encryptedDbPassword: _encryptedDbPassword, ...branch }) => branch);
   const privilegeOptions = privileges.map(({ id, name }) => ({ id, name }));
 
-  return <div className="space-y-6">
-    <div><p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Configuration</p><h2 className="mt-2 text-3xl font-bold text-slate-950">Settings</h2></div>
+  return <div className="space-y-4">
+    <h2 className="text-xl font-bold text-slate-950">Settings</h2>
     <nav className="flex gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1" aria-label="Settings sections">
-      {allowedTabs.map((tab) => <Link key={tab.key} href={`/settings?tab=${tab.key}`} className={`whitespace-nowrap rounded-md px-4 py-2.5 text-sm font-semibold transition ${activeTab === tab.key ? "bg-brand-blue text-white" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"}`}>{tab.label}</Link>)}
+      {allowedTabs.map((tab) => <Link key={tab.key} href={`/settings?tab=${tab.key}`} className={`whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-semibold transition ${activeTab === tab.key ? "bg-brand-blue text-white" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"}`}>{tab.label}</Link>)}
     </nav>
 
     {activeTab === "general" ? <section className="grid gap-4 xl:grid-cols-3">
