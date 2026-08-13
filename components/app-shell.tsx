@@ -144,22 +144,22 @@ export function AppShell({
       </aside>
 
       <main className={`flex min-h-screen min-w-0 flex-1 flex-col transition-[padding] ${desktopSidebarHidden ? "lg:pl-0" : "lg:pl-72"}`}>
-        <header className="sticky top-0 z-20 flex min-h-20 flex-wrap items-center justify-between gap-3 border-b border-blue-100 bg-white/95 px-4 py-3 shadow-sm backdrop-blur sm:px-5 lg:flex-nowrap lg:px-8">
-          <div className="flex min-w-0 items-center gap-3">
-            <button type="button" className="btn-secondary h-10 w-10 shrink-0 px-0 lg:hidden" aria-label="Open menu" onClick={() => setMobileMenuOpen(true)}>
-              <Menu className="h-5 w-5" />
+        <header className="sticky top-0 z-20 flex min-h-24 flex-wrap items-center justify-between gap-3 border-b border-blue-100 bg-white/95 px-4 py-2 shadow-sm backdrop-blur sm:px-5 lg:flex-nowrap lg:px-8">
+          <div className="flex min-w-0 flex-col items-start gap-1">
+            <Image src="/branding/alc-logo.png" alt="Agusan Lending Corporation" width={700} height={224} priority className="hidden h-auto w-[220px] object-contain sm:block xl:w-[260px]" />
+            <button type="button" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-blue text-white shadow-sm ring-2 ring-yellow-200 transition hover:bg-brand-navy lg:hidden" aria-label="Open menu" onClick={() => setMobileMenuOpen(true)}>
+              <Menu className="h-3.5 w-3.5" />
             </button>
             <button
               type="button"
-              className="btn-secondary hidden h-10 w-10 shrink-0 px-0 lg:inline-flex"
+              className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-blue text-white shadow-sm ring-2 ring-yellow-200 transition hover:bg-brand-navy lg:inline-flex"
               aria-label={desktopSidebarHidden ? "Show menu" : "Hide menu"}
               onClick={() => setDesktopSidebarHidden((value) => !value)}
             >
-              {desktopSidebarHidden ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+              {desktopSidebarHidden ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
             </button>
           </div>
           <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
-            <Image src="/branding/alc-logo.png" alt="Agusan Lending Corporation" width={700} height={224} priority className="hidden h-auto w-[210px] object-contain md:block xl:w-[250px]" />
             <div className="hidden text-right sm:block"><p className="text-xs text-slate-500">Signed in as</p><p className="max-w-48 truncate text-sm font-bold text-slate-900">{user.name}</p><p className="text-[10px] font-bold uppercase tracking-wide text-brand-blue">Privilege: {roleLabel(user.role)}</p></div>
             <LogoutButton />
           </div>
