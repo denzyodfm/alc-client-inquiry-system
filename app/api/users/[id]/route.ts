@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { Prisma, UserRole } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import { requireApiFunction } from "@/lib/api";
 import { getAccessibleBranchIds } from "@/lib/auth";
+import { requestIp, writeAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 function parseRole(value: unknown) {
@@ -29,6 +31,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const baseBranchId = Number.isInteger(requestedBaseBranchId) && requestedBaseBranchId > 0 ? requestedBaseBranchId : null;
   const role = parseRole(body.role);
   const isAdmin = currentUser!.role === "ADMIN";
+  const password = String(body.password ?? "");
+  const confirmPassword = String(body.confirmPassword ?? "");
   const accessibleBranchIds = await getAccessibleBranchIds(currentUser!);
   const allBranches = Boolean(body.allBranches) && (isAdmin || accessibleBranchIds === null);
   const branchIds = allBranches ? [] : parseBranchIds(body.branchIds);
@@ -39,8 +43,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!existingUser) {
     return NextResponse.json({ error: "User not found." }, { status: 404 });
   }
-  if (body.password || body.confirmPassword) {
-    return NextResponse.json({ error: "Managed user passwords cannot be changed here. Users must change their own password." }, { status: 400 });
+  if ((password || confirmPassword) && !isAdmin) {
+    return NextResponse.json({ error: "Only an administrator can reset another user's password." }, { status: 403 });
+  }
+  if ((password || confirmPassword) && currentUser!.id === userId) {
+    return NextResponse.json({ error: "Use Change Password to update your own password." }, { status: 400 });
+  }
+  if (password !== confirmPassword) {
+    return NextResponse.json({ error: "Passwords do not match." }, { status: 400 });
+  }
+  if (password && password.length < 8) {
+    return NextResponse.json({ error: "The new temporary password must be at least 8 characters." }, { status: 400 });
   }
   if (existingUser.role === "ADMIN" && (role !== "ADMIN" || body.isActive === false)) {
     return NextResponse.json({ error: "Admin privileges and active status are protected." }, { status: 400 });
@@ -78,6 +91,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 
   try {
+    const passwordHash = password ? await bcrypt.hash(password, 12) : undefined;
     const user = await prisma.$transaction(async (tx) => {
       const updated = await tx.user.update({
         where: { id: userId },
@@ -89,7 +103,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           baseBranchId,
           allBranches,
           isActive: body.isActive,
-          privilegeTemplateId
+          privilegeTemplateId,
+          ...(passwordHash ? { passwordHash } : {})
         },
         select: { id: true, name: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, isActive: true }
       });
@@ -104,6 +119,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
       return updated;
     });
+    if (passwordHash) {
+      await writeAudit({
+        userId: currentUser!.id,
+        userName: currentUser!.name,
+        userEmail: currentUser!.email,
+        action: "PASSWORD_RESET",
+        module: "User Management",
+        details: `Reset password for ${name} (${email})`,
+        ipAddress: requestIp(request)
+      });
+    }
     return NextResponse.json(user);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {

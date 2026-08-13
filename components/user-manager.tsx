@@ -116,10 +116,11 @@ export function UserManager({
     resetMessages();
 
     try {
-      if (!editingUser && (password || confirmPassword)) {
-        if (password !== confirmPassword) {
-          throw new Error("Passwords do not match.");
-        }
+      if ((password || confirmPassword) && password !== confirmPassword) {
+        throw new Error("Passwords do not match.");
+      }
+      if (editingUser && password && password.length < 8) {
+        throw new Error("The new temporary password must be at least 8 characters.");
       }
 
       const response = await fetch(endpoint, {
@@ -241,6 +242,14 @@ export function UserManager({
             <input name="password" className="field" type="password" placeholder="Temporary password" required />
             <input name="confirmPassword" className="field" type="password" placeholder="Confirm temporary password" required />
           </> : null}
+          {editingUser && isAdmin ? <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3">
+            <p className="mb-2 text-xs font-semibold text-slate-600">Reset password (optional)</p>
+            <div className="grid gap-2">
+              <input name="password" className="field bg-white" type="password" placeholder="New temporary password" minLength={8} />
+              <input name="confirmPassword" className="field bg-white" type="password" placeholder="Confirm new temporary password" minLength={8} />
+            </div>
+            <p className="mt-2 text-xs text-slate-500">Leave both fields blank to keep the current password.</p>
+          </div> : null}
           {isAdmin ? (
             editingUser?.role === "ADMIN" ? <>
               <input type="hidden" name="role" value="ADMIN" />
