@@ -250,30 +250,12 @@ export function UserManager({
             </div>
             <p className="mt-2 text-xs text-slate-500">Leave both fields blank to keep the current password.</p>
           </div> : null}
+          <input type="hidden" name="role" value={editingUser?.role ?? "INQUIRY_USER"} />
           {isAdmin ? (
-            editingUser?.role === "ADMIN" ? <>
-              <input type="hidden" name="role" value="ADMIN" />
-              <div className="field bg-slate-50 text-slate-700">Admin (protected)</div>
-            </> : <select name="role" className="field" defaultValue={editingUser?.role ?? "INQUIRY_USER"}>
-                <option value="ADMIN">Admin</option>
-                <option value="INQUIRY_USER">Inquiry User</option>
-                <option value="AUDITOR">Auditor</option>
-                <option value="ACCOUNT_OFFICER">Account Officer</option>
-                <option value="AREA_TEAM_LEADER">Area Team Leader</option>
-                <option value="CREDIT_COMMITTEE">Credit Committee</option>
-                <option value="HO_CASHIER">HO Cashier</option>
-              </select>
-          ) : (
-            <>
-              <input type="hidden" name="role" value="ACCOUNT_OFFICER" />
-              <div className="field bg-slate-50 text-slate-700">Account Officer</div>
-            </>
-          )}
-          {isAdmin ? (
-            editingUser?.role === "ADMIN" ? <div className="field bg-emerald-50 font-semibold text-brand-green">Admin - full access (protected)</div> : <select name="privilegeTemplateId" className="field" defaultValue={editingUser?.privilegeTemplateId ?? ""}>
-              <option value="">No app access</option>
-              {privileges.map((privilege) => <option key={privilege.id} value={privilege.id}>{privilege.name}</option>)}
-            </select>
+            editingUser?.role === "ADMIN" ? <div><label className="mb-1 block text-xs font-semibold text-slate-600">Privilege</label><div className="field bg-emerald-50 font-semibold text-brand-green">Administrator - full access (protected)</div></div> : <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Privilege</span><select name="privilegeTemplateId" className="field" defaultValue={editingUser?.privilegeTemplateId ?? ""} required>
+                <option value="" disabled>Select privilege</option>
+                {privileges.map((privilege) => <option key={privilege.id} value={privilege.id}>{privilege.name}</option>)}
+              </select></label>
           ) : <input type="hidden" name="privilegeTemplateId" value={editingUser?.privilegeTemplateId ?? ""} />}
           <input
             name="position"
