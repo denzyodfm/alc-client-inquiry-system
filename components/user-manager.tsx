@@ -212,7 +212,7 @@ export function UserManager({
 
   return (
     <div className="grid gap-6 xl:grid-cols-[0.75fr_1.25fr]">
-      <form key={editingUser?.id ?? "new"} onSubmit={submit} className="panel p-5">
+      <form key={editingUser?.id ?? "new"} onSubmit={submit} className="panel max-h-[calc(100vh-28rem)] min-h-96 overflow-y-auto overscroll-contain p-5" style={{ scrollbarGutter: "stable" }}>
         <div className="mb-5 flex items-center justify-between gap-3">
           <h3 className="text-lg font-bold text-slate-950">{editingUser ? "Edit User" : "Create User"}</h3>
           {editingUser ? (
@@ -359,7 +359,7 @@ export function UserManager({
             <option value="UNSET">Base branch not set</option>
           </select>
         </div>
-        <div className="overflow-x-auto overflow-y-visible">
+        <div className="max-h-[calc(100vh-32rem)] min-h-80 overflow-auto overscroll-contain" style={{ scrollbarGutter: "stable" }}>
           <table className="w-full min-w-[1040px] text-left text-sm">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
