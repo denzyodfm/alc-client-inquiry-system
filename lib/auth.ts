@@ -11,6 +11,7 @@ export type SessionUser = {
   email: string;
   role: UserRole;
   position?: string | null;
+  baseBranchId?: number | null;
   allBranches?: boolean;
   privilegeTemplateId?: number | null;
 };
@@ -69,7 +70,7 @@ export async function getSessionUser() {
 
   const user = await prisma.user.findFirst({
     where: { id: session.id, isActive: true },
-    select: { id: true, name: true, email: true, role: true, position: true, allBranches: true, privilegeTemplateId: true }
+    select: { id: true, name: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, privilegeTemplateId: true }
   });
 
   return user;
@@ -121,6 +122,11 @@ export async function getAccessibleBranchIds(user: SessionUser) {
   });
 
   return access.map((row) => row.branchId);
+}
+
+export async function getClientLogBranchIds(user: SessionUser) {
+  if (user.role === "ACCOUNT_OFFICER" && user.baseBranchId) return [user.baseBranchId];
+  return getAccessibleBranchIds(user);
 }
 
 export async function canAccessBranch(user: SessionUser, branchId: number) {

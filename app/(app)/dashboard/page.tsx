@@ -4,20 +4,22 @@ import { StatCard } from "@/components/stat-card";
 import { DashboardClientLogs } from "@/components/dashboard-client-logs";
 import { inactiveStatus12Where } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
-import { requireFunction } from "@/lib/auth";
+import { getClientLogBranchIds, requireFunction } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage({ searchParams }: { searchParams?: Promise<{ tab?: string; client?: string; from?: string; to?: string; officer?: string }> }) {
   const currentUser = await requireFunction("DASHBOARD");
   const params = await searchParams; const activeTab = params?.tab === "overview" ? "overview" : "client-logs"; const client = params?.client?.trim() ?? ""; const officer = params?.officer?.trim() ?? "ALL"; const from = params?.from ? new Date(`${params.from}T00:00:00`) : undefined; const to = params?.to ? new Date(`${params.to}T23:59:59.999`) : undefined;
+  const clientLogBranchIds = await getClientLogBranchIds(currentUser);
+  const clientLogScope = { ...(clientLogBranchIds === null ? {} : clientLogBranchIds.length ? { branchId: { in: clientLogBranchIds } } : { branchId: -1 }), ...(currentUser.role === "ACCOUNT_OFFICER" ? { encodedById: currentUser.id } : {}) };
   const [branchCount, activeBranchCount, clientCount, activeLoanCount, clientLogs, officers] = await Promise.all([
     prisma.branch.count(),
     prisma.branch.count({ where: { status: "ACTIVE" } }),
     prisma.client.count(),
     prisma.loan.count({ where: { AND: [{ balance: { gt: 0 } }, inactiveStatus12Where()] } }),
-    prisma.clientLog.findMany({ take: 500, where: { ...(client ? { OR: [{ client: { fullName: { contains: client } } }, { client: { clientId: { contains: client } } }, { branch: { branchName: { contains: client } } }, { branch: { branchCode: { contains: client } } }, { logType: { contains: client } }, { subject: { contains: client } }, { notes: { contains: client } }] } : {}), ...(officer !== "ALL" ? { encodedById: Number(officer) } : {}), ...(from || to ? { visitAt: { gte: from, lte: to } } : {}) }, orderBy: { visitAt: "desc" }, include: { client: { include: { branch: true } }, encodedBy: true } }),
-    prisma.user.findMany({ where: { clientLogs: { some: {} } }, orderBy: { name: "asc" }, select: { id: true, name: true } })
+    prisma.clientLog.findMany({ take: 500, where: { ...clientLogScope, ...(client ? { OR: [{ client: { fullName: { contains: client } } }, { client: { clientId: { contains: client } } }, { branch: { branchName: { contains: client } } }, { branch: { branchCode: { contains: client } } }, { logType: { contains: client } }, { subject: { contains: client } }, { notes: { contains: client } }] } : {}), ...(officer !== "ALL" && currentUser.role !== "ACCOUNT_OFFICER" ? { encodedById: Number(officer) } : {}), ...(from || to ? { visitAt: { gte: from, lte: to } } : {}) }, orderBy: { visitAt: "desc" }, include: { client: { include: { branch: true } }, encodedBy: true } }),
+    prisma.user.findMany({ where: currentUser.role === "ACCOUNT_OFFICER" ? { id: currentUser.id } : { clientLogs: { some: clientLogBranchIds === null ? {} : { branchId: { in: clientLogBranchIds } } } }, orderBy: { name: "asc" }, select: { id: true, name: true } })
   ]);
 
   return (

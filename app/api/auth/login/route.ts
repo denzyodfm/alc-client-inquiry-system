@@ -30,6 +30,7 @@ export async function POST(request: Request) {
     email: user.email,
     role: user.role,
     position: user.position,
+    baseBranchId: user.baseBranchId,
     allBranches: user.allBranches,
     privilegeTemplateId: user.privilegeTemplateId
   });

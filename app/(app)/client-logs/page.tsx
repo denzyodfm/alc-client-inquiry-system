@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { FileClock } from "lucide-react";
 import { ClientLogsWorkspace } from "@/components/client-logs-workspace";
-import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
+import { getClientLogBranchIds, requireFunction } from "@/lib/auth";
 import { visibleSyncedLoanWhere } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 
@@ -54,7 +54,7 @@ export default async function ClientLogsPage({
   const selectedClientId = Number(params?.clientId ?? 0) || null;
   const where = clientSearchWhere(searchText);
   const visibleLoanFilter = visibleClientLoanFilter();
-  const branchIds = await getAccessibleBranchIds(user);
+  const branchIds = await getClientLogBranchIds(user);
   const clientBranchFilter = branchAccessWhere(branchIds);
   const logBranchFilter = logBranchAccessWhere(branchIds);
 
@@ -77,7 +77,7 @@ export default async function ClientLogsPage({
   const logClientFilter = selectedClientId ? [selectedClientId] : clientIds;
   const logs = logClientFilter.length
     ? await prisma.clientLog.findMany({
-        where: { ...logBranchFilter, clientId: { in: logClientFilter } },
+        where: { ...logBranchFilter, ...(user.role === "ACCOUNT_OFFICER" ? { encodedById: user.id } : {}), clientId: { in: logClientFilter } },
         take: 80,
         orderBy: { visitAt: "desc" },
         include: {
@@ -88,7 +88,7 @@ export default async function ClientLogsPage({
         }
       })
     : await prisma.clientLog.findMany({
-        where: logBranchFilter,
+        where: { ...logBranchFilter, ...(user.role === "ACCOUNT_OFFICER" ? { encodedById: user.id } : {}) },
         take: 40,
         orderBy: { visitAt: "desc" },
         include: {
