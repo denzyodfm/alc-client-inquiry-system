@@ -11,8 +11,7 @@ import { AccessControlMatrix } from "@/components/access-control-matrix";
 import { UserManager } from "@/components/user-manager";
 import { SyncLogsTable } from "@/components/sync-logs-table";
 import { ChangePasswordForm } from "@/components/change-password-form";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
+import { AuditLogViewer } from "@/components/audit-log-viewer";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +42,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const accessibleBranchIds = await getAccessibleBranchIds(currentUser);
   const isAdmin = currentUser.role === "ADMIN";
 
-  const [allBranches, privileges, users, userBranches, syncLogs, systemLogText] = await Promise.all([
+  const [allBranches, privileges, users, userBranches, syncLogs, auditLogs] = await Promise.all([
     canBranches ? prisma.branch.findMany({ orderBy: { branchName: "asc" } }) : [],
     canSettings ? prisma.privilegeTemplate.findMany({ orderBy: { name: "asc" }, include: { permissions: { select: { functionKey: true } }, _count: { select: { users: true } } } }) : [],
     canUsers ? prisma.user.findMany({
@@ -53,7 +52,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     }) : [],
     canUsers ? prisma.branch.findMany({ where: accessibleBranchIds === null ? undefined : { id: { in: accessibleBranchIds } }, orderBy: { branchName: "asc" }, select: { id: true, branchName: true, branchCode: true } }) : [],
     canSyncLogs ? prisma.syncLog.findMany({ take: 100, orderBy: { startedAt: "desc" }, include: { branch: { select: { branchName: true } } } }) : [],
-    currentUser.role === "ADMIN" ? readFile(path.join(process.cwd(), "logs", "location-link.log"), "utf8").then((text) => text.split(/\r?\n/).filter(Boolean).slice(-250).join("\n")).catch(() => "No application system log file is available.") : ""
+    currentUser.role === "ADMIN" ? prisma.auditLog.findMany({ take: 2000, orderBy: { createdAt: "desc" }, select: { id: true, userName: true, userEmail: true, action: true, module: true, details: true, ipAddress: true, createdAt: true } }) : []
   ]);
   const safeBranches = allBranches.map(({ encryptedDbPassword: _encryptedDbPassword, ...branch }) => branch);
   const privilegeOptions = privileges.map(({ id, name }) => ({ id, name }));
@@ -75,7 +74,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     {activeTab === "matrix" ? <AccessControlMatrix privileges={JSON.parse(JSON.stringify(privileges))} functions={APP_FUNCTIONS.map((item) => ({ ...item }))} /> : null}
     {activeTab === "users" ? <UserManager initialUsers={users} branches={userBranches} currentUserRole={currentUser.role} canGrantAllBranches={isAdmin || accessibleBranchIds === null} privileges={privilegeOptions} /> : null}
     {activeTab === "sync-logs" ? <div className="space-y-4"><div><h3 className="text-xl font-bold text-slate-950">Sync Logs</h3><p className="mt-1 text-sm text-slate-600">Recent branch synchronization activity.</p></div><SyncLogsTable logs={syncLogs} /></div> : null}
-    {activeTab === "system-logs" ? <div className="space-y-4"><div><h3 className="text-xl font-bold text-slate-950">Audit Logs</h3><p className="mt-1 text-sm text-slate-600">Administrator-only audit trail for application and automated location-link activity.</p></div><div className="panel overflow-hidden"><pre className="max-h-[calc(100vh-27rem)] overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-5 text-slate-700">{systemLogText}</pre></div></div> : null}
+    {activeTab === "system-logs" ? <div className="space-y-3"><div><h3 className="text-xl font-bold text-slate-950">Audit Logs</h3><p className="mt-1 text-sm text-slate-600">Administrator-only record of user sign-ins, sign-outs, and activities across the app.</p></div><AuditLogViewer rows={auditLogs.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }))} /></div> : null}
     {activeTab === "change-password" ? <div className="mx-auto max-w-xl space-y-4"><div><h3 className="text-xl font-bold text-slate-950">Change Password</h3><p className="mt-1 text-sm text-slate-600">Update your own password after confirming your current password.</p></div><ChangePasswordForm /></div> : null}
     </div>
   </div>;

@@ -1,0 +1,26 @@
+"use client";
+
+import { FileSpreadsheet, Printer, Search } from "lucide-react";
+import { useMemo, useState } from "react";
+
+type AuditRow = { id: number; userName: string; userEmail: string | null; action: string; module: string | null; details: string | null; ipAddress: string | null; createdAt: string };
+
+export function AuditLogViewer({ rows }: { rows: AuditRow[] }) {
+  const [query, setQuery] = useState(""); const [action, setAction] = useState("ALL"); const [from, setFrom] = useState(""); const [to, setTo] = useState("");
+  const actions = useMemo(() => Array.from(new Set(rows.map((row) => row.action))).sort(), [rows]);
+  const filtered = useMemo(() => rows.filter((row) => {
+    const haystack = [row.userName, row.userEmail, row.action, row.module, row.details, row.ipAddress].join(" ").toLocaleLowerCase("en");
+    const day = row.createdAt.slice(0, 10);
+    return (!query || haystack.includes(query.toLocaleLowerCase("en"))) && (action === "ALL" || row.action === action) && (!from || day >= from) && (!to || day <= to);
+  }), [rows, query, action, from, to]);
+  const asOf = new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeStyle: "short" }).format(new Date());
+  const csvCell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+  function excel() { const csv = [["Timestamp", "User", "Email", "Action", "Module", "Details", "IP"], ...filtered.map((r) => [r.createdAt, r.userName, r.userEmail, r.action, r.module, r.details, r.ipAddress])].map((r) => r.map(csvCell).join(",")).join("\r\n"); const url = URL.createObjectURL(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" })); const a = document.createElement("a"); a.href = url; a.download = "audit-logs.csv"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 500); }
+  function print() { window.print(); }
+  return <div className="space-y-3">
+    <div className="flex flex-wrap items-end gap-2 print:hidden"><label className="min-w-52 flex-1 text-xs font-semibold text-slate-600">Search<div className="relative mt-1"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" /><input className="input pl-9" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="User, action, module, details, or IP" /></div></label><label className="text-xs font-semibold text-slate-600">Action<select className="input mt-1 min-w-36" value={action} onChange={(e) => setAction(e.target.value)}><option value="ALL">All actions</option>{actions.map((item) => <option key={item}>{item}</option>)}</select></label><label className="text-xs font-semibold text-slate-600">From<input type="date" className="input mt-1" value={from} onChange={(e) => setFrom(e.target.value)} /></label><label className="text-xs font-semibold text-slate-600">To<input type="date" className="input mt-1" value={to} onChange={(e) => setTo(e.target.value)} /></label><button type="button" className="btn-secondary h-10 px-3 text-xs" onClick={print}><Printer className="h-4 w-4" />Print</button><button type="button" className="btn-secondary h-10 px-3 text-xs" onClick={excel}><FileSpreadsheet className="h-4 w-4" />Excel</button></div>
+    <div className="hidden print:block"><h1 className="text-xl font-bold">User Activity Audit Logs</h1><p className="text-sm">As of {asOf}</p></div>
+    <p className="text-xs text-slate-500 print:hidden">Showing {filtered.length.toLocaleString("en-US")} of {rows.length.toLocaleString("en-US")} recent event(s).</p>
+    <div className="panel max-h-[calc(100vh-31rem)] min-h-64 overflow-auto"><table className="w-full min-w-[1050px] text-xs"><thead className="sticky top-0 z-10 bg-slate-50"><tr><th className="px-3 py-2 text-left">Date/Time</th><th className="px-3 py-2 text-left">User</th><th className="px-3 py-2 text-left">Action</th><th className="px-3 py-2 text-left">Module</th><th className="px-3 py-2 text-left">Activity</th><th className="px-3 py-2 text-left">IP Address</th></tr></thead><tbody>{filtered.map((row) => <tr key={row.id} className="border-t border-slate-100"><td className="whitespace-nowrap px-3 py-2">{new Date(row.createdAt).toLocaleString("en-US")}</td><td className="px-3 py-2"><span className="block font-semibold">{row.userName}</span><span className="text-slate-500">{row.userEmail}</span></td><td className="px-3 py-2 font-semibold text-brand-blue">{row.action.replace(/_/g, " ")}</td><td className="px-3 py-2">{row.module ?? "-"}</td><td className="px-3 py-2">{row.details ?? "-"}</td><td className="whitespace-nowrap px-3 py-2">{row.ipAddress ?? "-"}</td></tr>)}{!filtered.length ? <tr><td colSpan={6} className="p-8 text-center text-slate-500">No audit activity matches the filters.</td></tr> : null}</tbody></table></div>
+  </div>;
+}

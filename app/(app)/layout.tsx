@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { AppShell } from "@/components/app-shell";
 import { AppProgressBar } from "@/components/app-progress-bar";
+import { AuditTracker } from "@/components/audit-tracker";
 import { canAccessAnyFunction, canAccessFunction, type AppFunctionKey } from "@/lib/access-control";
 
 type IconName = "Gauge" | "Banknote" | "Search" | "ClipboardCheck" | "ClipboardList" | "FileClock" | "Hourglass" | "ReceiptText" | "UserRoundCheck" | "MapPinned" | "Tag" | "History" | "Users" | "Settings" | "MapPin" | "KeyRound";
@@ -51,6 +52,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const allowedNav = (await Promise.all(nav.map(allowed))).filter((item): item is NavConfig => Boolean(item));
   return <AppShell user={{ name: user.name, role: user.role }} nav={allowedNav}>
     <AppProgressBar />
+    <AuditTracker />
     {children}
   </AppShell>;
 }
