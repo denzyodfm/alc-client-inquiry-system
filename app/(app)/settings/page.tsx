@@ -33,7 +33,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     { key: "matrix", label: "Access Matrix", allowed: canSettings },
     { key: "users", label: "Users", allowed: canUsers },
     { key: "sync-logs", label: "Sync Logs", allowed: canSyncLogs },
-    { key: "system-logs", label: "System Logs", allowed: currentUser.role === "ADMIN" },
+    { key: "system-logs", label: "Audit Logs", allowed: currentUser.role === "ADMIN" },
     { key: "change-password", label: "Change Password", allowed: true }
   ];
   const allowedTabs = tabs.filter((tab) => tab.allowed);
@@ -64,6 +64,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       {allowedTabs.map((tab) => <Link key={tab.key} href={`/settings?tab=${tab.key}`} className={`whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-semibold transition ${activeTab === tab.key ? "bg-brand-blue text-white" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"}`}>{tab.label}</Link>)}
     </nav>
 
+    <div className="max-h-[calc(100vh-25rem)] min-h-64 overflow-auto overscroll-contain pr-1">
     {activeTab === "general" ? <section className="grid gap-4 xl:grid-cols-3">
       <div className="panel p-5"><div className="mb-4 flex h-11 w-11 items-center justify-center rounded-md bg-blue-50 text-brand-blue"><TimerReset className="h-5 w-5" /></div><h3 className="font-bold text-slate-950">Midnight Sync Cron</h3><p className="mt-4 text-sm leading-6 text-slate-600">Automatically syncs online active branches every midnight while the app server is running.</p><dl className="mt-4 space-y-2 text-sm"><div className="flex justify-between gap-3"><dt className="font-semibold text-slate-500">Status</dt><dd className="font-bold text-slate-950">{schedule.enabled ? "Enabled" : "Disabled"}</dd></div><div className="flex justify-between gap-3"><dt className="font-semibold text-slate-500">Next run</dt><dd className="font-bold text-slate-950">{dateTime(schedule.nextRunAt)}</dd></div></dl></div>
       <div className="panel p-5"><div className="mb-4 flex h-11 w-11 items-center justify-center rounded-md bg-emerald-50 text-brand-green"><ServerCog className="h-5 w-5" /></div><h3 className="font-bold text-slate-950">Sync Batch Size</h3><p className="mt-4 text-3xl font-bold text-slate-950">{process.env.SYNC_BATCH_SIZE || 500}</p><p className="mt-2 text-sm text-slate-500">Rows requested from each branch table per run.</p></div>
@@ -74,7 +75,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     {activeTab === "matrix" ? <AccessControlMatrix privileges={JSON.parse(JSON.stringify(privileges))} functions={APP_FUNCTIONS.map((item) => ({ ...item }))} /> : null}
     {activeTab === "users" ? <UserManager initialUsers={users} branches={userBranches} currentUserRole={currentUser.role} canGrantAllBranches={isAdmin || accessibleBranchIds === null} privileges={privilegeOptions} /> : null}
     {activeTab === "sync-logs" ? <div className="space-y-4"><div><h3 className="text-xl font-bold text-slate-950">Sync Logs</h3><p className="mt-1 text-sm text-slate-600">Recent branch synchronization activity.</p></div><SyncLogsTable logs={syncLogs} /></div> : null}
-    {activeTab === "system-logs" ? <div className="space-y-4"><div><h3 className="text-xl font-bold text-slate-950">System Logs</h3><p className="mt-1 text-sm text-slate-600">Administrator-only application and automated location-link activity.</p></div><div className="panel overflow-hidden"><pre className="max-h-[650px] overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-5 text-slate-700">{systemLogText}</pre></div></div> : null}
+    {activeTab === "system-logs" ? <div className="space-y-4"><div><h3 className="text-xl font-bold text-slate-950">Audit Logs</h3><p className="mt-1 text-sm text-slate-600">Administrator-only audit trail for application and automated location-link activity.</p></div><div className="panel overflow-hidden"><pre className="max-h-[calc(100vh-27rem)] overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-5 text-slate-700">{systemLogText}</pre></div></div> : null}
     {activeTab === "change-password" ? <div className="mx-auto max-w-xl space-y-4"><div><h3 className="text-xl font-bold text-slate-950">Change Password</h3><p className="mt-1 text-sm text-slate-600">Update your own password after confirming your current password.</p></div><ChangePasswordForm /></div> : null}
+    </div>
   </div>;
 }
