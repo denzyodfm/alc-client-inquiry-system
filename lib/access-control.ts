@@ -24,24 +24,40 @@ export const APP_FUNCTIONS = [
 
 export type AppFunctionKey = (typeof APP_FUNCTIONS)[number]["key"];
 
-const rolePrivilegeNames: Partial<Record<UserRole, string>> = {
-  ACCOUNT_OFFICER: "Account Officer",
-  AREA_TEAM_LEADER: "Area TL",
-  AUDITOR: "Auditor",
-  CREDIT_COMMITTEE: "Credit Committee",
-  HO_CASHIER: "HO Cashier",
-  INQUIRY_USER: "Inquiry User"
+const rolePrivilegeAliases: Partial<Record<UserRole, string[]>> = {
+  ACCOUNT_OFFICER: ["Account Officer"],
+  AREA_TEAM_LEADER: ["Area TL", "Area Team Leader"],
+  AUDITOR: ["Auditor"],
+  CREDIT_COMMITTEE: ["Credit Committee"],
+  HO_CASHIER: ["HO Cashier"],
+  INQUIRY_USER: ["Inquiry User"]
 };
 
-async function effectivePrivilegeTemplateId(user: { role: UserRole; privilegeTemplateId?: number | null }) {
+type AccessUser = { role: UserRole; position?: string | null; privilegeTemplateId?: number | null };
+
+function roleDisplayName(role: UserRole) {
+  return role.toLowerCase().split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+}
+
+async function effectivePrivilegeTemplateId(user: AccessUser) {
   if (user.privilegeTemplateId) return user.privilegeTemplateId;
-  const templateName = rolePrivilegeNames[user.role];
-  if (!templateName) return null;
-  const template = await prisma.privilegeTemplate.findFirst({ where: { name: templateName }, select: { id: true } });
+
+  const candidateNames = Array.from(new Set([
+    user.position?.trim(),
+    ...(rolePrivilegeAliases[user.role] ?? []),
+    roleDisplayName(user.role)
+  ].filter((name): name is string => Boolean(name))));
+  if (!candidateNames.length) return null;
+
+  const template = await prisma.privilegeTemplate.findFirst({
+    where: { name: { in: candidateNames } },
+    orderBy: { id: "asc" },
+    select: { id: true }
+  });
   return template?.id ?? null;
 }
 
-export async function canAccessFunction(user: { role: UserRole; privilegeTemplateId?: number | null }, functionKey: AppFunctionKey) {
+export async function canAccessFunction(user: AccessUser, functionKey: AppFunctionKey) {
   if (user.role === "ADMIN") return true;
   const privilegeTemplateId = await effectivePrivilegeTemplateId(user);
   if (!privilegeTemplateId) return false;
@@ -58,7 +74,7 @@ export async function canAccessFunction(user: { role: UserRole; privilegeTemplat
 }
 
 export async function canAccessAnyFunction(
-  user: { role: UserRole; privilegeTemplateId?: number | null },
+  user: AccessUser,
   functionKeys: readonly AppFunctionKey[]
 ) {
   if (user.role === "ADMIN") return true;

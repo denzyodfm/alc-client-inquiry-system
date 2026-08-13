@@ -10,6 +10,7 @@ export type SessionUser = {
   name: string;
   email: string;
   role: UserRole;
+  position?: string | null;
   allBranches?: boolean;
   privilegeTemplateId?: number | null;
 };
@@ -68,7 +69,7 @@ export async function getSessionUser() {
 
   const user = await prisma.user.findFirst({
     where: { id: session.id, isActive: true },
-    select: { id: true, name: true, email: true, role: true, allBranches: true, privilegeTemplateId: true }
+    select: { id: true, name: true, email: true, role: true, position: true, allBranches: true, privilegeTemplateId: true }
   });
 
   return user;

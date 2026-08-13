@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     name: user.name,
     email: user.email,
     role: user.role,
+    position: user.position,
     allBranches: user.allBranches,
     privilegeTemplateId: user.privilegeTemplateId
   });
