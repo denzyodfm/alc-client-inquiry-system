@@ -24,14 +24,32 @@ export const APP_FUNCTIONS = [
 
 export type AppFunctionKey = (typeof APP_FUNCTIONS)[number]["key"];
 
+const rolePrivilegeNames: Partial<Record<UserRole, string>> = {
+  ACCOUNT_OFFICER: "Account Officer",
+  AREA_TEAM_LEADER: "Area TL",
+  AUDITOR: "Auditor",
+  CREDIT_COMMITTEE: "Credit Committee",
+  HO_CASHIER: "HO Cashier",
+  INQUIRY_USER: "Inquiry User"
+};
+
+async function effectivePrivilegeTemplateId(user: { role: UserRole; privilegeTemplateId?: number | null }) {
+  if (user.privilegeTemplateId) return user.privilegeTemplateId;
+  const templateName = rolePrivilegeNames[user.role];
+  if (!templateName) return null;
+  const template = await prisma.privilegeTemplate.findFirst({ where: { name: templateName }, select: { id: true } });
+  return template?.id ?? null;
+}
+
 export async function canAccessFunction(user: { role: UserRole; privilegeTemplateId?: number | null }, functionKey: AppFunctionKey) {
   if (user.role === "ADMIN") return true;
-  if (!user.privilegeTemplateId) return false;
+  const privilegeTemplateId = await effectivePrivilegeTemplateId(user);
+  if (!privilegeTemplateId) return false;
 
   return Boolean(await prisma.privilegePermission.findUnique({
     where: {
       privilegeTemplateId_functionKey: {
-        privilegeTemplateId: user.privilegeTemplateId,
+        privilegeTemplateId,
         functionKey
       }
     },
