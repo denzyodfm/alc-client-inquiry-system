@@ -17,9 +17,8 @@ export default function LoginPage() {
 
       <div className="relative z-10 flex min-h-0 flex-1 items-center justify-center lg:w-[46%] lg:self-start">
       <section className="w-full max-w-sm">
-        <div className="rounded-2xl border border-white/90 bg-white/90 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.17)] backdrop-blur-xl sm:p-6">
-          <Image src="/branding/alc-logo.png" alt="Agusan Lending Corporation" width={700} height={224} priority className="mb-4 h-auto w-full" />
-          <div className="mb-5">
+        <div className="rounded-2xl border border-white/90 bg-white/90 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.17)] backdrop-blur-xl">
+          <div className="mb-4">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-blue">Central Client Services</p>
             <h1 className="mt-1.5 text-2xl font-extrabold tracking-tight text-slate-950">Welcome back</h1>
           </div>
@@ -29,7 +28,7 @@ export default function LoginPage() {
       </div>
 
       <footer className="relative z-10 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50/95 via-white/95 to-yellow-50/95 px-4 py-2.5 text-center text-xs text-slate-600 shadow-sm backdrop-blur sm:mx-auto sm:w-fit sm:min-w-[620px]">
-        <p className="font-bold text-brand-navy">© {new Date().getFullYear()} Agusan Lending Corporation. All rights reserved.</p>
+        <p className="font-bold text-brand-navy">&copy; {new Date().getFullYear()} Agusan Lending Corporation. All rights reserved.</p>
         <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2">
           <span className="rounded-full bg-gradient-to-r from-brand-navy to-brand-blue px-3 py-1 font-extrabold italic tracking-wide text-white shadow-sm ring-2 ring-brand-yellow/70">Powered by</span>
           <Image src="/branding/valdemeer-resources.png" alt="Valdemeer Resources, Inc" width={2048} height={768} className="h-14 w-auto object-contain sm:h-16" />
