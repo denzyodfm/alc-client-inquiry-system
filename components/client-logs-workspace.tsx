@@ -28,7 +28,7 @@ type ClientLogRow = {
   encodedBy: { name: string; email: string };
 };
 
-type Filters = { branchId: string; product: string; status: string; addressArea: string; addressDetail: string };
+type Filters = { branchId: string; addressArea: string; addressDetail: string };
 
 export function ClientLogsWorkspace({
   clients,
@@ -36,8 +36,6 @@ export function ClientLogsWorkspace({
   searchText,
   filters,
   branches,
-  products,
-  statuses,
   selectedClientId,
   currentUserName
 }: {
@@ -46,8 +44,6 @@ export function ClientLogsWorkspace({
   searchText: string;
   filters: Filters;
   branches: { id: number; branchName: string; branchCode: string }[];
-  products: string[];
-  statuses: { code: number; name: string | null }[];
   selectedClientId: number | null;
   currentUserName: string;
 }) {
@@ -96,18 +92,12 @@ export function ClientLogsWorkspace({
   return (
     <div className="space-y-6">
       <form className="panel p-4" action="/client-logs">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Client</span>
             <input className="field" name="customer" defaultValue={searchText} placeholder="Client name or number" />
           </label>
           <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Branch</span>
             <select className="field" name="branchId" defaultValue={filters.branchId}><option value="">All branches</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.branchName}</option>)}</select>
-          </label>
-          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Loan product</span>
-            <select className="field" name="product" defaultValue={filters.product}><option value="">All products</option>{products.map((product) => <option key={product} value={product}>{product}</option>)}</select>
-          </label>
-          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Loan status</span>
-            <select className="field" name="status" defaultValue={filters.status}><option value="">All statuses</option>{statuses.map((status) => <option key={`${status.code}-${status.name}`} value={status.code}>{status.name || status.code}</option>)}</select>
           </label>
           <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Address area</span>
             <input className="field" name="addressArea" defaultValue={filters.addressArea} placeholder="Example: San Francisco" />

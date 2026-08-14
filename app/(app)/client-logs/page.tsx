@@ -49,8 +49,6 @@ export default async function ClientLogsPage({
   searchParams?: Promise<{
     customer?: string;
     branchId?: string;
-    product?: string;
-    status?: string;
     addressArea?: string;
     addressDetail?: string;
     clientId?: string;
@@ -60,8 +58,6 @@ export default async function ClientLogsPage({
   const params = await searchParams;
   const searchText = params?.customer?.trim() ?? "";
   const selectedBranchId = Number(params?.branchId ?? 0) || null;
-  const selectedProduct = params?.product?.trim() ?? "";
-  const selectedStatus = Number(params?.status ?? 0) || null;
   const addressArea = params?.addressArea?.trim() ?? "";
   const addressDetail = params?.addressDetail?.trim() ?? "";
   const selectedClientId = Number(params?.clientId ?? 0) || null;
@@ -80,12 +76,10 @@ export default async function ClientLogsPage({
   const loanFilter: Prisma.LoanWhereInput = {
     AND: [
       visibleLoanFilter,
-      ...(selectedBranchId ? [{ branchId: selectedBranchId }] : []),
-      ...(selectedProduct ? [{ loanProduct: selectedProduct }] : []),
-      ...(selectedStatus ? [{ sourceStatusCode: selectedStatus }] : [])
+      ...(selectedBranchId ? [{ branchId: selectedBranchId }] : [])
     ]
   };
-  const hasSearch = Boolean(searchText || selectedBranchId || selectedProduct || selectedStatus || addressArea || addressDetail);
+  const hasSearch = Boolean(searchText || selectedBranchId || addressArea || addressDetail);
   const addressFilters: Prisma.ClientWhereInput[] = [
     ...(addressArea ? [{ address: { contains: addressArea } }] : []),
     ...(addressDetail ? [{ address: { contains: addressDetail } }] : [])
@@ -106,23 +100,11 @@ export default async function ClientLogsPage({
           include: { branch: { select: { branchName: true, branchCode: true } } }
         })
       : [];
-  const optionLoanWhere: Prisma.LoanWhereInput = {
-    AND: [visibleLoanFilter, ...(searchBranchIds === null ? [] : [{ branchId: { in: searchBranchIds.length ? searchBranchIds : [-1] } }])]
-  };
-  const [branches, productRows, statusRows] = await Promise.all([
-    prisma.branch.findMany({
-      where: searchBranchIds === null ? { status: "ACTIVE" } : { status: "ACTIVE", id: { in: searchBranchIds.length ? searchBranchIds : [-1] } },
-      orderBy: { branchName: "asc" },
-      select: { id: true, branchName: true, branchCode: true }
-    }),
-    prisma.loan.findMany({ where: optionLoanWhere, distinct: ["loanProduct"], select: { loanProduct: true }, orderBy: { loanProduct: "asc" } }),
-    prisma.loan.findMany({
-      where: optionLoanWhere,
-      distinct: ["sourceStatusCode", "sourceStatusName"],
-      select: { sourceStatusCode: true, sourceStatusName: true },
-      orderBy: { sourceStatusCode: "asc" }
-    })
-  ]);
+  const branches = await prisma.branch.findMany({
+    where: searchBranchIds === null ? { status: "ACTIVE" } : { status: "ACTIVE", id: { in: searchBranchIds.length ? searchBranchIds : [-1] } },
+    orderBy: { branchName: "asc" },
+    select: { id: true, branchName: true, branchCode: true }
+  });
   const clientIds = clients.map((client) => client.id);
   const logClientFilter = selectedClientId ? [selectedClientId] : clientIds;
   const logs = logClientFilter.length
@@ -191,14 +173,10 @@ export default async function ClientLogsPage({
         searchText={searchText}
         filters={{
           branchId: selectedBranchId ? String(selectedBranchId) : "",
-          product: selectedProduct,
-          status: selectedStatus ? String(selectedStatus) : "",
           addressArea,
           addressDetail
         }}
         branches={branches}
-        products={productRows.flatMap((row) => row.loanProduct ? [row.loanProduct] : [])}
-        statuses={statusRows.flatMap((row) => row.sourceStatusCode === null ? [] : [{ code: row.sourceStatusCode, name: row.sourceStatusName }])}
         selectedClientId={selectedClientId}
         currentUserName={user.name}
       />
