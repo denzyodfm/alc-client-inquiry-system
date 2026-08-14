@@ -452,7 +452,7 @@ const ClientResultCard = memo(function ClientResultCard({
   );
 });
 
-export function InquiryForm({ locationOptions }: { locationOptions: LocationOption[] }) {
+export function InquiryForm({ locationOptions, branches, products, statuses, branchAos }: { locationOptions: LocationOption[]; branches: Array<{ id: number; branchName: string; branchCode: string }>; products: string[]; statuses: Array<{ code: number; name: string | null }>; branchAos: string[] }) {
   const [result, setResult] = useState<InquiryResult | null>(null);
   const [selectedLoan, setSelectedLoan] = useState<(Loan & { client: ClientResult }) | null>(null);
   const [analysisLoan, setAnalysisLoan] = useState<(Loan & { client: ClientResult }) | null>(null);
@@ -461,6 +461,7 @@ export function InquiryForm({ locationOptions }: { locationOptions: LocationOpti
   const [loading, setLoading] = useState(false);
   const [quickSearch, setQuickSearch] = useState("");
   const skipInitialQuickSearch = useRef(true);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const toggleExpand = useCallback((key: string) => {
     setExpandedClients((current) => ({ ...current, [key]: !current[key] }));
@@ -507,7 +508,8 @@ export function InquiryForm({ locationOptions }: { locationOptions: LocationOpti
     }
 
     const timeout = window.setTimeout(() => {
-      void runInquiry({ q: query });
+      const form = formRef.current ? Object.fromEntries(new FormData(formRef.current).entries()) : { customer: query };
+      void runInquiry(form);
     }, 350);
 
     return () => window.clearTimeout(timeout);
@@ -556,18 +558,24 @@ export function InquiryForm({ locationOptions }: { locationOptions: LocationOpti
 
   return (
     <div className="space-y-6">
-      <form onSubmit={submit} className="panel p-5">
+      <form ref={formRef} onSubmit={submit} className="panel p-5">
         <h3 className="mb-5 text-lg font-bold text-slate-950">Search Client</h3>
-        <div className="grid gap-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
+          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Branch</span><select name="branchId" className="field"><option value="ALL">All branches</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.branchName} - {branch.branchCode}</option>)}</select></label>
+          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Loan product</span><select name="product" className="field"><option value="ALL">All products</option>{products.map((product) => <option key={product} value={product}>{product}</option>)}</select></label>
+          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Loan status</span><select name="status" className="field"><option value="ALL">All statuses</option>{statuses.map((status) => <option key={status.code} value={status.code}>{status.code}{status.name ? ` - ${status.name}` : ""}</option>)}</select></label>
+          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Branch AO</span><select name="branchAo" className="field"><option value="ALL">All Branch AOs</option>{branchAos.map((branchAo) => <option key={branchAo} value={branchAo}>{branchAo}</option>)}</select></label>
+          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Address area</span><input name="addressArea" className="field" placeholder="Example: San Francisco" /></label>
+          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Address detail</span><input name="addressDetail" className="field" placeholder="Example: Brgy 1" /></label>
           <label className="block">
-            <span className="mb-2 block text-sm font-semibold text-slate-700">Search client</span>
+            <span className="mb-2 block text-sm font-semibold text-slate-700">Customer name</span>
             <input
-              name="q"
+              name="customer"
               className="field"
               value={quickSearch}
               onChange={(event) => setQuickSearch(event.target.value)}
               list="client-search-suggestions"
-              placeholder="Type name, address, client no., contact, valid ID, or loan no."
+              placeholder="Search customer name or number"
             />
             <datalist id="client-search-suggestions">
               {suggestions.map((suggestion) => (
@@ -575,7 +583,7 @@ export function InquiryForm({ locationOptions }: { locationOptions: LocationOpti
               ))}
             </datalist>
           </label>
-          {loading ? <p className="text-sm font-semibold text-brand-blue">Searching...</p> : null}
+          <div className="flex items-end xl:col-span-7"><button className="btn-primary h-11 min-w-36" disabled={loading}><Search className="h-4 w-4" />{loading ? "Searching..." : "Search"}</button></div>
         </div>
       </form>
 

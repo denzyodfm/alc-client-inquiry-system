@@ -10,6 +10,13 @@ export type InquiryPayload = {
   contactNumber?: string;
   clientId?: string;
   validIdNumber?: string;
+  branchId?: string;
+  product?: string;
+  status?: string;
+  branchAo?: string;
+  addressArea?: string;
+  addressDetail?: string;
+  customer?: string;
 };
 
 function searchTerms(value: string) {
@@ -48,6 +55,8 @@ function clientWordSearch(value: string): Prisma.ClientWhereInput {
 export async function searchClientInquiry(payload: InquiryPayload, options?: { excludeAlcHo?: boolean }) {
   const visibleLoanFilter = visibleSyncedLoanWhere();
   const or = [];
+  const customer = payload.customer?.trim();
+  if (customer) or.push(clientWordSearch(customer));
   if (payload.q?.trim()) {
     const query = payload.q.trim();
     or.push(clientWordSearch(query));
@@ -72,7 +81,14 @@ export async function searchClientInquiry(payload: InquiryPayload, options?: { e
     or.push({ validIdNumber: { contains: payload.validIdNumber.trim() } });
   }
 
-  if (!or.length) {
+  const branchId = Number(payload.branchId);
+  const product = payload.product?.trim();
+  const status = Number(payload.status);
+  const branchAo = payload.branchAo?.trim();
+  const addressTerms = searchTerms([payload.addressArea, payload.addressDetail].filter(Boolean).join(" "));
+  const hasLoanFilter = (product && product !== "ALL") || (payload.status && payload.status !== "ALL") || (branchAo && branchAo !== "ALL");
+
+  if (!or.length && !addressTerms.length && !(Number.isInteger(branchId) && branchId > 0) && !hasLoanFilter) {
     return {
       status: "EMPTY_QUERY" as const,
       message: "Enter at least one search field.",
@@ -80,16 +96,19 @@ export async function searchClientInquiry(payload: InquiryPayload, options?: { e
     };
   }
 
+  const selectedLoanFilter: Prisma.LoanWhereInput = { ...visibleLoanFilter, ...(product && product !== "ALL" ? { loanProduct: product } : {}), ...(payload.status && payload.status !== "ALL" && Number.isInteger(status) ? { sourceStatusCode: status } : {}), ...(branchAo && branchAo !== "ALL" ? { branchAo } : {}) };
   const clients = await prisma.client.findMany({
     where: {
-      OR: or,
+      ...(or.length ? { OR: or } : {}),
+      ...(addressTerms.length ? { AND: addressTerms.map((term) => ({ address: { contains: term } })) } : {}),
+      ...(Number.isInteger(branchId) && branchId > 0 ? { branchId } : {}),
       ...(options?.excludeAlcHo ? { NOT: { branch: { branchName: { contains: "ALC HO" } } } } : {}),
-      loans: { some: visibleLoanFilter }
+      loans: { some: selectedLoanFilter }
     },
     include: {
       branch: true,
       loans: {
-        where: visibleLoanFilter,
+        where: selectedLoanFilter,
         orderBy: [{ releasedAt: "desc" }, { balance: "desc" }],
         include: {
           amortizationSchedules: {

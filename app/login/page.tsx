@@ -32,7 +32,7 @@ export default function LoginPage() {
         <div className="mt-0.5 flex flex-wrap items-center justify-center gap-1.5">
           <span className="rounded-full bg-gradient-to-r from-brand-navy to-brand-blue px-3 py-1 font-extrabold italic tracking-wide text-white shadow-sm ring-2 ring-brand-yellow/70">Powered by</span>
           <Image src="/branding/valdemeer-resources.png" alt="Valdemeer Resources, Inc" width={2048} height={768} className="h-14 w-auto object-contain sm:h-16" />
-          <span className="font-semibold">IT Team dEnNiSjErRyDaNhIlLleEgEr.</span>
+          <span className="font-semibold">IT TEAM - KAMARU</span>
         </div>
       </footer>
     </main>
