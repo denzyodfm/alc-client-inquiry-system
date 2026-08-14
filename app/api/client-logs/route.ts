@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   const logType = String(payload?.logType ?? "INQUIRY").trim().slice(0, 60) || "INQUIRY";
   const subject = String(payload?.subject ?? "").trim().slice(0, 180);
   const notes = String(payload?.notes ?? "").trim();
-  const branchIds = await getAccessibleBranchIds(user);
+  const branchIds = user.role === "ACCOUNT_OFFICER" ? null : await getAccessibleBranchIds(user);
 
   if (!clientId) {
     return NextResponse.json({ error: "Please select a customer." }, { status: 400 });
@@ -40,6 +40,7 @@ export async function POST(request: Request) {
     where: {
       id: clientId,
       ...branchAccessWhere(branchIds),
+      ...(user.role === "ACCOUNT_OFFICER" ? { NOT: { branch: { branchName: { contains: "ALC HO" } } } } : {}),
       loans: { some: visibleClientLoanFilter() }
     },
     select: { id: true, branchId: true }

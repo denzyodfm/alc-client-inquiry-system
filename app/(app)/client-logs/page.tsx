@@ -54,7 +54,8 @@ export default async function ClientLogsPage({
   const selectedClientId = Number(params?.clientId ?? 0) || null;
   const where = clientSearchWhere(searchText);
   const visibleLoanFilter = visibleClientLoanFilter();
-  const [searchBranchIds, logBranchIds] = await Promise.all([getAccessibleBranchIds(user), getClientLogBranchIds(user)]);
+  const [accessibleBranchIds, logBranchIds] = await Promise.all([getAccessibleBranchIds(user), getClientLogBranchIds(user)]);
+  const searchBranchIds = user.role === "ACCOUNT_OFFICER" ? null : accessibleBranchIds;
   const clientBranchFilter = branchAccessWhere(searchBranchIds);
   const clientInquiryScope: Prisma.ClientWhereInput = {
     AND: [
