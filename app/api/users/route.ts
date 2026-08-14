@@ -69,7 +69,7 @@ export async function POST(request: Request) {
   const allBranches = Boolean(body.allBranches) && (isAdmin || accessibleBranchIds === null);
   const branchIds = allBranches ? [] : parseBranchIds(body.branchIds);
   const requestedPrivilegeTemplateId = Number(body.privilegeTemplateId);
-  const privilegeTemplateId = isAdmin && role !== "ADMIN" && Number.isInteger(requestedPrivilegeTemplateId) && requestedPrivilegeTemplateId > 0 ? requestedPrivilegeTemplateId : null;
+  let privilegeTemplateId = isAdmin && role !== "ADMIN" && Number.isInteger(requestedPrivilegeTemplateId) && requestedPrivilegeTemplateId > 0 ? requestedPrivilegeTemplateId : null;
 
   if (!name || !email || !password) {
     return NextResponse.json({ error: "Name, email, and password are required." }, { status: 400 });
@@ -85,6 +85,17 @@ export async function POST(request: Request) {
   }
   if (!isAdmin && role !== "ACCOUNT_OFFICER") {
     return NextResponse.json({ error: "Area Team Leaders can only create Account Officer users." }, { status: 403 });
+  }
+  if (!isAdmin) {
+    const accountOfficerPrivilege = await prisma.privilegeTemplate.findFirst({
+      where: { name: { in: ["Account Officer", "ACCOUNT OFFICER"] } },
+      orderBy: { id: "asc" },
+      select: { id: true }
+    });
+    if (!accountOfficerPrivilege) {
+      return NextResponse.json({ error: "The Account Officer privilege has not been configured." }, { status: 400 });
+    }
+    privilegeTemplateId = accountOfficerPrivilege.id;
   }
   if (!isAdmin && accessibleBranchIds !== null && branchIds.some((branchId) => !accessibleBranchIds.includes(branchId))) {
     return NextResponse.json({ error: "You can only grant access to your assigned branches." }, { status: 403 });

@@ -250,7 +250,7 @@ export function UserManager({
             </div>
             <p className="mt-2 text-xs text-slate-500">Leave both fields blank to keep the current password.</p>
           </div> : null}
-          <input type="hidden" name="role" value={editingUser?.role ?? "INQUIRY_USER"} />
+          <input type="hidden" name="role" value={editingUser?.role ?? (isAdmin ? "INQUIRY_USER" : "ACCOUNT_OFFICER")} />
           {isAdmin ? (
             editingUser?.role === "ADMIN" ? <div><label className="mb-1 block text-xs font-semibold text-slate-600">Privilege</label><div className="field bg-emerald-50 font-semibold text-brand-green">Administrator - full access (protected)</div></div> : <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Privilege</span><select name="privilegeTemplateId" className="field" defaultValue={editingUser?.privilegeTemplateId ?? ""} required>
                 <option value="" disabled>Select privilege</option>

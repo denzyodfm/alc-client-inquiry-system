@@ -18,7 +18,7 @@ export const APP_FUNCTIONS = [
   { key: "VERIFY_ADDRESS", label: "Verify Address", description: "Correct questionable linked addresses" },
   { key: "CLIENT_CONDITION", label: "Client Condition", description: "Manage client condition records" },
   { key: "SYNC_LOGS", label: "Sync Logs", description: "View branch synchronization history" },
-  { key: "USER_MANAGEMENT", label: "User Management", description: "Administrator-only user account management", adminOnly: true },
+  { key: "USER_MANAGEMENT", label: "User Management", description: "Create and manage authorized user accounts" },
   { key: "SETTINGS_ACCESS", label: "Settings and Access Control", description: "Manage branches, privileges, and access matrix" }
 ] as const;
 
@@ -59,6 +59,7 @@ async function effectivePrivilegeTemplateId(user: AccessUser) {
 
 export async function canAccessFunction(user: AccessUser, functionKey: AppFunctionKey) {
   if (user.role === "ADMIN") return true;
+  if (functionKey === "USER_MANAGEMENT" && user.role === "AREA_TEAM_LEADER") return true;
   const appFunction = APP_FUNCTIONS.find((item) => item.key === functionKey);
   if (appFunction && "adminOnly" in appFunction && appFunction.adminOnly) return false;
   const privilegeTemplateId = await effectivePrivilegeTemplateId(user);
