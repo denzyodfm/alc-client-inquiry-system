@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { FileClock } from "lucide-react";
 import { ClientLogsWorkspace } from "@/components/client-logs-workspace";
-import { getClientLogBranchIds, requireFunction } from "@/lib/auth";
+import { getAccessibleBranchIds, getClientLogBranchIds, requireFunction } from "@/lib/auth";
 import { visibleSyncedLoanWhere } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 
@@ -54,14 +54,20 @@ export default async function ClientLogsPage({
   const selectedClientId = Number(params?.clientId ?? 0) || null;
   const where = clientSearchWhere(searchText);
   const visibleLoanFilter = visibleClientLoanFilter();
-  const branchIds = await getClientLogBranchIds(user);
-  const clientBranchFilter = branchAccessWhere(branchIds);
-  const logBranchFilter = logBranchAccessWhere(branchIds);
+  const [searchBranchIds, logBranchIds] = await Promise.all([getAccessibleBranchIds(user), getClientLogBranchIds(user)]);
+  const clientBranchFilter = branchAccessWhere(searchBranchIds);
+  const clientInquiryScope: Prisma.ClientWhereInput = {
+    AND: [
+      clientBranchFilter,
+      ...(user.role === "ACCOUNT_OFFICER" ? [{ NOT: { branch: { branchName: { contains: "ALC HO" } } } }] : [])
+    ]
+  };
+  const logBranchFilter = logBranchAccessWhere(logBranchIds);
 
   const clients = searchText
     ? await prisma.client.findMany({
         where: {
-          AND: [where, clientBranchFilter, { loans: { some: visibleLoanFilter } }]
+          AND: [where, clientInquiryScope, { loans: { some: visibleLoanFilter } }]
         },
         take: 40,
         orderBy: [{ fullName: "asc" }, { updatedAt: "desc" }],
@@ -69,7 +75,7 @@ export default async function ClientLogsPage({
       })
     : selectedClientId
       ? await prisma.client.findMany({
-          where: { id: selectedClientId, ...clientBranchFilter, loans: { some: visibleLoanFilter } },
+          where: { AND: [{ id: selectedClientId }, clientInquiryScope, { loans: { some: visibleLoanFilter } }] },
           include: { branch: { select: { branchName: true, branchCode: true } } }
         })
       : [];
