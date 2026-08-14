@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { FileClock } from "lucide-react";
 import { ClientLogsWorkspace } from "@/components/client-logs-workspace";
-import { getAccessibleBranchIds, getClientLogBranchIds, requireFunction } from "@/lib/auth";
+import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { visibleSyncedLoanWhere } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 
@@ -38,11 +38,6 @@ function branchAccessWhere(branchIds: number[] | null): Prisma.ClientWhereInput 
   return branchIds.length ? { branchId: { in: branchIds } } : { branchId: -1 };
 }
 
-function logBranchAccessWhere(branchIds: number[] | null): Prisma.ClientLogWhereInput {
-  if (branchIds === null) return {};
-  return branchIds.length ? { branchId: { in: branchIds } } : { branchId: -1 };
-}
-
 export default async function ClientLogsPage({
   searchParams
 }: {
@@ -63,7 +58,7 @@ export default async function ClientLogsPage({
   const selectedClientId = Number(params?.clientId ?? 0) || null;
   const where = clientSearchWhere(searchText);
   const visibleLoanFilter = visibleClientLoanFilter();
-  const [accessibleBranchIds, logBranchIds] = await Promise.all([getAccessibleBranchIds(user), getClientLogBranchIds(user)]);
+  const accessibleBranchIds = await getAccessibleBranchIds(user);
   const searchBranchIds = user.role === "ACCOUNT_OFFICER" ? null : accessibleBranchIds;
   const clientBranchFilter = branchAccessWhere(searchBranchIds);
   const clientInquiryScope: Prisma.ClientWhereInput = {
@@ -72,7 +67,6 @@ export default async function ClientLogsPage({
       ...(user.role === "ACCOUNT_OFFICER" ? [{ NOT: { branch: { branchName: { contains: "ALC HO" } } } }] : [])
     ]
   };
-  const logBranchFilter = logBranchAccessWhere(logBranchIds);
   const loanFilter: Prisma.LoanWhereInput = {
     AND: [
       visibleLoanFilter,
@@ -90,7 +84,7 @@ export default async function ClientLogsPage({
         where: {
           AND: [where, clientInquiryScope, ...addressFilters, { loans: { some: loanFilter } }]
         },
-        take: 40,
+        take: 100,
         orderBy: [{ fullName: "asc" }, { updatedAt: "desc" }],
         include: { branch: { select: { branchName: true, branchCode: true } } }
       })
@@ -105,32 +99,6 @@ export default async function ClientLogsPage({
     orderBy: { branchName: "asc" },
     select: { id: true, branchName: true, branchCode: true }
   });
-  const clientIds = clients.map((client) => client.id);
-  const logClientFilter = selectedClientId ? [selectedClientId] : clientIds;
-  const logs = logClientFilter.length
-    ? await prisma.clientLog.findMany({
-        where: { ...logBranchFilter, ...(user.role === "ACCOUNT_OFFICER" ? { encodedById: user.id } : {}), clientId: { in: logClientFilter } },
-        take: 80,
-        orderBy: { visitAt: "desc" },
-        include: {
-          client: {
-            include: { branch: { select: { branchName: true, branchCode: true } } }
-          },
-          encodedBy: { select: { name: true, email: true } }
-        }
-      })
-    : await prisma.clientLog.findMany({
-        where: { ...logBranchFilter, ...(user.role === "ACCOUNT_OFFICER" ? { encodedById: user.id } : {}) },
-        take: 40,
-        orderBy: { visitAt: "desc" },
-        include: {
-          client: {
-            include: { branch: { select: { branchName: true, branchCode: true } } }
-          },
-          encodedBy: { select: { name: true, email: true } }
-        }
-      });
-
   return (
     <div className="space-y-6">
       <div>
@@ -150,25 +118,6 @@ export default async function ClientLogsPage({
           contactNumber: client.contactNumber,
           address: client.address,
           branch: client.branch
-        }))}
-        logs={logs.map((log) => ({
-          id: log.id,
-          logType: log.logType,
-          subject: log.subject,
-          notes: log.notes,
-          newDate: log.newDate?.toISOString() ?? null,
-          newAmount: log.newAmount?.toString() ?? null,
-          visitAt: log.visitAt.toISOString(),
-          createdAt: log.createdAt.toISOString(),
-          client: {
-            id: log.client.id,
-            fullName: log.client.fullName,
-            clientId: log.client.clientId,
-            contactNumber: log.client.contactNumber,
-            address: log.client.address,
-            branch: log.client.branch
-          },
-          encodedBy: log.encodedBy
         }))}
         searchText={searchText}
         filters={{

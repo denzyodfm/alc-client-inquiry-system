@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { CalendarDays, FileClock, Save, Search, X } from "lucide-react";
-import { dateOnly, dateTime, money } from "@/lib/format";
+import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { CalendarDays, Save, Search, X } from "lucide-react";
 
 type ClientOption = {
   id: number;
@@ -15,24 +14,10 @@ type ClientOption = {
   branch: { branchName: string; branchCode: string };
 };
 
-type ClientLogRow = {
-  id: number;
-  logType: string;
-  subject: string | null;
-  notes: string;
-  newDate: string | null;
-  newAmount: string | null;
-  visitAt: string;
-  createdAt: string;
-  client: ClientOption;
-  encodedBy: { name: string; email: string };
-};
-
 type Filters = { branchId: string; addressArea: string; addressDetail: string };
 
 export function ClientLogsWorkspace({
   clients,
-  logs,
   searchText,
   filters,
   branches,
@@ -40,7 +25,6 @@ export function ClientLogsWorkspace({
   currentUserName
 }: {
   clients: ClientOption[];
-  logs: ClientLogRow[];
   searchText: string;
   filters: Filters;
   branches: { id: number; branchName: string; branchCode: string }[];
@@ -48,6 +32,8 @@ export function ClientLogsWorkspace({
   currentUserName: string;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [clientSearch, setClientSearch] = useState(searchText);
   const [clientId, setClientId] = useState(selectedClientId ? String(selectedClientId) : "");
   const [entryOpen, setEntryOpen] = useState(false);
   const [logType, setLogType] = useState("INQUIRY");
@@ -59,6 +45,18 @@ export function ClientLogsWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const selectedClient = useMemo(() => clients.find((client) => String(client.id) === clientId), [clientId, clients]);
+
+  useEffect(() => {
+    if (clientSearch.trim() === searchText) return;
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      const value = clientSearch.trim();
+      if (value) params.set("customer", value);
+      else params.delete("customer");
+      router.replace(`/client-logs${params.size ? `?${params.toString()}` : ""}`, { scroll: false });
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [clientSearch, router, searchParams, searchText]);
 
   function openEntry(client: ClientOption) {
     setClientId(String(client.id));
@@ -94,7 +92,7 @@ export function ClientLogsWorkspace({
       <form className="panel p-4" action="/client-logs">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Client</span>
-            <input className="field" name="customer" defaultValue={searchText} placeholder="Client name or number" />
+            <input className="field" name="customer" value={clientSearch} onChange={(event) => setClientSearch(event.target.value)} placeholder="Client name or number" autoComplete="off" />
           </label>
           <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Branch</span>
             <select className="field" name="branchId" defaultValue={filters.branchId}><option value="">All branches</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.branchName}</option>)}</select>
@@ -114,29 +112,17 @@ export function ClientLogsWorkspace({
 
       {message ? <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-brand-green">{message}</div> : null}
 
-      <section className="grid gap-5 xl:grid-cols-[420px_1fr]">
+      <section>
         <div className="panel overflow-hidden">
           <div className="border-b border-slate-100 px-4 py-3"><p className="text-sm font-bold text-slate-950">Matching customers</p><p className="text-xs text-slate-500">{clients.length.toLocaleString("en-US")} result(s)</p></div>
-          <div className="max-h-[620px] overflow-auto">
-            {clients.map((client, index) => <button key={client.id} type="button" onClick={() => openEntry(client)} className="block w-full border-b border-slate-100 bg-white px-4 py-3 text-left transition hover:bg-blue-50">
-              <div className="flex gap-3"><span className="mt-0.5 inline-flex h-6 min-w-6 items-center justify-center rounded-md bg-slate-100 text-xs font-bold text-brand-blue">{index + 1}</span><div><p className="font-bold text-slate-950">{client.fullName}</p><p className="text-xs font-semibold text-slate-500">{client.branch.branchName} - {client.clientId ?? "No client no."}</p><p className="mt-1 text-xs text-slate-500">{client.contactNumber ?? "No contact"} | {client.address ?? "No address"}</p></div></div>
+          <div className="grid max-h-[620px] overflow-auto sm:grid-cols-2 xl:grid-cols-3">
+            {clients.map((client, index) => <button key={client.id} type="button" onClick={() => openEntry(client)} className="block border-b border-r border-slate-100 bg-white px-3 py-2 text-left transition hover:bg-blue-50">
+              <div className="flex gap-2"><span className="inline-flex h-5 min-w-5 items-center justify-center rounded bg-slate-100 text-[11px] font-bold text-brand-blue">{index + 1}</span><div className="min-w-0"><p className="truncate text-sm font-bold text-slate-950">{client.fullName}</p><p className="truncate text-[11px] font-semibold text-slate-500">{client.branch.branchName} - {client.clientId ?? "No client no."}</p><p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-slate-500">{client.contactNumber ?? "No contact"} | {client.address ?? "No address"}</p></div></div>
             </button>)}
             {!clients.length ? <div className="px-4 py-6 text-sm text-slate-500">Use one or more filters to find a customer and create a log entry.</div> : null}
           </div>
         </div>
 
-        <div className="panel overflow-hidden">
-          <div className="border-b border-slate-100 px-4 py-3"><p className="text-sm font-bold text-slate-950">Historical logs</p><p className="text-xs text-slate-500">Latest entries for the matching customer set</p></div>
-          <div className="max-h-[620px] divide-y divide-slate-100 overflow-auto">
-            {logs.map((log) => <article key={log.id} className="p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-bold text-slate-950">{log.client.fullName}</p><p className="text-xs font-semibold text-slate-500">{log.client.branch.branchName} - {log.client.clientId ?? "No client no."}</p></div><span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">{log.logType.replace(/_/g, " ")}</span></div>
-              {log.subject ? <h4 className="mt-3 font-bold text-slate-900">{log.subject}</h4> : null}<p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{log.notes}</p>
-              {log.newDate || log.newAmount ? <div className="mt-3 flex flex-wrap gap-4 rounded-md bg-blue-50 px-3 py-2 text-sm font-semibold text-slate-700">{log.newDate ? <span>New date: {dateOnly(log.newDate)}</span> : null}{log.newAmount ? <span>New amount: {money(log.newAmount)}</span> : null}</div> : null}
-              <p className="mt-3 text-xs font-semibold text-slate-500">{dateTime(log.visitAt)} | Encoded by {log.encodedBy.name}</p>
-            </article>)}
-            {!logs.length ? <div className="px-4 py-6 text-sm text-slate-500">No historical logs found for the current search.</div> : null}
-          </div>
-        </div>
       </section>
 
       {entryOpen && selectedClient ? <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-label="New client log entry" onMouseDown={(event) => { if (event.target === event.currentTarget) setEntryOpen(false); }}>
