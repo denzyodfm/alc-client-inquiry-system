@@ -97,6 +97,9 @@ export function ClientLogsWorkspace({
     <div className="space-y-6">
       <form className="panel p-4" action="/client-logs">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Client</span>
+            <input className="field" name="customer" defaultValue={searchText} placeholder="Client name or number" />
+          </label>
           <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Branch</span>
             <select className="field" name="branchId" defaultValue={filters.branchId}><option value="">All branches</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.branchName}</option>)}</select>
           </label>
@@ -111,9 +114,6 @@ export function ClientLogsWorkspace({
           </label>
           <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Address detail</span>
             <input className="field" name="addressDetail" defaultValue={filters.addressDetail} placeholder="Example: Brgy 1" />
-          </label>
-          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Customer name</span>
-            <input className="field" name="customer" defaultValue={searchText} placeholder="Customer name or number" />
           </label>
         </div>
         <div className="mt-3 flex gap-3">
