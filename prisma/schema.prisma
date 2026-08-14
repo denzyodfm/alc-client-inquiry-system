@@ -190,6 +190,8 @@ model ClientLog {
   logType     String   @default("INQUIRY") @map("log_type") @db.VarChar(60)
   subject     String?  @db.VarChar(180)
   notes       String   @db.Text
+  newDate     DateTime? @map("new_date") @db.Date
+  newAmount   Decimal? @map("new_amount") @db.Decimal(14, 2)
   visitAt     DateTime @default(now()) @map("visit_at")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")

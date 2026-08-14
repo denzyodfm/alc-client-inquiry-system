@@ -26,6 +26,10 @@ export async function POST(request: Request) {
   const logType = String(payload?.logType ?? "INQUIRY").trim().slice(0, 60) || "INQUIRY";
   const subject = String(payload?.subject ?? "").trim().slice(0, 180);
   const notes = String(payload?.notes ?? "").trim();
+  const newDateText = String(payload?.newDate ?? "").trim();
+  const newDate = newDateText ? new Date(`${newDateText}T00:00:00.000Z`) : null;
+  const newAmountText = String(payload?.newAmount ?? "").trim();
+  const newAmount = newAmountText ? Number(newAmountText) : null;
   const branchIds = user.role === "ACCOUNT_OFFICER" ? null : await getAccessibleBranchIds(user);
 
   if (!clientId) {
@@ -35,6 +39,8 @@ export async function POST(request: Request) {
   if (!notes) {
     return NextResponse.json({ error: "Please enter the customer inquiry, request, or notes." }, { status: 400 });
   }
+  if (newDate && Number.isNaN(newDate.getTime())) return NextResponse.json({ error: "Please enter a valid new date." }, { status: 400 });
+  if (newAmount !== null && (!Number.isFinite(newAmount) || newAmount < 0)) return NextResponse.json({ error: "Please enter a valid new amount." }, { status: 400 });
 
   const client = await prisma.client.findFirst({
     where: {
@@ -57,7 +63,9 @@ export async function POST(request: Request) {
       encodedById: user.id,
       logType,
       subject: subject || null,
-      notes
+      notes,
+      newDate,
+      newAmount
     }
   });
 
