@@ -99,7 +99,12 @@ if [[ "$WITH_DB" == "true" ]]; then
   gzip -t "$DB_DUMP" 2>/dev/null || die "Dump failed its gzip integrity check: $DB_DUMP"
   DUMP_BYTES="$(stat -c %s "$DB_DUMP")"
   [[ "$DUMP_BYTES" -ge "$MIN_DUMP_BYTES" ]] || die "Dump is only ${DUMP_BYTES} bytes - refusing to restore from it."
-  gzip -dc "$DB_DUMP" | grep -qm1 '^CREATE TABLE' || die "Dump has no CREATE TABLE statements: $DB_DUMP"
+  # pipefail + grep's early exit would report the SIGPIPE'd gzip as a failure,
+  # so this check has to run with pipefail off or it fails on a valid dump.
+  set +o pipefail
+  HAS_SCHEMA="$(gzip -dc "$DB_DUMP" | grep -m1 -c '^CREATE TABLE' || true)"
+  set -o pipefail
+  [[ "$HAS_SCHEMA" == "1" ]] || die "Dump has no CREATE TABLE statements: $DB_DUMP"
 fi
 
 echo "Rollback plan"
