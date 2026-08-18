@@ -3,6 +3,7 @@ import { Prisma, UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { requireApiFunction } from "@/lib/api";
 import { getAccessibleBranchIds } from "@/lib/auth";
+import { isAreaTeamLeader } from "@/lib/area-team-leaders";
 import { requestIp, writeAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
@@ -36,6 +37,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const accessibleBranchIds = await getAccessibleBranchIds(currentUser!);
   const allBranches = Boolean(body.allBranches) && (isAdmin || accessibleBranchIds === null);
   const branchIds = allBranches ? [] : parseBranchIds(body.branchIds);
+  const requestedAreaId = Number(body.areaId);
+  const areaId = Number.isInteger(requestedAreaId) && requestedAreaId > 0 ? requestedAreaId : null;
+  const requestedAreaTeamLeaderId = Number(body.areaTeamLeaderId);
+  const areaTeamLeaderId = Number.isInteger(requestedAreaTeamLeaderId) && requestedAreaTeamLeaderId > 0 ? requestedAreaTeamLeaderId : null;
   const existingUser = await prisma.user.findUnique({
     where: { id: userId },
     select: { role: true, privilegeTemplateId: true }
@@ -89,6 +94,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (privilegeTemplateId !== null && !(await prisma.privilegeTemplate.count({ where: { id: privilegeTemplateId } }))) {
     return NextResponse.json({ error: "Invalid privilege selected." }, { status: 400 });
   }
+  if (role === "ACCOUNT_OFFICER" && areaId === null) {
+    return NextResponse.json({ error: "Select an assigned area for this Account Officer." }, { status: 400 });
+  }
+  if (areaId !== null && !(await prisma.area.count({ where: { id: areaId } }))) {
+    return NextResponse.json({ error: "Invalid area selected." }, { status: 400 });
+  }
+  if (areaTeamLeaderId !== null && areaTeamLeaderId === userId) {
+    return NextResponse.json({ error: "A user cannot be their own Area Team Leader." }, { status: 400 });
+  }
+  if (areaTeamLeaderId !== null && !(await isAreaTeamLeader(areaTeamLeaderId))) {
+    return NextResponse.json({ error: "Select an active user with the Area TL privilege." }, { status: 400 });
+  }
 
   try {
     const passwordHash = password ? await bcrypt.hash(password, 12) : undefined;
@@ -104,6 +121,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           allBranches,
           isActive: body.isActive,
           privilegeTemplateId,
+          areaId,
+          areaTeamLeaderId,
           ...(passwordHash ? { passwordHash } : {})
         },
         select: { id: true, name: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, isActive: true }

@@ -28,6 +28,7 @@ import {
   X
 } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
+import type { FooterBrandingValues } from "@/lib/footer-branding";
 
 type NavItem = {
   href?: string;
@@ -64,10 +65,12 @@ function roleLabel(role: string) {
 export function AppShell({
   user,
   nav,
+  footerBranding,
   children
 }: {
   user: { name: string; role: string };
   nav: NavItem[];
+  footerBranding: FooterBrandingValues;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -166,7 +169,7 @@ export function AppShell({
         <footer className="mx-3 mb-3 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50 via-white to-yellow-50 px-4 py-3 text-center text-xs text-slate-600 shadow-sm sm:mx-5 lg:mx-8">
           <p className="font-bold text-brand-navy">© {new Date().getFullYear()} Agusan Lending Corporation. All rights reserved.</p>
           <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
-            <span className="rounded-full bg-gradient-to-r from-brand-navy to-brand-blue px-3 py-1 font-extrabold italic tracking-wide text-white shadow-sm ring-2 ring-brand-yellow/70">Powered by</span><Image src="/branding/valdemeer-resources.png" alt="Valdemeer Resources, Inc" width={2048} height={768} className="h-14 w-auto object-contain sm:h-16" /><span className="font-semibold">IT TEAM - KAMARU</span>
+            <span className="rounded-full bg-gradient-to-r from-brand-navy to-brand-blue px-3 py-1 font-extrabold italic tracking-wide text-white shadow-sm ring-2 ring-brand-yellow/70">{footerBranding.poweredByLabel}</span><span className="font-extrabold uppercase tracking-wide text-red-600">{footerBranding.partnerName}</span><span className="font-semibold">{footerBranding.itTeamLabel}</span>
           </div>
         </footer>
       </main>

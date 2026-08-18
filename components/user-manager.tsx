@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckCircle2, Pencil, Plus, Trash2, UserCog, X } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type User = {
   id: number;
@@ -16,9 +16,18 @@ type User = {
   branchAccess: Array<{ branchId: number }>;
   privilegeTemplateId: number | null;
   privilegeTemplate: PrivilegeOption | null;
+  areaId: number | null;
+  area: AreaOption | null;
+  areaTeamLeaderId: number | null;
+  areaTeamLeader: TeamLeaderOption | null;
 };
 
+
 type PrivilegeOption = { id: number; name: string };
+
+type AreaOption = { id: number; name: string; areaTeamLeaderName?: string | null };
+
+type TeamLeaderOption = { id: number; name: string };
 
 type BranchOption = {
   id: number;
@@ -47,21 +56,28 @@ export function UserManager({
   branches,
   currentUserRole,
   canGrantAllBranches,
-  privileges
+  privileges,
+  areas,
+  teamLeaders
 }: {
   initialUsers: User[];
   branches: BranchOption[];
   currentUserRole: string;
   canGrantAllBranches: boolean;
   privileges: PrivilegeOption[];
+  areas: AreaOption[];
+  teamLeaders: TeamLeaderOption[];
 }) {
   const isAdmin = currentUserRole === "ADMIN";
   const canEditUsers = isAdmin || currentUserRole === "AREA_TEAM_LEADER";
   const [users, setUsers] = useState(initialUsers);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
   const [allBranches, setAllBranches] = useState(canGrantAllBranches);
   const [positionFilter, setPositionFilter] = useState("ALL");
   const [baseBranchFilter, setBaseBranchFilter] = useState("ALL");
+  const [areaFilter, setAreaFilter] = useState("ALL");
+  const [selectedAreaId, setSelectedAreaId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -73,10 +89,26 @@ export function UserManager({
     () => users.filter((user) => {
       const matchesPosition = positionFilter === "ALL" || (positionFilter === "UNSET" ? !user.position : user.position === positionFilter);
       const matchesBranch = baseBranchFilter === "ALL" || (baseBranchFilter === "UNSET" ? !user.baseBranchId : user.baseBranchId === Number(baseBranchFilter));
-      return matchesPosition && matchesBranch;
+      const matchesArea = areaFilter === "ALL" || (areaFilter === "UNSET" ? !user.areaId : user.areaId === Number(areaFilter));
+      return matchesPosition && matchesBranch && matchesArea;
     }),
-    [users, positionFilter, baseBranchFilter]
+    [users, positionFilter, baseBranchFilter, areaFilter]
   );
+
+  useEffect(() => {
+    if (!formOpen) return;
+    function onKeyDown(event: KeyboardEvent) {
+      // Mirrors cancelEdit(); inlined so the listener is not re-registered on every render.
+      if (event.key !== "Escape") return;
+      setError(null);
+      setNotice(null);
+      setFormOpen(false);
+      setEditingUser(null);
+      setAllBranches(canGrantAllBranches);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [formOpen, canGrantAllBranches]);
 
   async function refresh() {
     const response = await fetch("/api/users");
@@ -89,14 +121,25 @@ export function UserManager({
     setNotice(null);
   }
 
+  function openCreate() {
+    resetMessages();
+    setEditingUser(null);
+    setAllBranches(canGrantAllBranches);
+    setSelectedAreaId("");
+    setFormOpen(true);
+  }
+
   function editUser(user: User) {
     resetMessages();
     setEditingUser(user);
     setAllBranches(user.allBranches);
+    setSelectedAreaId(user.areaId ? String(user.areaId) : "");
+    setFormOpen(true);
   }
 
   function cancelEdit() {
     resetMessages();
+    setFormOpen(false);
     setEditingUser(null);
     setAllBranches(canGrantAllBranches);
   }
@@ -139,6 +182,7 @@ export function UserManager({
       }
 
       formElement.reset();
+      setFormOpen(false);
       setEditingUser(null);
       setNotice(editingUser ? "User updated." : "User created.");
       await refresh();
@@ -166,6 +210,8 @@ export function UserManager({
         allBranches: user.allBranches,
         branchIds: user.branchAccess.map((access) => access.branchId),
         privilegeTemplateId: user.privilegeTemplateId ?? "",
+        areaId: user.areaId ?? "",
+        areaTeamLeaderId: user.areaTeamLeaderId ?? "",
         isActive: !user.isActive
       })
       });
@@ -210,126 +256,178 @@ export function UserManager({
     }
   }
 
+  const formRole = editingUser?.role ?? (isAdmin ? "INQUIRY_USER" : "ACCOUNT_OFFICER");
+  const areaRequired = formRole === "ACCOUNT_OFFICER";
+  const selectedArea = areas.find((area) => String(area.id) === selectedAreaId) ?? null;
+
   return (
-    <div className="grid gap-6 xl:grid-cols-[0.75fr_1.25fr]">
-      <form key={editingUser?.id ?? "new"} onSubmit={submit} className="panel max-h-[calc(100vh-28rem)] min-h-96 overflow-y-auto overscroll-contain p-5" style={{ scrollbarGutter: "stable" }}>
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <h3 className="text-lg font-bold text-slate-950">{editingUser ? "Edit User" : "Create User"}</h3>
-          {editingUser ? (
-            <button type="button" className="btn-secondary h-9 px-3" onClick={cancelEdit} disabled={loading}>
-              <X className="h-4 w-4" />
-              Cancel
+    <div className="space-y-4">
+      {formOpen ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={editingUser ? "Edit user" : "Create user"}
+          onMouseDown={(event) => { if (event.target === event.currentTarget) cancelEdit(); }}
+        >
+          <form key={editingUser?.id ?? "new"} onSubmit={submit} className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-6 py-4">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">User Management</p>
+                <h3 className="mt-1 text-xl font-bold text-slate-950">{editingUser ? "Edit User" : "Create User"}</h3>
+                {editingUser ? <p className="text-sm text-slate-500">{editingUser.name} - {editingUser.email}</p> : null}
+              </div>
+              <button type="button" className="rounded-md p-2 text-slate-500 hover:bg-slate-100" onClick={cancelEdit} aria-label="Close"><X className="h-5 w-5" /></button>
+            </div>
+
+            <div className="grid gap-4 overflow-y-auto overscroll-contain px-6 py-5" style={{ scrollbarGutter: "stable" }}>
+              {error ? (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+                  {error}
+                </div>
+              ) : null}
+
+            <input name="name" className="field" placeholder="Full name" defaultValue={editingUser?.name ?? ""} required />
+            <input name="email" className="field" type="email" placeholder="Email" defaultValue={editingUser?.email ?? ""} required />
+            {!editingUser ? <>
+              <input name="password" className="field" type="password" placeholder="Temporary password" required />
+              <input name="confirmPassword" className="field" type="password" placeholder="Confirm temporary password" required />
+            </> : null}
+            {editingUser && isAdmin ? <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3">
+              <p className="mb-2 text-xs font-semibold text-slate-600">Reset password (optional)</p>
+              <div className="grid gap-2">
+                <input name="password" className="field bg-white" type="password" placeholder="New temporary password" minLength={8} />
+                <input name="confirmPassword" className="field bg-white" type="password" placeholder="Confirm new temporary password" minLength={8} />
+              </div>
+              <p className="mt-2 text-xs text-slate-500">Leave both fields blank to keep the current password.</p>
+            </div> : null}
+            <input type="hidden" name="role" value={formRole} />
+            {isAdmin ? (
+              editingUser?.role === "ADMIN" ? <div><label className="mb-1 block text-xs font-semibold text-slate-600">Privilege</label><div className="field bg-emerald-50 font-semibold text-brand-green">Administrator - full access (protected)</div></div> : <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Privilege</span><select name="privilegeTemplateId" className="field" defaultValue={editingUser?.privilegeTemplateId ?? ""} required>
+                  <option value="" disabled>Select privilege</option>
+                  {privileges.map((privilege) => <option key={privilege.id} value={privilege.id}>{privilege.name}</option>)}
+                </select></label>
+            ) : <input type="hidden" name="privilegeTemplateId" value={editingUser?.privilegeTemplateId ?? ""} />}
+            <input
+              name="position"
+              className="field"
+              placeholder="Position (optional)"
+              defaultValue={editingUser?.position ?? ""}
+              list="user-position-options"
+              maxLength={120}
+            />
+            <datalist id="user-position-options">
+              {positions.map((position) => <option key={position} value={position} />)}
+            </datalist>
+            <select name="baseBranchId" className="field" defaultValue={editingUser?.baseBranchId ?? ""}>
+              <option value="">No base branch</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>{branch.branchName} - {branch.branchCode}</option>
+              ))}
+            </select>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-slate-600">Assigned Area{areaRequired ? "" : " (optional)"}</span>
+              <select name="areaId" className="field" value={selectedAreaId} onChange={(event) => setSelectedAreaId(event.target.value)} required={areaRequired}>
+                <option value="">{areaRequired ? "Select assigned area" : "No assigned area"}</option>
+                {areas.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
+              </select>
+              {areaRequired && !areas.length ? <span className="mt-1 block text-xs font-semibold text-red-600">No areas exist yet. Create one under Settings - Areas first.</span> : null}
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-slate-600">Area TL</span>
+              <select name="areaTeamLeaderId" className="field" defaultValue={editingUser?.areaTeamLeaderId ?? ""}>
+                <option value="">{selectedArea?.areaTeamLeaderName ? `Use area's Area TL (${selectedArea.areaTeamLeaderName})` : "No Area TL"}</option>
+                {teamLeaders.filter((leader) => leader.id !== editingUser?.id).map((leader) => <option key={leader.id} value={leader.id}>{leader.name}</option>)}
+              </select>
+              <span className="mt-1 block text-xs text-slate-500">This user belongs to the selected Area TL. Leave blank to follow the assigned area{selectedArea?.areaTeamLeaderName ? "" : ", which has no Area TL set"}.</span>
+              {!teamLeaders.length ? <span className="mt-1 block text-xs font-semibold text-red-600">No users hold the Area TL privilege yet.</span> : null}
+            </label>
+            <div className="rounded-lg border border-slate-200 p-3">
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <input
+                  name="allBranches"
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-300"
+                  checked={allBranches}
+                  onChange={(event) => setAllBranches(event.target.checked)}
+                  disabled={!canGrantAllBranches}
+                />
+                Access all branches
+              </label>
+              {!allBranches ? (
+                <div className="mt-3 grid max-h-56 gap-2 overflow-auto pr-1 sm:grid-cols-2">
+                  {branches.map((branch) => {
+                    const checked = editingUser?.branchAccess.some((access) => access.branchId === branch.id) ?? false;
+                    return (
+                      <label key={branch.id} className="flex items-start gap-2 rounded-md border border-slate-100 px-2 py-2 text-sm text-slate-700">
+                        <input
+                          name="branchIds"
+                          type="checkbox"
+                          value={branch.id}
+                          className="mt-0.5 h-4 w-4 rounded border-slate-300"
+                          defaultChecked={checked}
+                        />
+                        <span>
+                          <span className="block font-semibold text-slate-900">{branch.branchName}</span>
+                          <span className="text-xs text-slate-500">{branch.branchCode}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+            {editingUser?.role === "ADMIN" ? <>
+              <input type="hidden" name="isActive" value="on" />
+              <div className="text-sm font-semibold text-brand-green">Active admin account (protected)</div>
+            </> : <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <input
+                  name="isActive"
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-300"
+                  defaultChecked={editingUser?.isActive ?? true}
+                />
+                Active user
+              </label>}
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
+              <button type="button" className="btn-secondary" onClick={cancelEdit} disabled={loading}>Cancel</button>
+              <button className="btn-primary" disabled={loading}>
+                <Plus className="h-4 w-4" />
+                {loading ? "Saving..." : editingUser ? "Update User" : "Save User"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      {notice ? (
+        <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-brand-green">
+          <CheckCircle2 className="h-4 w-4" />
+          {notice}
+        </div>
+      ) : null}
+      {error && !formOpen ? (
+        <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="panel overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+          <div>
+            <h3 className="font-bold text-slate-950">Users</h3>
+            <p className="text-xs text-slate-500">{visibleUsers.length} of {users.length} shown</p>
+          </div>
+          {canEditUsers ? (
+            <button type="button" className="btn-primary h-9 px-3 text-xs" onClick={openCreate} disabled={loading}>
+              <Plus className="h-4 w-4" />
+              Create User
             </button>
           ) : null}
         </div>
-
-        <div className="grid gap-4">
-          {error ? (
-            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
-              {error}
-            </div>
-          ) : null}
-          {notice ? (
-            <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-brand-green">
-              <CheckCircle2 className="h-4 w-4" />
-              {notice}
-            </div>
-          ) : null}
-
-          <input name="name" className="field" placeholder="Full name" defaultValue={editingUser?.name ?? ""} required />
-          <input name="email" className="field" type="email" placeholder="Email" defaultValue={editingUser?.email ?? ""} required />
-          {!editingUser ? <>
-            <input name="password" className="field" type="password" placeholder="Temporary password" required />
-            <input name="confirmPassword" className="field" type="password" placeholder="Confirm temporary password" required />
-          </> : null}
-          {editingUser && isAdmin ? <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3">
-            <p className="mb-2 text-xs font-semibold text-slate-600">Reset password (optional)</p>
-            <div className="grid gap-2">
-              <input name="password" className="field bg-white" type="password" placeholder="New temporary password" minLength={8} />
-              <input name="confirmPassword" className="field bg-white" type="password" placeholder="Confirm new temporary password" minLength={8} />
-            </div>
-            <p className="mt-2 text-xs text-slate-500">Leave both fields blank to keep the current password.</p>
-          </div> : null}
-          <input type="hidden" name="role" value={editingUser?.role ?? (isAdmin ? "INQUIRY_USER" : "ACCOUNT_OFFICER")} />
-          {isAdmin ? (
-            editingUser?.role === "ADMIN" ? <div><label className="mb-1 block text-xs font-semibold text-slate-600">Privilege</label><div className="field bg-emerald-50 font-semibold text-brand-green">Administrator - full access (protected)</div></div> : <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Privilege</span><select name="privilegeTemplateId" className="field" defaultValue={editingUser?.privilegeTemplateId ?? ""} required>
-                <option value="" disabled>Select privilege</option>
-                {privileges.map((privilege) => <option key={privilege.id} value={privilege.id}>{privilege.name}</option>)}
-              </select></label>
-          ) : <input type="hidden" name="privilegeTemplateId" value={editingUser?.privilegeTemplateId ?? ""} />}
-          <input
-            name="position"
-            className="field"
-            placeholder="Position (optional)"
-            defaultValue={editingUser?.position ?? ""}
-            list="user-position-options"
-            maxLength={120}
-          />
-          <datalist id="user-position-options">
-            {positions.map((position) => <option key={position} value={position} />)}
-          </datalist>
-          <select name="baseBranchId" className="field" defaultValue={editingUser?.baseBranchId ?? ""}>
-            <option value="">No base branch</option>
-            {branches.map((branch) => (
-              <option key={branch.id} value={branch.id}>{branch.branchName} - {branch.branchCode}</option>
-            ))}
-          </select>
-          <div className="rounded-lg border border-slate-200 p-3">
-            <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <input
-                name="allBranches"
-                type="checkbox"
-                className="h-4 w-4 rounded border-slate-300"
-                checked={allBranches}
-                onChange={(event) => setAllBranches(event.target.checked)}
-                disabled={!canGrantAllBranches}
-              />
-              Access all branches
-            </label>
-            {!allBranches ? (
-              <div className="mt-3 grid max-h-56 gap-2 overflow-auto pr-1 sm:grid-cols-2">
-                {branches.map((branch) => {
-                  const checked = editingUser?.branchAccess.some((access) => access.branchId === branch.id) ?? false;
-                  return (
-                    <label key={branch.id} className="flex items-start gap-2 rounded-md border border-slate-100 px-2 py-2 text-sm text-slate-700">
-                      <input
-                        name="branchIds"
-                        type="checkbox"
-                        value={branch.id}
-                        className="mt-0.5 h-4 w-4 rounded border-slate-300"
-                        defaultChecked={checked}
-                      />
-                      <span>
-                        <span className="block font-semibold text-slate-900">{branch.branchName}</span>
-                        <span className="text-xs text-slate-500">{branch.branchCode}</span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            ) : null}
-          </div>
-          {editingUser?.role === "ADMIN" ? <>
-            <input type="hidden" name="isActive" value="on" />
-            <div className="text-sm font-semibold text-brand-green">Active admin account (protected)</div>
-          </> : <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <input
-                name="isActive"
-                type="checkbox"
-                className="h-4 w-4 rounded border-slate-300"
-                defaultChecked={editingUser?.isActive ?? true}
-              />
-              Active user
-            </label>}
-          <button className="btn-primary" disabled={loading}>
-            <Plus className="h-4 w-4" />
-            {loading ? "Saving..." : editingUser ? "Update User" : "Save User"}
-          </button>
-        </div>
-      </form>
-
-      <div className="panel overflow-hidden">
-        <div className="grid gap-3 border-b border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
+        <div className="grid gap-3 border-b border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
           <select className="field bg-white" value={positionFilter} onChange={(event) => setPositionFilter(event.target.value)} aria-label="Filter users by position">
             <option value="ALL">All positions</option>
             {positions.map((position) => <option key={position} value={position}>{position}</option>)}
@@ -340,9 +438,14 @@ export function UserManager({
             {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.branchName} - {branch.branchCode}</option>)}
             <option value="UNSET">Base branch not set</option>
           </select>
+          <select className="field bg-white" value={areaFilter} onChange={(event) => setAreaFilter(event.target.value)} aria-label="Filter users by assigned area">
+            <option value="ALL">All areas</option>
+            {areas.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
+            <option value="UNSET">Area not set</option>
+          </select>
         </div>
-        <div className="max-h-[calc(100vh-32rem)] min-h-80 overflow-auto overscroll-contain" style={{ scrollbarGutter: "stable" }}>
-          <table className="w-full min-w-[1040px] text-left text-sm">
+        <div className="max-h-[calc(100vh-28rem)] min-h-80 overflow-auto overscroll-contain" style={{ scrollbarGutter: "stable" }}>
+          <table className="w-full min-w-[1280px] text-left text-sm">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
                 <th className="px-4 py-3">User</th>
@@ -351,6 +454,8 @@ export function UserManager({
                 <th className="px-4 py-3">Privilege</th>
                 <th className="px-4 py-3">Position</th>
                 <th className="px-4 py-3">Base Branch</th>
+                <th className="px-4 py-3">Area</th>
+                <th className="px-4 py-3">Area TL</th>
                 <th className="px-4 py-3">Branches</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-right">Actions</th>
@@ -371,6 +476,16 @@ export function UserManager({
                   <td className="px-4 py-3">{user.position || <span className="text-slate-400">-</span>}</td>
                   <td className="px-4 py-3">
                     {user.baseBranch ? `${user.baseBranch.branchName} - ${user.baseBranch.branchCode}` : <span className="text-slate-400">-</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    {user.area ? user.area.name : user.role === "ACCOUNT_OFFICER" ? <span className="font-semibold text-red-600">No area</span> : <span className="text-slate-400">-</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    {user.areaTeamLeader
+                      ? <span className="font-semibold text-slate-900">{user.areaTeamLeader.name}</span>
+                      : user.area?.areaTeamLeaderName
+                        ? <><span className="block text-slate-700">{user.area.areaTeamLeaderName}</span><span className="block text-xs text-slate-400">from area</span></>
+                        : user.role === "ACCOUNT_OFFICER" ? <span className="font-semibold text-red-600">No Area TL</span> : <span className="text-slate-400">-</span>}
                   </td>
                   <td className="px-4 py-3">
                     {user.role === "ADMIN" || user.allBranches ? (
@@ -410,7 +525,7 @@ export function UserManager({
               ))}
               {!visibleUsers.length ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={9}>No users match the selected filters.</td>
+                  <td className="px-4 py-6 text-slate-500" colSpan={11}>No users match the selected filters.</td>
                 </tr>
               ) : null}
             </tbody>

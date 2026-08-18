@@ -1,7 +1,11 @@
 import Image from "next/image";
 import { LoginForm } from "@/components/login-form";
+import { getFooterBranding } from "@/lib/footer-branding";
 
-export default function LoginPage() {
+export const dynamic = "force-dynamic";
+
+export default async function LoginPage() {
+  const footerBranding = await getFooterBranding();
   return (
     <main className="relative flex min-h-screen flex-col overflow-hidden bg-white px-4 pb-3 pt-6 sm:px-8">
       <Image
@@ -30,9 +34,9 @@ export default function LoginPage() {
       <footer className="relative z-10 px-2 py-0.5 text-center text-xs text-slate-600 sm:mx-auto sm:w-fit sm:min-w-[620px]">
         <p className="font-bold text-brand-navy">&copy; {new Date().getFullYear()} Agusan Lending Corporation. All rights reserved.</p>
         <div className="mt-0.5 flex flex-wrap items-center justify-center gap-1.5">
-          <span className="rounded-full bg-gradient-to-r from-brand-navy to-brand-blue px-3 py-1 font-extrabold italic tracking-wide text-white shadow-sm ring-2 ring-brand-yellow/70">Powered by</span>
-          <Image src="/branding/valdemeer-resources.png" alt="Valdemeer Resources, Inc" width={2048} height={768} className="h-14 w-auto object-contain sm:h-16" />
-          <span className="font-semibold">IT TEAM - KAMARU</span>
+          <span className="rounded-full bg-gradient-to-r from-brand-navy to-brand-blue px-3 py-1 font-extrabold italic tracking-wide text-white shadow-sm ring-2 ring-brand-yellow/70">{footerBranding.poweredByLabel}</span>
+          <span className="font-extrabold uppercase tracking-wide text-red-600">{footerBranding.partnerName}</span>
+          <span className="font-semibold">{footerBranding.itTeamLabel}</span>
         </div>
       </footer>
     </main>

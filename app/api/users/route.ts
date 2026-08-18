@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { Prisma, UserRole } from "@prisma/client";
 import { requireApiFunction } from "@/lib/api";
 import { getAccessibleBranchIds } from "@/lib/auth";
+import { isAreaTeamLeader } from "@/lib/area-team-leaders";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -32,12 +33,19 @@ export async function GET() {
       isActive: true,
       privilegeTemplateId: true,
       privilegeTemplate: { select: { id: true, name: true } },
+      areaId: true,
+      area: { select: { id: true, name: true, areaTeamLeader: { select: { name: true } } } },
+      areaTeamLeaderId: true,
+      areaTeamLeader: { select: { id: true, name: true } },
       createdAt: true,
       baseBranch: { select: { id: true, branchName: true, branchCode: true } },
       branchAccess: { select: { branchId: true } }
     }
   });
-  return NextResponse.json(users);
+  return NextResponse.json(users.map(({ area, ...user }) => ({
+    ...user,
+    area: area ? { id: area.id, name: area.name, areaTeamLeaderName: area.areaTeamLeader?.name ?? null } : null
+  })));
 }
 
 function parseRole(value: unknown) {
@@ -70,6 +78,10 @@ export async function POST(request: Request) {
   const branchIds = allBranches ? [] : parseBranchIds(body.branchIds);
   const requestedPrivilegeTemplateId = Number(body.privilegeTemplateId);
   let privilegeTemplateId = isAdmin && role !== "ADMIN" && Number.isInteger(requestedPrivilegeTemplateId) && requestedPrivilegeTemplateId > 0 ? requestedPrivilegeTemplateId : null;
+  const requestedAreaId = Number(body.areaId);
+  const areaId = Number.isInteger(requestedAreaId) && requestedAreaId > 0 ? requestedAreaId : null;
+  const requestedAreaTeamLeaderId = Number(body.areaTeamLeaderId);
+  const areaTeamLeaderId = Number.isInteger(requestedAreaTeamLeaderId) && requestedAreaTeamLeaderId > 0 ? requestedAreaTeamLeaderId : null;
 
   if (!name || !email || !password) {
     return NextResponse.json({ error: "Name, email, and password are required." }, { status: 400 });
@@ -109,6 +121,15 @@ export async function POST(request: Request) {
   if (privilegeTemplateId !== null && !(await prisma.privilegeTemplate.count({ where: { id: privilegeTemplateId } }))) {
     return NextResponse.json({ error: "Invalid privilege selected." }, { status: 400 });
   }
+  if (role === "ACCOUNT_OFFICER" && areaId === null) {
+    return NextResponse.json({ error: "Select an assigned area for this Account Officer." }, { status: 400 });
+  }
+  if (areaId !== null && !(await prisma.area.count({ where: { id: areaId } }))) {
+    return NextResponse.json({ error: "Invalid area selected." }, { status: 400 });
+  }
+  if (areaTeamLeaderId !== null && !(await isAreaTeamLeader(areaTeamLeaderId))) {
+    return NextResponse.json({ error: "Select an active user with the Area TL privilege." }, { status: 400 });
+  }
 
   try {
     const passwordHash = await bcrypt.hash(password, 12);
@@ -123,6 +144,8 @@ export async function POST(request: Request) {
           allBranches,
           isActive: body.isActive ?? true,
           privilegeTemplateId,
+          areaId,
+          areaTeamLeaderId,
           passwordHash
         },
         select: { id: true, name: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, isActive: true }

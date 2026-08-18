@@ -289,7 +289,7 @@ export default async function LocationMasterlistPage() {
   const accessibleBranchIds = user.role === "ACCOUNT_OFFICER" ? null : await getAccessibleBranchIds(user);
   const branchWhere: Prisma.LoanWhereInput =
     accessibleBranchIds === null ? {} : accessibleBranchIds.length ? { branchId: { in: accessibleBranchIds } } : { branchId: -1 };
-  const [locations, loans, eligibleLoanCount, unlinkedLoanCount, recentLinkRuns] = await Promise.all([
+  const [locations, loans, eligibleLoanCount, unlinkedLoanCount, recentLinkRuns, officerAreaRows] = await Promise.all([
     prisma.locationMasterlist.findMany({
       orderBy: [{ province: "asc" }, { municipality: "asc" }, { barangay: "asc" }]
     }),
@@ -364,8 +364,35 @@ export default async function LocationMasterlistPage() {
       orderBy: { startedAt: "desc" },
       take: 8,
       include: { startedBy: { select: { name: true } } }
+    }),
+    prisma.user.findMany({
+      where: {
+        role: "ACCOUNT_OFFICER",
+        OR: [{ areaTeamLeaderId: { not: null } }, { areaId: { not: null } }]
+      },
+      select: {
+        id: true,
+        areaTeamLeaderId: true,
+        areaTeamLeader: { select: { name: true } },
+        area: { select: { areaTeamLeaderId: true, areaTeamLeader: { select: { name: true } } } }
+      }
     })
   ]);
+
+  // An Account Officer's Area TL is now a standing assignment: the one picked
+  // directly on the user wins, otherwise it comes from their Area. Either way
+  // it beats the per-loan remedial tagging; officers with neither still fall
+  // back to the loan's own tag so nothing disappears before the backfill.
+  const areaTeamLeaderByOfficer = new Map<string, { key: string; name: string }>();
+  for (const row of officerAreaRows) {
+    const leaderId = row.areaTeamLeaderId ?? row.area?.areaTeamLeaderId;
+    if (!leaderId) continue;
+    const leaderName = row.areaTeamLeaderId ? row.areaTeamLeader?.name : row.area?.areaTeamLeader?.name;
+    areaTeamLeaderByOfficer.set(String(row.id), {
+      key: String(leaderId),
+      name: (leaderName ?? "AREA TL NOT SET").toLocaleUpperCase("en")
+    });
+  }
 
   const metricsByProvince = new Map<string, MetricAccumulator>();
   const metricsByMunicipality = new Map<string, MetricAccumulator>();
@@ -407,11 +434,16 @@ export default async function LocationMasterlistPage() {
     officerNames.set(officerKey, (assignment.assignedTo?.name ?? "Unassigned").toLocaleUpperCase("en"));
     if (hasAssignedOfficer) {
       addLoanMetrics(metricsByAssignedOverall, "assigned", loan, true, principalBalance, category);
-      const areaTeamLeaderKey = assignment.areaTeamLeaderId === null ? "unassigned-tl" : String(assignment.areaTeamLeaderId);
+      const officerAreaTeamLeader = areaTeamLeaderByOfficer.get(officerKey) ?? null;
+      const areaTeamLeaderKey = officerAreaTeamLeader
+        ? officerAreaTeamLeader.key
+        : assignment.areaTeamLeaderId === null ? "unassigned-tl" : String(assignment.areaTeamLeaderId);
       const areaTeamLeaderOfficerKey = `${areaTeamLeaderKey}\u0000${officerKey}`;
       areaTeamLeaderNames.set(
         areaTeamLeaderKey,
-        (assignment.areaTeamLeader?.name ?? "AREA TL NOT SET").toLocaleUpperCase("en")
+        officerAreaTeamLeader
+          ? officerAreaTeamLeader.name
+          : (assignment.areaTeamLeader?.name ?? "AREA TL NOT SET").toLocaleUpperCase("en")
       );
       addLoanMetrics(metricsByAreaTeamLeader, areaTeamLeaderKey, loan, true, principalBalance, category);
       const zoneName = assignment.zone?.trim() || "ZONE NOT SET";
@@ -687,7 +719,7 @@ export default async function LocationMasterlistPage() {
                     }}
                   />
                 </summary>
-                <div className="border-t border-slate-100">
+                <div className="border-t border-slate-100 pl-6">
                 {areaTeamLeader.accountOfficers.map((officer) => (
               <details key={`${areaTeamLeader.key}-${officer.key}`} className="group/ao">
                 <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/ao:bg-blue-100`}>
