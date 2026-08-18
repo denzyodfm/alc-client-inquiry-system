@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Pencil, Plus, Trash2, UserCog, X } from "lucide-react";
+import { CheckCircle2, Pencil, Plus, Search, Trash2, UserCog, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type User = {
@@ -74,6 +74,7 @@ export function UserManager({
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [allBranches, setAllBranches] = useState(canGrantAllBranches);
+  const [searchFilter, setSearchFilter] = useState("");
   const [positionFilter, setPositionFilter] = useState("ALL");
   const [baseBranchFilter, setBaseBranchFilter] = useState("ALL");
   const [areaFilter, setAreaFilter] = useState("ALL");
@@ -87,12 +88,14 @@ export function UserManager({
   );
   const visibleUsers = useMemo(
     () => users.filter((user) => {
+      const term = searchFilter.trim().toLowerCase();
+      const matchesSearch = !term || user.name.toLowerCase().includes(term) || user.email.toLowerCase().includes(term);
       const matchesPosition = positionFilter === "ALL" || (positionFilter === "UNSET" ? !user.position : user.position === positionFilter);
       const matchesBranch = baseBranchFilter === "ALL" || (baseBranchFilter === "UNSET" ? !user.baseBranchId : user.baseBranchId === Number(baseBranchFilter));
       const matchesArea = areaFilter === "ALL" || (areaFilter === "UNSET" ? !user.areaId : user.areaId === Number(areaFilter));
-      return matchesPosition && matchesBranch && matchesArea;
+      return matchesSearch && matchesPosition && matchesBranch && matchesArea;
     }),
-    [users, positionFilter, baseBranchFilter, areaFilter]
+    [users, searchFilter, positionFilter, baseBranchFilter, areaFilter]
   );
 
   useEffect(() => {
@@ -415,7 +418,7 @@ export function UserManager({
       ) : null}
 
       <div className="panel overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-3 py-2">
           <div>
             <h3 className="font-bold text-slate-950">Users</h3>
             <p className="text-xs text-slate-500">{visibleUsers.length} of {users.length} shown</p>
@@ -427,67 +430,78 @@ export function UserManager({
             </button>
           ) : null}
         </div>
-        <div className="grid gap-3 border-b border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
-          <select className="field bg-white" value={positionFilter} onChange={(event) => setPositionFilter(event.target.value)} aria-label="Filter users by position">
+        <div className="grid gap-2 border-b border-slate-200 bg-slate-50 p-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <input
+              className="field h-9 pl-9"
+              type="search"
+              value={searchFilter}
+              onChange={(event) => setSearchFilter(event.target.value)}
+              placeholder="Search user or email"
+              aria-label="Search users by name or email"
+            />
+          </div>
+          <select className="field h-9 bg-white" value={positionFilter} onChange={(event) => setPositionFilter(event.target.value)} aria-label="Filter users by position">
             <option value="ALL">All positions</option>
             {positions.map((position) => <option key={position} value={position}>{position}</option>)}
             <option value="UNSET">Position not set</option>
           </select>
-          <select className="field bg-white" value={baseBranchFilter} onChange={(event) => setBaseBranchFilter(event.target.value)} aria-label="Filter users by base branch">
+          <select className="field h-9 bg-white" value={baseBranchFilter} onChange={(event) => setBaseBranchFilter(event.target.value)} aria-label="Filter users by base branch">
             <option value="ALL">All base branches</option>
             {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.branchName} - {branch.branchCode}</option>)}
             <option value="UNSET">Base branch not set</option>
           </select>
-          <select className="field bg-white" value={areaFilter} onChange={(event) => setAreaFilter(event.target.value)} aria-label="Filter users by assigned area">
+          <select className="field h-9 bg-white" value={areaFilter} onChange={(event) => setAreaFilter(event.target.value)} aria-label="Filter users by assigned area">
             <option value="ALL">All areas</option>
             {areas.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
             <option value="UNSET">Area not set</option>
           </select>
         </div>
-        <div className="max-h-[calc(100vh-28rem)] min-h-80 overflow-auto overscroll-contain" style={{ scrollbarGutter: "stable" }}>
-          <table className="w-full min-w-[1280px] text-left text-sm">
+        <div className="max-h-[calc(100vh-24rem)] min-h-80 overflow-auto overscroll-contain" style={{ scrollbarGutter: "stable" }}>
+          <table className="w-full min-w-[1320px] text-left text-xs">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
-                <th className="px-4 py-3">User</th>
-                <th className="px-4 py-3">Email</th>
-                <th className="px-4 py-3">Role</th>
-                <th className="px-4 py-3">Privilege</th>
-                <th className="px-4 py-3">Position</th>
-                <th className="px-4 py-3">Base Branch</th>
-                <th className="px-4 py-3">Area</th>
-                <th className="px-4 py-3">Area TL</th>
-                <th className="px-4 py-3">Branches</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="px-3 py-2">User</th>
+                <th className="px-3 py-2">Email</th>
+                <th className="px-3 py-2">Role</th>
+                <th className="px-3 py-2">Privilege</th>
+                <th className="px-3 py-2">Position</th>
+                <th className="px-3 py-2">Base Branch</th>
+                <th className="px-3 py-2">Area</th>
+                <th className="px-3 py-2">Area TL</th>
+                <th className="px-3 py-2">Branches</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {visibleUsers.map((user) => (
                 <tr key={user.id} className="border-t border-slate-100">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2 font-semibold text-slate-900">
-                      <UserCog className="h-4 w-4 text-brand-blue" />
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-2 whitespace-nowrap font-semibold text-slate-900">
+                      <UserCog className="h-3.5 w-3.5 shrink-0 text-brand-blue" />
                       {user.name}
                     </div>
                   </td>
-                  <td className="px-4 py-3">{user.email}</td>
-                  <td className="px-4 py-3">{roleLabel(user.role)}</td>
-                  <td className="px-4 py-3">{user.role === "ADMIN" ? <span className="font-semibold text-brand-green">Full access</span> : user.privilegeTemplate?.name || <span className="font-semibold text-red-600">No app access</span>}</td>
-                  <td className="px-4 py-3">{user.position || <span className="text-slate-400">-</span>}</td>
-                  <td className="px-4 py-3">
+                  <td className="whitespace-nowrap px-3 py-2">{user.email}</td>
+                  <td className="whitespace-nowrap px-3 py-2">{roleLabel(user.role)}</td>
+                  <td className="px-3 py-2">{user.role === "ADMIN" ? <span className="font-semibold text-brand-green">Full access</span> : user.privilegeTemplate?.name || <span className="font-semibold text-red-600">No app access</span>}</td>
+                  <td className="px-3 py-2">{user.position || <span className="text-slate-400">-</span>}</td>
+                  <td className="px-3 py-2">
                     {user.baseBranch ? `${user.baseBranch.branchName} - ${user.baseBranch.branchCode}` : <span className="text-slate-400">-</span>}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2">
                     {user.area ? user.area.name : user.role === "ACCOUNT_OFFICER" ? <span className="font-semibold text-red-600">No area</span> : <span className="text-slate-400">-</span>}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2">
                     {user.areaTeamLeader
                       ? <span className="font-semibold text-slate-900">{user.areaTeamLeader.name}</span>
                       : user.area?.areaTeamLeaderName
                         ? <><span className="block text-slate-700">{user.area.areaTeamLeaderName}</span><span className="block text-xs text-slate-400">from area</span></>
                         : user.role === "ACCOUNT_OFFICER" ? <span className="font-semibold text-red-600">No Area TL</span> : <span className="text-slate-400">-</span>}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2">
                     {user.role === "ADMIN" || user.allBranches ? (
                       <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-bold text-brand-blue">All branches</span>
                     ) : (
@@ -496,23 +510,23 @@ export function UserManager({
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2">
                     <span className={`rounded-md px-2 py-1 text-xs font-bold ${user.isActive ? "bg-emerald-50 text-brand-green" : "bg-slate-100 text-slate-600"}`}>
                       {user.isActive ? "Active" : "Inactive"}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
-                    {canEditUsers ? <div className="flex flex-nowrap justify-end gap-2">
-                      <button type="button" className="btn-secondary h-9 px-3 text-xs" onClick={() => editUser(user)} disabled={loading}>
+                  <td className="px-3 py-2">
+                    {canEditUsers ? <div className="flex flex-nowrap justify-end gap-1">
+                      <button type="button" className="btn-secondary h-8 px-2 text-xs" onClick={() => editUser(user)} disabled={loading}>
                         <Pencil className="h-4 w-4" />
                         Edit
                       </button>
-                      {user.role !== "ADMIN" ? <button type="button" className="btn-secondary h-9 px-3 text-xs" onClick={() => toggleUser(user)} disabled={loading}>
+                      {user.role !== "ADMIN" ? <button type="button" className="btn-secondary h-8 px-2 text-xs" onClick={() => toggleUser(user)} disabled={loading}>
                         {user.isActive ? "Deactivate" : "Activate"}
                       </button> : <span className="inline-flex items-center px-2 text-xs font-semibold text-slate-500">Protected</span>}
                       {isAdmin && user.role !== "ADMIN" ? <button
                         type="button"
-                        className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-red-200 bg-white px-3 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-red-200 bg-white px-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                         onClick={() => deleteUser(user)}
                         disabled={loading}
                       >
