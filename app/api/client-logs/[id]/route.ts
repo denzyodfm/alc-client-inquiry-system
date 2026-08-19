@@ -11,9 +11,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!Number.isInteger(logId) || logId <= 0) return NextResponse.json({ error: "Invalid client log." }, { status: 400 });
   const logType = String(body?.type ?? "").trim().slice(0, 60); const subject = String(body?.subject ?? "").trim().slice(0, 180); const notes = String(body?.notes ?? "").trim();
   if (!logType || !notes) return NextResponse.json({ error: "Activity type and notes are required." }, { status: 400 });
+  const newDateText = String(body?.newDate ?? "").trim();
+  const newDate = newDateText ? new Date(`${newDateText}T00:00:00.000Z`) : null;
+  const newAmountText = String(body?.newAmount ?? "").trim();
+  const newAmount = newAmountText ? Number(newAmountText) : null;
+  if (newDate && Number.isNaN(newDate.getTime())) return NextResponse.json({ error: "Please enter a valid new date." }, { status: 400 });
+  if (newAmount !== null && (!Number.isFinite(newAmount) || newAmount < 0)) return NextResponse.json({ error: "Please enter a valid new amount." }, { status: 400 });
   const existing = await prisma.clientLog.findUnique({ where: { id: logId }, select: { client: { select: { fullName: true, clientId: true } } } });
   if (!existing) return NextResponse.json({ error: "Client log not found." }, { status: 404 });
-  await prisma.clientLog.update({ where: { id: logId }, data: { logType, subject: subject || null, notes } });
+  await prisma.clientLog.update({ where: { id: logId }, data: { logType, subject: subject || null, notes, newDate, newAmount } });
   await writeAudit({ userId: user.id, userName: user.name, userEmail: user.email, action: "CLIENT_LOG_EDIT", module: "Client Logs", details: `Edited log ${logId} for ${existing.client.fullName} (${existing.client.clientId ?? "no client number"})`, ipAddress: requestIp(request) });
   return NextResponse.json({ ok: true });
 }

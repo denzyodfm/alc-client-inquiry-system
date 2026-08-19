@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { requireApiFunction } from "@/lib/api";
 import { getAccessibleBranchIds } from "@/lib/auth";
 import { isAreaTeamLeader } from "@/lib/area-team-leaders";
+import { isBranchTeamLeader } from "@/lib/branch-team-leaders";
 import { requestIp, writeAudit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
@@ -41,6 +42,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const areaId = Number.isInteger(requestedAreaId) && requestedAreaId > 0 ? requestedAreaId : null;
   const requestedAreaTeamLeaderId = Number(body.areaTeamLeaderId);
   const areaTeamLeaderId = Number.isInteger(requestedAreaTeamLeaderId) && requestedAreaTeamLeaderId > 0 ? requestedAreaTeamLeaderId : null;
+  const requestedBranchTeamLeaderId = Number(body.branchTeamLeaderId);
+  const branchTeamLeaderId = Number.isInteger(requestedBranchTeamLeaderId) && requestedBranchTeamLeaderId > 0 ? requestedBranchTeamLeaderId : null;
   const existingUser = await prisma.user.findUnique({
     where: { id: userId },
     select: { role: true, privilegeTemplateId: true }
@@ -106,6 +109,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (areaTeamLeaderId !== null && !(await isAreaTeamLeader(areaTeamLeaderId))) {
     return NextResponse.json({ error: "Select an active user with the Area TL privilege." }, { status: 400 });
   }
+  if (branchTeamLeaderId !== null && branchTeamLeaderId === userId) {
+    return NextResponse.json({ error: "A user cannot be their own Branch Team Leader." }, { status: 400 });
+  }
+  if (branchTeamLeaderId !== null && !(await isBranchTeamLeader(branchTeamLeaderId))) {
+    return NextResponse.json({ error: "Select an active user with the Branch TL privilege." }, { status: 400 });
+  }
 
   try {
     const passwordHash = password ? await bcrypt.hash(password, 12) : undefined;
@@ -123,6 +132,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           privilegeTemplateId,
           areaId,
           areaTeamLeaderId,
+          branchTeamLeaderId,
           ...(passwordHash ? { passwordHash } : {})
         },
         select: { id: true, name: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, isActive: true }

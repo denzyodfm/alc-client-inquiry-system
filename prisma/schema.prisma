@@ -59,6 +59,7 @@ model User {
   privilegeTemplateId Int? @map("privilege_template_id")
   areaId       Int?     @map("area_id")
   areaTeamLeaderId Int? @map("area_team_leader_id")
+  branchTeamLeaderId Int? @map("branch_team_leader_id")
   allBranches  Boolean  @default(false) @map("all_branches")
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
@@ -79,12 +80,15 @@ model User {
   ledAreas     Area[]   @relation("AreaTeamLeaderAreas")
   areaTeamLeader User?  @relation("UserAreaTeamLeader", fields: [areaTeamLeaderId], references: [id], onDelete: SetNull)
   areaTeamMembers User[] @relation("UserAreaTeamLeader")
+  branchTeamLeader User? @relation("UserBranchTeamLeader", fields: [branchTeamLeaderId], references: [id], onDelete: SetNull)
+  branchTeamMembers User[] @relation("UserBranchTeamLeader")
   ledBranches  Branch[] @relation("BranchTeamLeaderBranches")
 
   @@index([baseBranchId])
   @@index([privilegeTemplateId])
   @@index([areaId])
   @@index([areaTeamLeaderId])
+  @@index([branchTeamLeaderId])
   @@map("users")
 }
 

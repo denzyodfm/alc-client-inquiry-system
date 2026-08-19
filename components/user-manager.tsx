@@ -20,6 +20,8 @@ type User = {
   area: AreaOption | null;
   areaTeamLeaderId: number | null;
   areaTeamLeader: TeamLeaderOption | null;
+  branchTeamLeaderId: number | null;
+  branchTeamLeader: TeamLeaderOption | null;
 };
 
 
@@ -33,6 +35,7 @@ type BranchOption = {
   id: number;
   branchName: string;
   branchCode: string;
+  branchTeamLeaderName?: string | null;
 };
 
 function roleLabel(role: string) {
@@ -58,7 +61,8 @@ export function UserManager({
   canGrantAllBranches,
   privileges,
   areas,
-  teamLeaders
+  teamLeaders,
+  branchTeamLeaders
 }: {
   initialUsers: User[];
   branches: BranchOption[];
@@ -67,6 +71,7 @@ export function UserManager({
   privileges: PrivilegeOption[];
   areas: AreaOption[];
   teamLeaders: TeamLeaderOption[];
+  branchTeamLeaders: TeamLeaderOption[];
 }) {
   const isAdmin = currentUserRole === "ADMIN";
   const canEditUsers = isAdmin || currentUserRole === "AREA_TEAM_LEADER";
@@ -79,6 +84,7 @@ export function UserManager({
   const [baseBranchFilter, setBaseBranchFilter] = useState("ALL");
   const [areaFilter, setAreaFilter] = useState("ALL");
   const [selectedAreaId, setSelectedAreaId] = useState("");
+  const [selectedBaseBranchId, setSelectedBaseBranchId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -134,6 +140,7 @@ export function UserManager({
     setEditingUser(null);
     setAllBranches(canGrantAllBranches);
     setSelectedAreaId("");
+    setSelectedBaseBranchId("");
     setFormOpen(true);
   }
 
@@ -142,6 +149,7 @@ export function UserManager({
     setEditingUser(user);
     setAllBranches(user.allBranches);
     setSelectedAreaId(user.areaId ? String(user.areaId) : "");
+    setSelectedBaseBranchId(user.baseBranchId ? String(user.baseBranchId) : "");
     setFormOpen(true);
   }
 
@@ -220,6 +228,7 @@ export function UserManager({
         privilegeTemplateId: user.privilegeTemplateId ?? "",
         areaId: user.areaId ?? "",
         areaTeamLeaderId: user.areaTeamLeaderId ?? "",
+        branchTeamLeaderId: user.branchTeamLeaderId ?? "",
         isActive: !user.isActive
       })
       });
@@ -267,6 +276,7 @@ export function UserManager({
   const formRole = editingUser?.role ?? (isAdmin ? "INQUIRY_USER" : "ACCOUNT_OFFICER");
   const areaRequired = formRole === "ACCOUNT_OFFICER";
   const selectedArea = areas.find((area) => String(area.id) === selectedAreaId) ?? null;
+  const selectedBaseBranch = branches.find((branch) => String(branch.id) === selectedBaseBranchId) ?? null;
 
   return (
     <div className="space-y-4">
@@ -327,12 +337,24 @@ export function UserManager({
             <datalist id="user-position-options">
               {positions.map((position) => <option key={position} value={position} />)}
             </datalist>
-            <select name="baseBranchId" className="field" defaultValue={editingUser?.baseBranchId ?? ""}>
-              <option value="">No base branch</option>
-              {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>{branch.branchName} - {branch.branchCode}</option>
-              ))}
-            </select>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-slate-600">Base Branch</span>
+              <select name="baseBranchId" className="field" value={selectedBaseBranchId} onChange={(event) => setSelectedBaseBranchId(event.target.value)}>
+                <option value="">No base branch</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>{branch.branchName} - {branch.branchCode}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-slate-600">Branch TL</span>
+              <select name="branchTeamLeaderId" className="field" defaultValue={editingUser?.branchTeamLeaderId ?? ""}>
+                <option value="">{selectedBaseBranch?.branchTeamLeaderName ? `Use branch's Branch TL (${selectedBaseBranch.branchTeamLeaderName})` : "No Branch TL"}</option>
+                {branchTeamLeaders.filter((leader) => leader.id !== editingUser?.id).map((leader) => <option key={leader.id} value={leader.id}>{leader.name}</option>)}
+              </select>
+              <span className="mt-1 block text-xs text-slate-500">This user belongs to the selected Branch TL. Leave blank to follow the base branch{selectedBaseBranch ? (selectedBaseBranch.branchTeamLeaderName ? "" : ", which has no Branch TL set") : ", which is not set"}.</span>
+              {!branchTeamLeaders.length ? <span className="mt-1 block text-xs font-semibold text-red-600">No users hold the Branch TL privilege yet.</span> : null}
+            </label>
             <label className="block">
               <span className="mb-1 block text-xs font-semibold text-slate-600">Assigned Area{areaRequired ? "" : " (optional)"}</span>
               <select name="areaId" className="field" value={selectedAreaId} onChange={(event) => setSelectedAreaId(event.target.value)} required={areaRequired}>
@@ -464,7 +486,7 @@ export function UserManager({
           </select>
         </div>
         <div className="max-h-[calc(100vh-24rem)] min-h-80 overflow-auto overscroll-contain" style={{ scrollbarGutter: "stable" }}>
-          <table className="w-full min-w-[1320px] text-left text-xs">
+          <table className="w-full min-w-[1460px] text-left text-xs">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
                 <th className="px-3 py-2">User</th>
@@ -473,6 +495,7 @@ export function UserManager({
                 <th className="px-3 py-2">Privilege</th>
                 <th className="px-3 py-2">Position</th>
                 <th className="px-3 py-2">Base Branch</th>
+                <th className="px-3 py-2">Branch TL</th>
                 <th className="px-3 py-2">Area</th>
                 <th className="px-3 py-2">Area TL</th>
                 <th className="px-3 py-2">Branches</th>
@@ -495,6 +518,13 @@ export function UserManager({
                   <td className="px-3 py-2">{user.position || <span className="text-slate-400">-</span>}</td>
                   <td className="px-3 py-2">
                     {user.baseBranch ? `${user.baseBranch.branchName} - ${user.baseBranch.branchCode}` : <span className="text-slate-400">-</span>}
+                  </td>
+                  <td className="px-3 py-2">
+                    {user.branchTeamLeader
+                      ? <span className="font-semibold text-slate-900">{user.branchTeamLeader.name}</span>
+                      : user.baseBranch?.branchTeamLeaderName
+                        ? <><span className="block text-slate-700">{user.baseBranch.branchTeamLeaderName}</span><span className="block text-xs text-slate-400">from branch</span></>
+                        : <span className="text-slate-400">-</span>}
                   </td>
                   <td className="px-3 py-2">
                     {user.area ? user.area.name : user.role === "ACCOUNT_OFFICER" ? <span className="font-semibold text-red-600">No area</span> : <span className="text-slate-400">-</span>}
@@ -544,7 +574,7 @@ export function UserManager({
               ))}
               {!visibleUsers.length ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={11}>No users match the selected filters.</td>
+                  <td className="px-4 py-6 text-slate-500" colSpan={12}>No users match the selected filters.</td>
                 </tr>
               ) : null}
             </tbody>

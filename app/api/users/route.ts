@@ -4,6 +4,7 @@ import { Prisma, UserRole } from "@prisma/client";
 import { requireApiFunction } from "@/lib/api";
 import { getAccessibleBranchIds } from "@/lib/auth";
 import { isAreaTeamLeader } from "@/lib/area-team-leaders";
+import { isBranchTeamLeader } from "@/lib/branch-team-leaders";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -37,14 +38,19 @@ export async function GET() {
       area: { select: { id: true, name: true, areaTeamLeader: { select: { name: true } } } },
       areaTeamLeaderId: true,
       areaTeamLeader: { select: { id: true, name: true } },
+      branchTeamLeaderId: true,
+      branchTeamLeader: { select: { id: true, name: true } },
       createdAt: true,
-      baseBranch: { select: { id: true, branchName: true, branchCode: true } },
+      baseBranch: { select: { id: true, branchName: true, branchCode: true, branchTeamLeader: { select: { id: true, name: true } } } },
       branchAccess: { select: { branchId: true } }
     }
   });
-  return NextResponse.json(users.map(({ area, ...user }) => ({
+  return NextResponse.json(users.map(({ area, baseBranch, ...user }) => ({
     ...user,
-    area: area ? { id: area.id, name: area.name, areaTeamLeaderName: area.areaTeamLeader?.name ?? null } : null
+    area: area ? { id: area.id, name: area.name, areaTeamLeaderName: area.areaTeamLeader?.name ?? null } : null,
+    baseBranch: baseBranch
+      ? { id: baseBranch.id, branchName: baseBranch.branchName, branchCode: baseBranch.branchCode, branchTeamLeaderName: baseBranch.branchTeamLeader?.name ?? null }
+      : null
   })));
 }
 
@@ -82,6 +88,8 @@ export async function POST(request: Request) {
   const areaId = Number.isInteger(requestedAreaId) && requestedAreaId > 0 ? requestedAreaId : null;
   const requestedAreaTeamLeaderId = Number(body.areaTeamLeaderId);
   const areaTeamLeaderId = Number.isInteger(requestedAreaTeamLeaderId) && requestedAreaTeamLeaderId > 0 ? requestedAreaTeamLeaderId : null;
+  const requestedBranchTeamLeaderId = Number(body.branchTeamLeaderId);
+  const branchTeamLeaderId = Number.isInteger(requestedBranchTeamLeaderId) && requestedBranchTeamLeaderId > 0 ? requestedBranchTeamLeaderId : null;
 
   if (!name || !email || !password) {
     return NextResponse.json({ error: "Name, email, and password are required." }, { status: 400 });
@@ -130,6 +138,9 @@ export async function POST(request: Request) {
   if (areaTeamLeaderId !== null && !(await isAreaTeamLeader(areaTeamLeaderId))) {
     return NextResponse.json({ error: "Select an active user with the Area TL privilege." }, { status: 400 });
   }
+  if (branchTeamLeaderId !== null && !(await isBranchTeamLeader(branchTeamLeaderId))) {
+    return NextResponse.json({ error: "Select an active user with the Branch TL privilege." }, { status: 400 });
+  }
 
   try {
     const passwordHash = await bcrypt.hash(password, 12);
@@ -146,6 +157,7 @@ export async function POST(request: Request) {
           privilegeTemplateId,
           areaId,
           areaTeamLeaderId,
+          branchTeamLeaderId,
           passwordHash
         },
         select: { id: true, name: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, isActive: true }

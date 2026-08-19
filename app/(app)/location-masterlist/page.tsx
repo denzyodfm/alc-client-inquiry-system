@@ -467,6 +467,10 @@ export default async function LocationMasterlistPage() {
 
   const provinces = new Map<string, ProvinceNode>();
   for (const location of locations) {
+    // Barangays with no linked outstanding loan carry nothing but dashes, so they stay out of
+    // the pivot entirely - and with them any municipality or province left without data.
+    const locationMetrics = metricsByLocation.get(locationKey(location.province, location.municipality, location.barangay));
+    if (!locationMetrics) continue;
     const province: ProvinceNode = provinces.get(location.province) ?? {
       name: location.province,
       metrics: aggregateMetrics([]),
@@ -484,7 +488,7 @@ export default async function LocationMasterlistPage() {
       name: location.barangay,
       zone: location.zone,
       region: location.region,
-      metrics: accumulatedMetrics(metricsByLocation.get(locationKey(location.province, location.municipality, location.barangay))),
+      metrics: accumulatedMetrics(locationMetrics),
       officers: officerNodesForLocation(
         locationKey(location.province, location.municipality, location.barangay),
         metricsByLocationOfficer,
@@ -501,6 +505,10 @@ export default async function LocationMasterlistPage() {
     provinces.set(location.province, province);
   }
   const provinceList = Array.from(provinces.values()).sort(byPortfolioDesc);
+  const reportedBarangayCount = provinceList.reduce(
+    (total, province) => total + Array.from(province.municipalities.values()).reduce((sum, municipality) => sum + municipality.barangays.length, 0),
+    0
+  );
   const grandTotal = accumulatedMetrics(metricsByOverall.get("all"));
   const areaTeamLeaders: AreaTeamLeaderNode[] = Array.from(areaTeamLeaderNames.entries())
     .map(([areaTeamLeaderKey, areaTeamLeaderName]) => {
@@ -591,7 +599,7 @@ export default async function LocationMasterlistPage() {
         <div className="border-b border-slate-200 p-5">
           <h3 className="text-lg font-bold text-slate-950">Location Pivot</h3>
           <p className="mt-1 text-sm text-slate-600">
-            {locations.length.toLocaleString("en-US")} barangay location(s), linked to {matchedLoanCount.toLocaleString("en-US")} of {eligibleLoanCount.toLocaleString("en-US")} tagged outstanding loan(s).
+            {reportedBarangayCount.toLocaleString("en-US")} barangay location(s) with loans, linked to {matchedLoanCount.toLocaleString("en-US")} of {eligibleLoanCount.toLocaleString("en-US")} tagged outstanding loan(s).
           </p>
           <p className="mt-1 text-xs text-slate-500">
             As of {todayKey}: Past Due means maturity is before today with a remaining balance. Delayed means an amortization due on or before today is not fully paid. Litigated is tracked separately.
