@@ -75,7 +75,7 @@ export function UserManager({
   const [formOpen, setFormOpen] = useState(false);
   const [allBranches, setAllBranches] = useState(canGrantAllBranches);
   const [searchFilter, setSearchFilter] = useState("");
-  const [positionFilter, setPositionFilter] = useState("ALL");
+  const [privilegeFilter, setPrivilegeFilter] = useState("ALL");
   const [baseBranchFilter, setBaseBranchFilter] = useState("ALL");
   const [areaFilter, setAreaFilter] = useState("ALL");
   const [selectedAreaId, setSelectedAreaId] = useState("");
@@ -86,16 +86,21 @@ export function UserManager({
     () => Array.from(new Set(users.map((user) => user.position).filter((position): position is string => Boolean(position)))).sort(),
     [users]
   );
+  const privilegeNames = useMemo(
+    () => Array.from(new Set(users.map((user) => user.privilegeTemplate?.name).filter((name): name is string => Boolean(name)))).sort(),
+    [users]
+  );
   const visibleUsers = useMemo(
     () => users.filter((user) => {
       const term = searchFilter.trim().toLowerCase();
       const matchesSearch = !term || user.name.toLowerCase().includes(term) || user.email.toLowerCase().includes(term);
-      const matchesPosition = positionFilter === "ALL" || (positionFilter === "UNSET" ? !user.position : user.position === positionFilter);
+      const matchesPrivilege = privilegeFilter === "ALL"
+        || (privilegeFilter === "UNSET" ? !user.privilegeTemplate : user.privilegeTemplate?.name === privilegeFilter);
       const matchesBranch = baseBranchFilter === "ALL" || (baseBranchFilter === "UNSET" ? !user.baseBranchId : user.baseBranchId === Number(baseBranchFilter));
       const matchesArea = areaFilter === "ALL" || (areaFilter === "UNSET" ? !user.areaId : user.areaId === Number(areaFilter));
-      return matchesSearch && matchesPosition && matchesBranch && matchesArea;
+      return matchesSearch && matchesPrivilege && matchesBranch && matchesArea;
     }),
-    [users, searchFilter, positionFilter, baseBranchFilter, areaFilter]
+    [users, searchFilter, privilegeFilter, baseBranchFilter, areaFilter]
   );
 
   useEffect(() => {
@@ -442,10 +447,10 @@ export function UserManager({
               aria-label="Search users by name or email"
             />
           </div>
-          <select className="field h-9 bg-white" value={positionFilter} onChange={(event) => setPositionFilter(event.target.value)} aria-label="Filter users by position">
-            <option value="ALL">All positions</option>
-            {positions.map((position) => <option key={position} value={position}>{position}</option>)}
-            <option value="UNSET">Position not set</option>
+          <select className="field h-9 bg-white" value={privilegeFilter} onChange={(event) => setPrivilegeFilter(event.target.value)} aria-label="Filter users by privilege">
+            <option value="ALL">All privileges</option>
+            {privilegeNames.map((name) => <option key={name} value={name}>{name}</option>)}
+            <option value="UNSET">No privilege set</option>
           </select>
           <select className="field h-9 bg-white" value={baseBranchFilter} onChange={(event) => setBaseBranchFilter(event.target.value)} aria-label="Filter users by base branch">
             <option value="ALL">All base branches</option>

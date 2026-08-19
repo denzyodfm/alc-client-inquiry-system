@@ -79,6 +79,7 @@ model User {
   ledAreas     Area[]   @relation("AreaTeamLeaderAreas")
   areaTeamLeader User?  @relation("UserAreaTeamLeader", fields: [areaTeamLeaderId], references: [id], onDelete: SetNull)
   areaTeamMembers User[] @relation("UserAreaTeamLeader")
+  ledBranches  Branch[] @relation("BranchTeamLeaderBranches")
 
   @@index([baseBranchId])
   @@index([privilegeTemplateId])
@@ -153,6 +154,7 @@ model Branch {
   dbUser              String       @map("db_user") @db.VarChar(120)
   encryptedDbPassword String       @map("encrypted_db_password") @db.Text
   status              BranchStatus @default(ACTIVE)
+  branchTeamLeaderId  Int?         @map("branch_team_leader_id")
   lastSyncAt          DateTime?    @map("last_sync_at")
   createdAt           DateTime     @default(now()) @map("created_at")
   updatedAt           DateTime     @updatedAt @map("updated_at")
@@ -165,9 +167,11 @@ model Branch {
   syncLogs            SyncLog[]
   userAccess          UserBranchAccess[]
   baseUsers           User[]       @relation("UserBaseBranch")
+  branchTeamLeader    User?        @relation("BranchTeamLeaderBranches", fields: [branchTeamLeaderId], references: [id], onDelete: SetNull)
   remedialAssignments RemedialAssignment[]
   clientLogs          ClientLog[]
 
+  @@index([branchTeamLeaderId])
   @@map("branches")
 }
 

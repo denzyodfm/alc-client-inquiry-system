@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { requireApiFunction } from "@/lib/api";
+import { requireBranchAccess } from "@/lib/branch-access";
 import { prisma } from "@/lib/prisma";
 import { checkBranchConnection, syncBranch } from "@/scripts/sync-service";
 
 export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const { response } = await requireApiFunction("BRANCH_MANAGEMENT");
+  const { response } = await requireBranchAccess("FULL");
   if (response) return response;
 
   const { id } = await context.params;

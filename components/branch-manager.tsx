@@ -8,14 +8,24 @@ type Branch = {
   id: number;
   branchName: string;
   branchCode: string;
-  publicIp: string | null;
-  dynamicIp: string | null;
-  dbHost: string;
-  dbName: string;
-  dbUser: string;
+  // Connection settings are omitted by the server for assign-only viewers.
+  publicIp?: string | null;
+  dynamicIp?: string | null;
+  dbHost?: string;
+  dbName?: string;
+  dbUser?: string;
   status: string;
   lastSyncAt: string | null;
+  branchTeamLeaderId: number | null;
+  branchTeamLeader: TeamLeaderOption | null;
 };
+
+type TeamLeaderOption = { id: number; name: string };
+
+// FULL sees and edits everything. ASSIGN_ONLY (Area Team Leaders) sees the
+// branch list without any IP or credential settings and may only set the
+// Branch TL.
+type BranchAccessLevel = "FULL" | "ASSIGN_ONLY";
 
 type ConnectionState = {
   status: "UNKNOWN" | "CHECKING" | "ONLINE" | "OFFLINE";
@@ -67,7 +77,16 @@ function connectionBadgeLabel(status: ConnectionState["status"]) {
   return status;
 }
 
-export function BranchManager({ initialBranches }: { initialBranches: Branch[] }) {
+export function BranchManager({
+  initialBranches,
+  branchTeamLeaders,
+  accessLevel = "FULL"
+}: {
+  initialBranches: Branch[];
+  branchTeamLeaders: TeamLeaderOption[];
+  accessLevel?: BranchAccessLevel;
+}) {
+  const canManageInfrastructure = accessLevel === "FULL";
   const [branches, setBranches] = useState(initialBranches);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [loading, setLoading] = useState(false);
@@ -148,6 +167,27 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
     }
   }
 
+  async function assignBranchTeamLeader(branch: Branch, value: string) {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/branches/${branch.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branchTeamLeaderId: value })
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error ?? "Unable to assign the Branch TL.");
+      }
+      await refresh();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Unable to assign the Branch TL.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function editBranch(branch: Branch) {
     setEditingBranch(branch);
     setError(null);
@@ -221,7 +261,8 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+    <div className={canManageInfrastructure ? "grid gap-6 xl:grid-cols-[0.85fr_1.15fr]" : "space-y-4"}>
+      {canManageInfrastructure ? (
       <form key={editingBranch?.id ?? "new"} onSubmit={submit} className="panel p-5">
         <div className="mb-5 flex items-center justify-between gap-3">
           <h3 className="text-lg font-bold text-slate-950">{editingBranch ? "Edit Branch" : "Add Branch"}</h3>
@@ -258,6 +299,14 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
               required={!editingBranch}
             />
           </div>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-slate-600">Branch TL</span>
+            <select name="branchTeamLeaderId" className="field" defaultValue={editingBranch?.branchTeamLeaderId ?? ""}>
+              <option value="">No Branch TL</option>
+              {branchTeamLeaders.map((leader) => <option key={leader.id} value={leader.id}>{leader.name}</option>)}
+            </select>
+            {!branchTeamLeaders.length ? <span className="mt-1 block text-xs font-semibold text-red-600">No users hold the Branch TL privilege yet.</span> : null}
+          </label>
           <select name="status" className="field" defaultValue={editingBranch?.status ?? "ACTIVE"}>
             <option value="ACTIVE">Active</option>
             <option value="INACTIVE">Inactive</option>
@@ -269,14 +318,24 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
           </button>
         </div>
       </form>
+      ) : null}
 
       <section className="space-y-4">
+        {!canManageInfrastructure ? (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-brand-navy">
+            <p className="font-bold">Branch TL assignment</p>
+            <p className="mt-1 text-xs text-slate-600">You can assign the Branch TL for each branch. Connection and credential settings are managed by an administrator.</p>
+            {error ? <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p> : null}
+          </div>
+        ) : null}
+        {canManageInfrastructure ? (
         <div className="flex justify-end">
           <button className="btn-secondary" onClick={() => runSync()} disabled={loading || activeBranchCount === 0} title={activeBranchCount === 0 ? "No active branches available to sync." : "Sync all active branches. Offline branches are skipped automatically."}>
             <RotateCcw className="h-4 w-4" />
             {syncingBranchId === "all" ? "Syncing..." : "Run All"}
           </button>
         </div>
+        ) : null}
         {syncingBranchId ? (
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-brand-navy">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -312,6 +371,7 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
                       <h4 className="min-w-[6rem] flex-1 text-sm font-bold leading-tight text-slate-950">{branch.branchName}</h4>
                       <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
                       <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-700">{branch.status}</span>
+                      {canManageInfrastructure ? (
                       <button
                         type="button"
                         className={`rounded-md px-2 py-1 text-[11px] font-bold transition ${connectionBadgeClass(connection.status)}`}
@@ -324,18 +384,36 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
                           {connectionBadgeLabel(connection.status)}
                         </span>
                       </button>
+                      ) : null}
                       </div>
                     </div>
-                    <p className="break-all text-xs text-slate-500">{branch.branchCode} - {branch.dbHost}</p>
+                    <p className="break-all text-xs text-slate-500">{canManageInfrastructure ? `${branch.branchCode} - ${branch.dbHost}` : branch.branchCode}</p>
                   </div>
                 </div>
               </div>
               <dl className="mt-3 grid gap-1.5 text-xs">
-                <div className="flex justify-between gap-4"><dt className="text-slate-500">Database</dt><dd className="font-semibold">{branch.dbName}</dd></div>
-                <div className="flex justify-between gap-4"><dt className="text-slate-500">Fallback IP</dt><dd className="break-all text-right font-semibold">{branch.dynamicIp || "-"}</dd></div>
-                <div className="flex justify-between gap-4"><dt className="text-slate-500">User</dt><dd className="font-semibold">{branch.dbUser}</dd></div>
+                {canManageInfrastructure ? <>
+                  <div className="flex justify-between gap-4"><dt className="text-slate-500">Database</dt><dd className="font-semibold">{branch.dbName}</dd></div>
+                  <div className="flex justify-between gap-4"><dt className="text-slate-500">Fallback IP</dt><dd className="break-all text-right font-semibold">{branch.dynamicIp || "-"}</dd></div>
+                  <div className="flex justify-between gap-4"><dt className="text-slate-500">User</dt><dd className="font-semibold">{branch.dbUser}</dd></div>
+                </> : null}
+                <div className="flex justify-between gap-4"><dt className="text-slate-500">Branch TL</dt><dd className="text-right font-semibold">{branch.branchTeamLeader?.name ?? <span className="text-red-600">Not set</span>}</dd></div>
                 <div className="flex justify-between gap-4"><dt className="text-slate-500">Last sync</dt><dd className="font-semibold">{dateTime(branch.lastSyncAt)}</dd></div>
               </dl>
+              {!canManageInfrastructure ? (
+                <label className="mt-4 block">
+                  <span className="mb-1 block text-xs font-semibold text-slate-600">Assign Branch TL</span>
+                  <select
+                    className="field h-9 text-xs"
+                    value={branch.branchTeamLeaderId ?? ""}
+                    onChange={(event) => assignBranchTeamLeader(branch, event.target.value)}
+                    disabled={loading}
+                  >
+                    <option value="">No Branch TL</option>
+                    {branchTeamLeaders.map((leader) => <option key={leader.id} value={leader.id}>{leader.name}</option>)}
+                  </select>
+                </label>
+              ) : (
               <div className="mt-4 grid grid-cols-3 gap-2">
                 <button type="button" className="btn-secondary h-9 px-2 text-xs" onClick={() => editBranch(branch)} disabled={loading}>
                   <Pencil className="h-4 w-4" />
@@ -361,6 +439,7 @@ export function BranchManager({ initialBranches }: { initialBranches: Branch[] }
                   Delete
                 </button>
               </div>
+              )}
             </div>
           );
           })}

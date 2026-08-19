@@ -1,29 +1,41 @@
 import { NextResponse } from "next/server";
-import { requireApiFunction } from "@/lib/api";
+import { requireBranchAccess, toAssignOnlyBranch } from "@/lib/branch-access";
+import { isBranchTeamLeader } from "@/lib/branch-team-leaders";
 import { prisma } from "@/lib/prisma";
 import { encryptSecret } from "@/lib/crypto";
 import { Prisma } from "@prisma/client";
 
 export async function GET() {
-  const { response } = await requireApiFunction("BRANCH_MANAGEMENT");
+  const { level, response } = await requireBranchAccess("ASSIGN_ONLY");
   if (response) return response;
 
   const branches = await prisma.branch.findMany({
     orderBy: { branchName: "asc" },
     include: {
+      branchTeamLeader: { select: { id: true, name: true } },
       syncLogs: {
         take: 1,
         orderBy: { startedAt: "desc" }
       }
     }
   });
-  const safeBranches = branches.map(({ encryptedDbPassword: _encryptedDbPassword, ...safeBranch }) => safeBranch);
+  const safeBranches = branches.map(({ encryptedDbPassword: _encryptedDbPassword, ...safeBranch }) =>
+    level === "FULL" ? safeBranch : toAssignOnlyBranch(safeBranch)
+  );
 
   return NextResponse.json(safeBranches);
 }
 
+// Only a user holding the Branch TL privilege may lead a branch.
+async function resolveBranchTeamLeaderId(value: unknown) {
+  const requested = Number(value);
+  if (!Number.isInteger(requested) || requested <= 0) return null;
+  if (!(await isBranchTeamLeader(requested))) throw new Error("BRANCH_TL_INVALID");
+  return requested;
+}
+
 export async function POST(request: Request) {
-  const { response } = await requireApiFunction("BRANCH_MANAGEMENT");
+  const { response } = await requireBranchAccess("FULL");
   if (response) return response;
 
   try {
@@ -45,6 +57,7 @@ export async function POST(request: Request) {
         dbName: String(body.dbName).trim(),
         dbUser: String(body.dbUser).trim(),
         encryptedDbPassword: encryptSecret(String(body.dbPassword)),
+        branchTeamLeaderId: await resolveBranchTeamLeaderId(body.branchTeamLeaderId),
         status: body.status || "ACTIVE"
       }
     });
@@ -53,6 +66,10 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return NextResponse.json({ error: "A branch with this code already exists." }, { status: 409 });
+    }
+
+    if (error instanceof Error && error.message === "BRANCH_TL_INVALID") {
+      return NextResponse.json({ error: "Select an active user with the Branch TL privilege." }, { status: 400 });
     }
 
     console.error("Failed to create branch", error);

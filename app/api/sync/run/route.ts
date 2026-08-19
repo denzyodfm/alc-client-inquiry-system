@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { requireApiFunction } from "@/lib/api";
+import { requireBranchAccess } from "@/lib/branch-access";
 import { syncOnlineBranches } from "@/scripts/sync-service";
 
 export async function POST() {
-  const { response } = await requireApiFunction("BRANCH_MANAGEMENT");
+  const { response } = await requireBranchAccess("FULL");
   if (response) return response;
 
   const result = await syncOnlineBranches("Manual sync");
