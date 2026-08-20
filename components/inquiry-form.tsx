@@ -7,6 +7,7 @@ import { amountDueAsOfToday } from "@/lib/loan-amounts";
 import { LoanDetailWindow } from "@/components/loan-detail-window";
 import { PaymentBehaviorReport } from "@/components/payment-behavior-report";
 import { ClientLoanAnalysisReport } from "@/components/client-loan-analysis-report";
+import { ClientLogHistory } from "@/components/client-log-history";
 
 type Schedule = {
   id: number;
@@ -358,6 +359,7 @@ const ClientResultCard = memo(function ClientResultCard({
                 <BarChart3 className="h-3.5 w-3.5" />
                 Loan Analysis
               </button>
+              <ClientLogHistory clientId={primaryClient.id} clientName={primaryClient.fullName} />
             </div>
             <p className="text-sm text-slate-500">{branches.join(", ")}</p>
           </div>
@@ -561,12 +563,6 @@ export function InquiryForm({ locationOptions, branches, products, statuses, bra
       <form ref={formRef} onSubmit={submit} className="panel p-5">
         <h3 className="mb-5 text-lg font-bold text-slate-950">Search Client</h3>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
-          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Branch</span><select name="branchId" className="field"><option value="ALL">All branches</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.branchName} - {branch.branchCode}</option>)}</select></label>
-          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Loan product</span><select name="product" className="field"><option value="ALL">All products</option>{products.map((product) => <option key={product} value={product}>{product}</option>)}</select></label>
-          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Loan status</span><select name="status" className="field"><option value="ALL">All statuses</option>{statuses.map((status) => <option key={status.code} value={status.code}>{status.code}{status.name ? ` - ${status.name}` : ""}</option>)}</select></label>
-          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Branch AO</span><select name="branchAo" className="field"><option value="ALL">All Branch AOs</option>{branchAos.map((branchAo) => <option key={branchAo} value={branchAo}>{branchAo}</option>)}</select></label>
-          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Address area</span><input name="addressArea" className="field" placeholder="Example: San Francisco" /></label>
-          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Address detail</span><input name="addressDetail" className="field" placeholder="Example: Brgy 1" /></label>
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-slate-700">Customer name</span>
             <input
@@ -583,6 +579,12 @@ export function InquiryForm({ locationOptions, branches, products, statuses, bra
               ))}
             </datalist>
           </label>
+          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Branch</span><select name="branchId" className="field"><option value="ALL">All branches</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.branchName} - {branch.branchCode}</option>)}</select></label>
+          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Loan product</span><select name="product" className="field"><option value="ALL">All products</option>{products.map((product) => <option key={product} value={product}>{product}</option>)}</select></label>
+          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Loan status</span><select name="status" className="field"><option value="ALL">All statuses</option>{statuses.map((status) => <option key={status.code} value={status.code}>{status.code}{status.name ? ` - ${status.name}` : ""}</option>)}</select></label>
+          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Branch AO</span><select name="branchAo" className="field"><option value="ALL">All Branch AOs</option>{branchAos.map((branchAo) => <option key={branchAo} value={branchAo}>{branchAo}</option>)}</select></label>
+          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Address area</span><input name="addressArea" className="field" placeholder="Example: San Francisco" /></label>
+          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Address detail</span><input name="addressDetail" className="field" placeholder="Example: Brgy 1" /></label>
           <div className="flex items-end xl:col-span-7"><button className="btn-primary h-11 min-w-36" disabled={loading}><Search className="h-4 w-4" />{loading ? "Searching..." : "Search"}</button></div>
         </div>
       </form>
