@@ -171,7 +171,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 }
 
-export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+function countLabel(count: number, singular: string) {
+  return `${count} ${singular}${count === 1 ? "" : "s"}`;
+}
+
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   const { user: currentUser, response } = await requireApiFunction("USER_MANAGEMENT");
   if (response) return response;
 
@@ -180,7 +184,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   if (currentUser?.id === userId) {
     return NextResponse.json({ error: "You cannot delete your own account." }, { status: 400 });
   }
-  const existingUser = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  const existingUser = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, role: true } });
   if (!existingUser) {
     return NextResponse.json({ error: "User not found." }, { status: 404 });
   }
@@ -188,12 +192,45 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     return NextResponse.json({ error: "Admin accounts cannot be deleted." }, { status: 400 });
   }
 
+  // Client logs and posted payments record who encoded them, so those users stay. Remedial
+  // assignments only point at the handling officer, and the module already renders an
+  // assignment without one as "Unassigned", so they are detached instead of blocking.
+  const [clientLogCount, paymentPostingCount] = await Promise.all([
+    prisma.clientLog.count({ where: { encodedById: userId } }),
+    prisma.localPaymentPosting.count({ where: { postedById: userId } })
+  ]);
+  if (clientLogCount || paymentPostingCount) {
+    const held = [
+      clientLogCount ? countLabel(clientLogCount, "client log") : null,
+      paymentPostingCount ? countLabel(paymentPostingCount, "posted payment") : null
+    ].filter(Boolean).join(" and ");
+    return NextResponse.json({
+      error: `${existingUser.name} encoded ${held}, and those records keep their author. Deactivate this account instead of deleting it.`
+    }, { status: 409 });
+  }
+
   try {
-    await prisma.user.delete({ where: { id: userId } });
-    return NextResponse.json({ ok: true });
+    const unassignedRemedial = await prisma.$transaction(async (tx) => {
+      const detached = await tx.remedialAssignment.updateMany({ where: { assignedToId: userId }, data: { assignedToId: null } });
+      await tx.user.delete({ where: { id: userId } });
+      return detached.count;
+    });
+    await writeAudit({
+      userId: currentUser!.id,
+      userName: currentUser!.name,
+      userEmail: currentUser!.email,
+      action: "USER_DELETE",
+      module: "User Management",
+      details: `Deleted ${existingUser.name} (${existingUser.email})${unassignedRemedial ? `, unassigning ${countLabel(unassignedRemedial, "remedial assignment")}` : ""}`,
+      ipAddress: requestIp(request)
+    });
+    return NextResponse.json({ ok: true, unassignedRemedial });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
       return NextResponse.json({ error: "User not found." }, { status: 404 });
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+      return NextResponse.json({ error: `${existingUser.name} is still referenced by records that cannot be reassigned. Deactivate this account instead of deleting it.` }, { status: 409 });
     }
     return NextResponse.json({ error: "Unable to delete user." }, { status: 500 });
   }

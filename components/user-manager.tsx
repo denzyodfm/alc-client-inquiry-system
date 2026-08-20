@@ -264,7 +264,9 @@ export function UserManager({
       }
 
       if (editingUser?.id === user.id) setEditingUser(null);
-      setNotice("User deleted.");
+      setNotice(data?.unassignedRemedial
+        ? `User deleted. ${data.unassignedRemedial} remedial assignment(s) are now unassigned.`
+        : "User deleted.");
       await refresh();
     } catch (error) {
       setError(error instanceof Error ? error.message : "Unable to delete user.");
