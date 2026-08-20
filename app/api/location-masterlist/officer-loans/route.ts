@@ -43,6 +43,24 @@ function money(value: number) {
   return value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// Columns the report table can sort on. The rows are built in memory anyway, so sorting
+// happens here rather than in SQL and therefore covers every page, not just the visible one.
+const SORT_KEYS = [
+  "clientName", "clientNumber", "contactNumber", "loanNumber", "branch", "product", "releasedAt", "maturityAt",
+  "status", "originalPrincipal", "principalBalance", "interest", "penalty", "otherCharges", "paidAmount",
+  "totalBalance", "remoteBalance", "address", "accountOfficer"
+] as const;
+type SortKey = (typeof SORT_KEYS)[number];
+
+function compareRows(left: Record<SortKey, unknown>, right: Record<SortKey, unknown>, key: SortKey) {
+  const a = left[key];
+  const b = right[key];
+  if (a === null || a === undefined || a === "") return b === null || b === undefined || b === "" ? 0 : 1;
+  if (b === null || b === undefined || b === "") return -1;
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  return String(a).localeCompare(String(b), "en", { numeric: true, sensitivity: "base" });
+}
+
 export async function GET(request: NextRequest) {
   const { user, response } = await requireApiFunction("LOCATION_MASTERLIST");
   if (response) return response;
@@ -64,6 +82,9 @@ export async function GET(request: NextRequest) {
   const category: Category = categories.includes(requestedCategory as Category) ? requestedCategory as Category : "all";
   const context = request.nextUrl.searchParams.get("context")?.trim() || "Account Officer Location Pivot";
   const requestedPage = Math.max(1, Number(request.nextUrl.searchParams.get("page")) || 1);
+  const requestedSort = request.nextUrl.searchParams.get("sort") ?? "";
+  const sortKey: SortKey = (SORT_KEYS as readonly string[]).includes(requestedSort) ? requestedSort as SortKey : "clientName";
+  const sortDir = request.nextUrl.searchParams.get("dir") === "desc" ? "desc" : "asc";
   const format = request.nextUrl.searchParams.get("format");
   if (
     (officerId !== null && (!Number.isInteger(officerId) || officerId <= 0))
@@ -158,8 +179,7 @@ export async function GET(request: NextRequest) {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const page = Math.min(requestedPage, totalPages);
   const allRows = format === "excel" || format === "print";
-  const pagedLoans = allRows ? matchingLoans : matchingLoans.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const rows = pagedLoans.map((loan) => ({
+  const everyRow = matchingLoans.map((loan) => ({
     id: loan.id,
     clientName: loan.client.fullName,
     clientNumber: loan.client.clientId,
@@ -186,6 +206,8 @@ export async function GET(request: NextRequest) {
     municipality: loan.locationMasterlist?.municipality ?? "-",
     barangay: loan.locationMasterlist?.barangay ?? "-"
   }));
+  everyRow.sort((left, right) => (sortDir === "asc" ? 1 : -1) * compareRows(left, right, sortKey));
+  const rows = allRows ? everyRow : everyRow.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   if (format === "excel" || format === "print") {
     const categoryLabel = category === "pastDue" ? "Past Due" : category.charAt(0).toUpperCase() + category.slice(1);

@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { money } from "@/lib/format";
@@ -44,6 +45,32 @@ type Result = {
 
 export type LocationReportCategory = "all" | "current" | "delayed" | "pastDue" | "litigated";
 
+type SortKey =
+  | "clientName" | "contactNumber" | "loanNumber" | "branch" | "product" | "releasedAt" | "maturityAt" | "status"
+  | "originalPrincipal" | "principalBalance" | "interest" | "penalty" | "otherCharges" | "paidAmount"
+  | "totalBalance" | "remoteBalance" | "address";
+
+// Sorting runs on the server so it covers every page, not just the rows on screen.
+const SORT_COLUMNS: Array<{ key: SortKey; label: string; align?: "right"; title?: string }> = [
+  { key: "clientName", label: "Client" },
+  { key: "contactNumber", label: "Contact" },
+  { key: "loanNumber", label: "Loan" },
+  { key: "branch", label: "Branch" },
+  { key: "product", label: "Product" },
+  { key: "releasedAt", label: "Released" },
+  { key: "maturityAt", label: "Maturity" },
+  { key: "status", label: "Status" },
+  { key: "originalPrincipal", label: "Original Principal", align: "right" },
+  { key: "principalBalance", label: "Principal Balance", align: "right" },
+  { key: "interest", label: "Interest", align: "right" },
+  { key: "penalty", label: "Penalty", align: "right" },
+  { key: "otherCharges", label: "Other Charges", align: "right" },
+  { key: "paidAmount", label: "Paid", align: "right" },
+  { key: "totalBalance", label: "Total Balance", align: "right", title: "Sum of the amortization schedule's total due minus principal and interest paid so far. May differ from Remote Balance, the branch's live figure." },
+  { key: "remoteBalance", label: "Remote Balance", align: "right", title: "The branch's own live balance, pulled directly from the source database" },
+  { key: "address", label: "Address" }
+];
+
 const categoryLabels: Record<LocationReportCategory, string> = {
   all: "All Clients",
   current: "Current",
@@ -84,6 +111,7 @@ export function BarangayLoanReport({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "clientName", dir: "asc" });
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -91,7 +119,7 @@ export function BarangayLoanReport({
   const [selectedOfficers, setSelectedOfficers] = useState<Record<number, string>>({});
   const [savingLoanId, setSavingLoanId] = useState<number | null>(null);
   const baseUrl = useMemo(() => {
-    const params = new URLSearchParams({ category, context: locationName });
+    const params = new URLSearchParams({ category, context: locationName, sort: sort.key, dir: sort.dir });
     if (locationId) params.set("locationId", String(locationId));
     if (officerId) params.set("officerId", String(officerId));
     if (branchId) params.set("branchId", String(branchId));
@@ -100,7 +128,12 @@ export function BarangayLoanReport({
     if (municipality) params.set("municipality", municipality);
     if (assignedOnly) params.set("assignedOnly", "1");
     return `/api/location-masterlist/officer-loans?${params.toString()}`;
-  }, [areaTeamLeaderId, assignedOnly, branchId, category, locationId, locationName, municipality, officerId, province]);
+  }, [areaTeamLeaderId, assignedOnly, branchId, category, locationId, locationName, municipality, officerId, province, sort]);
+
+  function toggleSort(key: SortKey) {
+    setPage(1);
+    setSort((current) => current.key === key ? { key, dir: current.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" });
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -200,15 +233,25 @@ export function BarangayLoanReport({
                 <table className="w-full min-w-[1900px] text-left text-xs">
                   <thead className="sticky top-0 z-10 bg-slate-50 uppercase tracking-wide text-slate-500">
                     <tr>
-                      <th className="px-3 py-3">Client</th><th className="px-3 py-3">Contact</th><th className="px-3 py-3">Loan</th>
-                      <th className="px-3 py-3">Branch</th><th className="px-3 py-3">Product</th><th className="px-3 py-3">Released</th>
-                      <th className="px-3 py-3">Maturity</th><th className="px-3 py-3">Status</th>
-                      <th className="px-3 py-3 text-right">Original Principal</th><th className="px-3 py-3 text-right">Principal Balance</th>
-                      <th className="px-3 py-3 text-right">Interest</th><th className="px-3 py-3 text-right">Penalty</th>
-                      <th className="px-3 py-3 text-right">Other Charges</th><th className="px-3 py-3 text-right">Paid</th>
-                      <th className="px-3 py-3 text-right" title="Sum of the amortization schedule's total due minus principal and interest paid so far. May differ from Remote Balance, the branch's live figure.">Total Balance</th>
-                      <th className="px-3 py-3 text-right" title="The branch's own live balance, pulled directly from the source database">Remote Balance</th>
-                      <th className="px-3 py-3">Address</th>
+                      {SORT_COLUMNS.map((column) => (
+                        <th
+                          key={column.key}
+                          className={`px-3 py-3 ${column.align === "right" ? "text-right" : ""}`}
+                          title={column.title}
+                          aria-sort={sort.key === column.key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+                        >
+                          <button
+                            type="button"
+                            className={`flex w-full items-center gap-1 uppercase tracking-wide transition hover:text-brand-blue ${column.align === "right" ? "justify-end" : ""} ${sort.key === column.key ? "text-brand-blue" : ""}`}
+                            onClick={() => toggleSort(column.key)}
+                          >
+                            {column.label}
+                            {sort.key === column.key
+                              ? sort.dir === "asc" ? <ArrowUp className="h-3 w-3 shrink-0" /> : <ArrowDown className="h-3 w-3 shrink-0" />
+                              : <ArrowUpDown className="h-3 w-3 shrink-0 opacity-30" />}
+                          </button>
+                        </th>
+                      ))}
                       <th className="min-w-[260px] px-3 py-3">Account Officer / Action</th>
                     </tr>
                   </thead>

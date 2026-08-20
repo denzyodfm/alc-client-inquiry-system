@@ -13,7 +13,9 @@ import { prisma } from "@/lib/prisma";
 import { LocationLinkControl } from "@/components/location-link-control";
 import { BarangayLoanReport } from "@/components/officer-barangay-loans";
 import { OfficerBranchSummary } from "@/components/officer-branch-summary";
+import { OfficerLocationSummary } from "@/components/officer-location-summary";
 import { AccountOfficerSummary, type AccountOfficerSummaryRow } from "./account-officer-summary";
+import { AssignmentSummaryTable, type SummaryRow } from "@/components/assignment-summary-table";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +74,31 @@ type AreaTeamLeaderNode = {
   name: string;
   metrics: Metrics;
   accountOfficers: AccountOfficerNode[];
+};
+
+// The officer pivot is driven by the user directory: Remedial Officers sit under their
+// Area TL grouped by base branch, Loan Officers under their Branch TL. An officer holding
+// neither privilege still lands under whichever team leader they have, so every assigned
+// loan is reported under a named leader rather than a catch-all bucket.
+type PivotOfficerNode = {
+  id: number;
+  name: string;
+  metrics: Metrics;
+};
+
+type PivotGroupNode = {
+  key: string;
+  name: string;
+  metrics: Metrics;
+  officers: PivotOfficerNode[];
+};
+
+type PivotLeaderNode = {
+  key: string;
+  kind: "AREA" | "BRANCH" | "NONE";
+  name: string;
+  metrics: Metrics;
+  groups: PivotGroupNode[];
 };
 
 type AssignmentSummaryNode = {
@@ -289,7 +316,7 @@ export default async function LocationMasterlistPage() {
   const accessibleBranchIds = user.role === "ACCOUNT_OFFICER" ? null : await getAccessibleBranchIds(user);
   const branchWhere: Prisma.LoanWhereInput =
     accessibleBranchIds === null ? {} : accessibleBranchIds.length ? { branchId: { in: accessibleBranchIds } } : { branchId: -1 };
-  const [locations, loans, eligibleLoanCount, unlinkedLoanCount, recentLinkRuns, officerAreaRows] = await Promise.all([
+  const [locations, loans, eligibleLoanCount, unlinkedLoanCount, recentLinkRuns, officerAreaRows, pivotOfficerRows] = await Promise.all([
     prisma.locationMasterlist.findMany({
       orderBy: [{ province: "asc" }, { municipality: "asc" }, { barangay: "asc" }]
     }),
@@ -376,6 +403,22 @@ export default async function LocationMasterlistPage() {
         areaTeamLeader: { select: { name: true } },
         area: { select: { areaTeamLeaderId: true, areaTeamLeader: { select: { name: true } } } }
       }
+    }),
+    prisma.user.findMany({
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        privilegeTemplate: { select: { name: true } },
+        areaTeamLeaderId: true,
+        areaTeamLeader: { select: { id: true, name: true } },
+        area: { select: { areaTeamLeaderId: true, areaTeamLeader: { select: { id: true, name: true } } } },
+        branchTeamLeaderId: true,
+        branchTeamLeader: { select: { id: true, name: true } },
+        baseBranch: {
+          select: { id: true, branchName: true, branchCode: true, branchTeamLeaderId: true, branchTeamLeader: { select: { id: true, name: true } } }
+        }
+      }
     })
   ]);
 
@@ -394,6 +437,67 @@ export default async function LocationMasterlistPage() {
     });
   }
 
+  // Where each officer sits in the pivot, worked out once from the directory.
+  type PivotPlacement = {
+    leaderKey: string;
+    leaderKind: "AREA" | "BRANCH" | "NONE";
+    leaderName: string;
+    groupKey: string;
+    groupName: string;
+    officerName: string;
+    listAlways: boolean;
+  };
+  const pivotByOfficer = new Map<string, PivotPlacement>();
+  for (const officer of pivotOfficerRows) {
+    const privilege = (officer.privilegeTemplate?.name ?? "").trim().toLocaleLowerCase("en");
+    const officerName = officer.name.toLocaleUpperCase("en");
+    const areaLeader = officer.areaTeamLeaderId ? officer.areaTeamLeader : officer.area?.areaTeamLeader ?? null;
+    const branchLeader = officer.branchTeamLeaderId ? officer.branchTeamLeader : officer.baseBranch?.branchTeamLeader ?? null;
+    const isRemedialOfficer = privilege === "remedial officer";
+    const isLoanOfficer = privilege === "loan officer";
+    // Privilege decides the side; anyone else follows whichever team leader they actually have.
+    const underAreaTeamLeader = isRemedialOfficer || (!isLoanOfficer && (Boolean(areaLeader) || !branchLeader));
+    const baseBranchGroup = officer.baseBranch
+      ? { key: `branch-${officer.baseBranch.id}`, name: `${officer.baseBranch.branchName} - ${officer.baseBranch.branchCode}` }
+      : { key: "no-branch", name: "No base branch" };
+
+    if (underAreaTeamLeader && (areaLeader || isRemedialOfficer)) {
+      pivotByOfficer.set(String(officer.id), {
+        leaderKey: areaLeader ? `area-${areaLeader.id}` : "area-none",
+        leaderKind: "AREA",
+        leaderName: (areaLeader?.name ?? "NO AREA TL").toLocaleUpperCase("en"),
+        groupKey: baseBranchGroup.key,
+        groupName: baseBranchGroup.name,
+        officerName,
+        listAlways: isRemedialOfficer
+      });
+      continue;
+    }
+    if (branchLeader || isLoanOfficer) {
+      pivotByOfficer.set(String(officer.id), {
+        leaderKey: branchLeader ? `branch-${branchLeader.id}` : "branch-none",
+        leaderKind: "BRANCH",
+        leaderName: (branchLeader?.name ?? "NO BRANCH TL").toLocaleUpperCase("en"),
+        groupKey: "all",
+        groupName: "",
+        officerName,
+        listAlways: isLoanOfficer
+      });
+      continue;
+    }
+    pivotByOfficer.set(String(officer.id), {
+      leaderKey: "leader-none",
+      leaderKind: "NONE",
+      leaderName: "NO TEAM LEADER",
+      groupKey: "all",
+      groupName: "",
+      officerName,
+      listAlways: false
+    });
+  }
+  const metricsByPivotLeader = new Map<string, MetricAccumulator>();
+  const metricsByPivotGroup = new Map<string, MetricAccumulator>();
+
   const metricsByProvince = new Map<string, MetricAccumulator>();
   const metricsByMunicipality = new Map<string, MetricAccumulator>();
   const metricsByLocation = new Map<string, MetricAccumulator>();
@@ -406,6 +510,7 @@ export default async function LocationMasterlistPage() {
   const metricsByAreaTeamLeader = new Map<string, MetricAccumulator>();
   const metricsByZone = new Map<string, MetricAccumulator>();
   const metricsByDistrict = new Map<string, MetricAccumulator>();
+  const metricsByZoneDistrict = new Map<string, MetricAccumulator>();
   const metricsByAreaTeamLeaderOfficer = new Map<string, MetricAccumulator>();
   const metricsByProvinceAreaTeamLeaderOfficer = new Map<string, MetricAccumulator>();
   const metricsByMunicipalityAreaTeamLeaderOfficer = new Map<string, MetricAccumulator>();
@@ -454,6 +559,12 @@ export default async function LocationMasterlistPage() {
       const districtKey = normalizedText(districtName);
       districtNames.set(districtKey, districtName.toLocaleUpperCase("en"));
       addLoanMetrics(metricsByDistrict, districtKey, loan, true, principalBalance, category);
+      addLoanMetrics(metricsByZoneDistrict, `${zoneKey}\u0000${districtKey}`, loan, true, principalBalance, category);
+      const placement = pivotByOfficer.get(officerKey);
+      const pivotLeaderKey = placement?.leaderKey ?? "other";
+      const pivotGroupKey = placement?.groupKey ?? "all";
+      addLoanMetrics(metricsByPivotLeader, pivotLeaderKey, loan, true, principalBalance, category);
+      addLoanMetrics(metricsByPivotGroup, `${pivotLeaderKey}\u0000${pivotGroupKey}`, loan, true, principalBalance, category);
       addLoanMetrics(metricsByAreaTeamLeaderOfficer, areaTeamLeaderOfficerKey, loan, true, principalBalance, category);
       addLoanMetrics(metricsByProvinceAreaTeamLeaderOfficer, `${provinceKey}\u0000${areaTeamLeaderOfficerKey}`, loan, true, principalBalance, category);
       addLoanMetrics(metricsByMunicipalityAreaTeamLeaderOfficer, `${municipalityKey}\u0000${areaTeamLeaderOfficerKey}`, loan, true, principalBalance, category);
@@ -510,75 +621,74 @@ export default async function LocationMasterlistPage() {
     0
   );
   const grandTotal = accumulatedMetrics(metricsByOverall.get("all"));
-  const areaTeamLeaders: AreaTeamLeaderNode[] = Array.from(areaTeamLeaderNames.entries())
-    .map(([areaTeamLeaderKey, areaTeamLeaderName]) => {
-      const accountOfficers: AccountOfficerNode[] = Array.from(officerNames.entries())
-        .filter(([officerKey]) => metricsByAreaTeamLeaderOfficer.has(`${areaTeamLeaderKey}\u0000${officerKey}`))
-        .map(([officerKey, officerName]) => {
-      const areaTeamLeaderOfficerKey = `${areaTeamLeaderKey}\u0000${officerKey}`;
-      const officer: AccountOfficerNode = {
-        key: officerKey,
-        name: officerName,
-        metrics: accumulatedMetrics(metricsByAreaTeamLeaderOfficer.get(areaTeamLeaderOfficerKey)),
-        provinces: new Map<string, ProvinceNode>()
-      };
-      for (const location of locations) {
-        const provinceKey = normalizedProvince(location.province);
-        const municipalityKey = `${provinceKey}\u0000${normalizedMunicipality(location.municipality)}`;
-        const barangayKey = locationKey(location.province, location.municipality, location.barangay);
-        const barangayMetrics = metricsByLocationAreaTeamLeaderOfficer.get(`${barangayKey}\u0000${areaTeamLeaderOfficerKey}`);
-        if (!barangayMetrics) continue;
+  const pivotOfficersByGroup = new Map<string, PivotOfficerNode[]>();
+  const pivotLeaderMeta = new Map<string, { kind: "AREA" | "BRANCH" | "NONE"; name: string }>();
+  const pivotGroupNames = new Map<string, string>();
+  for (const [officerKey, placement] of pivotByOfficer) {
+    // Remedial and Loan Officers are always listed; everyone else only once they carry loans.
+    if (!placement.listAlways && !metricsByOfficer.has(officerKey)) continue;
+    pivotLeaderMeta.set(placement.leaderKey, { kind: placement.leaderKind, name: placement.leaderName });
+    const groupKey = `${placement.leaderKey}\u0000${placement.groupKey}`;
+    pivotGroupNames.set(groupKey, placement.groupName);
+    const officers = pivotOfficersByGroup.get(groupKey) ?? [];
+    officers.push({ id: Number(officerKey), name: placement.officerName, metrics: accumulatedMetrics(metricsByOfficer.get(officerKey)) });
+    pivotOfficersByGroup.set(groupKey, officers);
+  }
 
-        const province = officer.provinces.get(location.province) ?? {
-          name: location.province,
-          metrics: accumulatedMetrics(metricsByProvinceAreaTeamLeaderOfficer.get(`${provinceKey}\u0000${areaTeamLeaderOfficerKey}`)),
-          officers: [],
-          municipalities: new Map<string, MunicipalityNode>()
-        };
-        const municipality = province.municipalities.get(location.municipality) ?? {
-          name: location.municipality,
-          metrics: accumulatedMetrics(metricsByMunicipalityAreaTeamLeaderOfficer.get(`${municipalityKey}\u0000${areaTeamLeaderOfficerKey}`)),
-          officers: [],
-          barangays: []
-        };
-        municipality.barangays.push({
-          id: location.id,
-          name: location.barangay,
-          zone: location.zone,
-          region: location.region,
-          metrics: accumulatedMetrics(barangayMetrics),
-          officers: []
-        });
-        province.municipalities.set(location.municipality, municipality);
-        officer.provinces.set(location.province, province);
-      }
-      return officer;
-        })
-        .sort((a, b) => a.name.localeCompare(b.name));
-      return {
-        key: areaTeamLeaderKey,
-        name: areaTeamLeaderName,
-        metrics: accumulatedMetrics(metricsByAreaTeamLeader.get(areaTeamLeaderKey)),
-        accountOfficers
-      };
-    })
-    .sort((a, b) => {
-      if (a.key === "unassigned-tl") return 1;
-      if (b.key === "unassigned-tl") return -1;
-      return a.name.localeCompare(b.name);
-    });
-  const accountOfficerCount = areaTeamLeaders.reduce((sum, areaTeamLeader) => sum + areaTeamLeader.accountOfficers.length, 0);
+  // A loan assigned to someone missing from the directory would otherwise vanish from the
+  // pivot, so those officers are collected under the same "no team leader" heading.
+  const strandedOfficers: PivotOfficerNode[] = Array.from(officerNames.entries())
+    .filter(([officerKey]) => officerKey !== "unassigned" && !pivotByOfficer.has(officerKey) && metricsByOfficer.has(officerKey))
+    .map(([officerKey, officerName]) => ({ id: Number(officerKey), name: officerName, metrics: accumulatedMetrics(metricsByOfficer.get(officerKey)) }));
+  if (strandedOfficers.length) {
+    pivotLeaderMeta.set("leader-none", { kind: "NONE", name: "NO TEAM LEADER" });
+    pivotGroupNames.set(`leader-none\u0000all`, "");
+    pivotOfficersByGroup.set(`leader-none\u0000all`, [
+      ...(pivotOfficersByGroup.get(`leader-none\u0000all`) ?? []),
+      ...strandedOfficers
+    ]);
+  }
+
+  const leaderRank = (kind: "AREA" | "BRANCH" | "NONE") => (kind === "AREA" ? 0 : kind === "BRANCH" ? 1 : 2);
+  const teamLeaderPivot: PivotLeaderNode[] = Array.from(pivotLeaderMeta.entries())
+    .map(([leaderKey, meta]) => ({
+      key: leaderKey,
+      kind: meta.kind,
+      name: meta.name,
+      metrics: accumulatedMetrics(metricsByPivotLeader.get(leaderKey)),
+      groups: Array.from(pivotOfficersByGroup.entries())
+        .filter(([groupKey]) => groupKey.startsWith(`${leaderKey}\u0000`))
+        .map(([groupKey, officers]) => ({
+          key: groupKey,
+          name: pivotGroupNames.get(groupKey) ?? "",
+          metrics: accumulatedMetrics(metricsByPivotGroup.get(groupKey)),
+          officers: [...officers].sort((a, b) => a.name.localeCompare(b.name))
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    }))
+    .sort((a, b) => leaderRank(a.kind) - leaderRank(b.kind) || a.name.localeCompare(b.name));
+  const pivotOfficerCount = teamLeaderPivot.reduce(
+    (sum, leader) => sum + leader.groups.reduce((count, group) => count + group.officers.length, 0),
+    0
+  );
   const accountOfficerTotal = accumulatedMetrics(metricsByAssignedOverall.get("assigned"));
-  const areaTeamLeaderSummary: AssignmentSummaryNode[] = areaTeamLeaders.map((areaTeamLeader) => ({
-    key: areaTeamLeader.key,
-    name: areaTeamLeader.name,
-    metrics: areaTeamLeader.metrics
-  }));
-  const zoneSummary: AssignmentSummaryNode[] = Array.from(zoneNames.entries())
-    .map(([key, name]) => ({ key, name, metrics: accumulatedMetrics(metricsByZone.get(key)) }))
+  const areaTeamLeaderSummary: SummaryRow[] = Array.from(areaTeamLeaderNames.entries())
+    .map(([key, name]) => ({ key, name, metrics: accumulatedMetrics(metricsByAreaTeamLeader.get(key)) }))
     .sort(byPortfolioDesc);
-  const districtSummary: AssignmentSummaryNode[] = Array.from(districtNames.entries())
-    .map(([key, name]) => ({ key, name, metrics: accumulatedMetrics(metricsByDistrict.get(key)) }))
+  const zoneSummary: SummaryRow[] = Array.from(zoneNames.entries())
+    .map(([zoneKey, name]) => ({
+      key: zoneKey,
+      name,
+      metrics: accumulatedMetrics(metricsByZone.get(zoneKey)),
+      children: Array.from(districtNames.entries())
+        .filter(([districtKey]) => metricsByZoneDistrict.has(`${zoneKey}\u0000${districtKey}`))
+        .map(([districtKey, districtName]) => ({
+          key: `${zoneKey}-${districtKey}`,
+          name: districtName,
+          metrics: accumulatedMetrics(metricsByZoneDistrict.get(`${zoneKey}\u0000${districtKey}`))
+        }))
+        .sort(byPortfolioDesc)
+    }))
     .sort(byPortfolioDesc);
   const linkSchedule = getLocationLinkSchedule();
 
@@ -700,126 +810,56 @@ export default async function LocationMasterlistPage() {
         <div className="border-b border-slate-200 p-5">
           <h3 className="text-lg font-bold text-slate-950">Account Officer Location Pivot</h3>
           <p className="mt-1 text-sm text-slate-600">
-            Area Team Leaders are listed first, with their Account Officers and assigned province, city/municipality, and barangay below. The total counts each client only once across all officers.
+            Area Team Leaders and Branch Team Leaders sit side by side. Below an Area TL are its Remedial Officers grouped by base branch; below a Branch TL are its Loan Officers.
+            Click an officer&apos;s client count for the loan details, or the Location button for their province, city/municipality, and barangay. The total counts each client only once across all officers.
           </p>
         </div>
         <div className="overflow-x-auto text-sm">
           <div className={`${officerRowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 shadow-sm`}>
-            <span>Area TL / Account Officer / Location</span><span className="text-right">No. of Clients</span>
+            <span>Area TL / Branch TL / Officer</span><span className="text-right">No. of Clients</span>
             <span className="text-right">Portfolio</span>
             <StatusHeader label="Current" /><StatusHeader label="Delayed" />
             <StatusHeader label="Past Due" /><StatusHeader label="Litigated" />
           </div>
           <div className="min-w-[1350px] divide-y divide-slate-200">
-            {areaTeamLeaders.map((areaTeamLeader) => (
-              <details key={areaTeamLeader.key} className="group/tl">
+            {teamLeaderPivot.map((leader) => (
+              <details key={leader.key} className="group/tl">
                 <summary className={`${officerRowGrid} cursor-pointer list-none bg-slate-50 px-4 py-3 hover:bg-blue-50 group-open/tl:bg-blue-100`}>
                   <span className="font-extrabold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open/tl:before:rotate-90">
-                    <span className="mr-2 text-xs uppercase tracking-wide text-slate-500">Area TL</span>
-                    {areaTeamLeader.name}
+                    <span className={`mr-2 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                      leader.kind === "AREA" ? "bg-blue-100 text-brand-blue" : leader.kind === "BRANCH" ? "bg-emerald-100 text-brand-green" : "bg-slate-200 text-slate-600"
+                    }`}>
+                      {leader.kind === "AREA" ? "Area TL" : leader.kind === "BRANCH" ? "Branch TL" : "No TL"}
+                    </span>
+                    {leader.name}
                   </span>
-                  <MetricCells
-                    metrics={areaTeamLeader.metrics}
-                    reportScope={{
-                      areaTeamLeaderId: areaTeamLeader.key === "unassigned-tl" ? "unassigned" : Number(areaTeamLeader.key),
-                      assignedOnly: true,
-                      locationName: `${areaTeamLeader.name} — All Assigned Locations`
-                    }}
-                  />
+                  <MetricCells metrics={leader.metrics} />
                 </summary>
                 <div className="border-t border-slate-100 pl-6">
-                {areaTeamLeader.accountOfficers.map((officer) => (
-              <details key={`${areaTeamLeader.key}-${officer.key}`} className="group/ao">
-                <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/ao:bg-blue-100`}>
-                  <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open/ao:before:rotate-90">
-                    {officer.name}
-                    {officer.key !== "unassigned" ? <OfficerBranchSummary officerId={Number(officer.key)} officerName={officer.name} /> : null}
-                  </span>
-                  <MetricCells
-                    metrics={officer.metrics}
-                    reportScope={{
-                      officerId: Number(officer.key),
-                      areaTeamLeaderId: areaTeamLeader.key === "unassigned-tl" ? "unassigned" : Number(areaTeamLeader.key),
-                      officerName: officer.name,
-                      locationName: `${officer.name} — All Assigned Locations`
-                    }}
-                  />
-                </summary>
-                <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
-                  {Array.from(officer.provinces.values()).sort(byPortfolioDesc).map((province) => (
-                    <details key={province.name} className="group/ao-province border-b border-slate-100 last:border-b-0">
-                      <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/ao-province:bg-blue-100`}>
-                        <span className="font-bold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/ao-province:before:rotate-90">{province.name}</span>
-                        <MetricCells
-                          metrics={province.metrics}
-                          reportScope={{
-                            officerId: Number(officer.key),
-                            areaTeamLeaderId: areaTeamLeader.key === "unassigned-tl" ? "unassigned" : Number(areaTeamLeader.key),
-                            officerName: officer.name,
-                            province: province.name,
-                            locationName: `${officer.name} — ${province.name}`
-                          }}
-                        />
+                  {leader.groups.map((group) => (group.name ? (
+                    <details key={group.key} className="group/branch border-b border-slate-100 last:border-b-0">
+                      <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/branch:bg-blue-100`}>
+                        <span className="font-bold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/branch:before:rotate-90">
+                          {group.name}
+                        </span>
+                        <MetricCells metrics={group.metrics} />
                       </summary>
-                      <div className="border-t border-slate-100 bg-white/70 pl-6">
-                        {Array.from(province.municipalities.values()).sort(byPortfolioDesc).map((municipality) => (
-                          <details key={municipality.name} className="group/ao-city border-b border-slate-100 last:border-b-0">
-                            <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/ao-city:bg-blue-100`}>
-                              <span className="font-semibold text-slate-700 before:mr-2 before:inline-block before:content-['▶'] group-open/ao-city:before:rotate-90">{municipality.name}</span>
-                              <MetricCells
-                                metrics={municipality.metrics}
-                                reportScope={{
-                                  officerId: Number(officer.key),
-                                  areaTeamLeaderId: areaTeamLeader.key === "unassigned-tl" ? "unassigned" : Number(areaTeamLeader.key),
-                                  officerName: officer.name,
-                                  province: province.name,
-                                  municipality: municipality.name,
-                                  locationName: `${officer.name} — ${municipality.name}, ${province.name}`
-                                }}
-                              />
-                            </summary>
-                            <div className="border-t border-slate-100 bg-white pl-8">
-                              {[...municipality.barangays].sort(byPortfolioDesc).map((barangay) => (
-                                <div key={barangay.id} className={`${officerRowGrid} selected-report-row border-b border-slate-100 px-4 py-3 last:border-b-0`}>
-                                  <span className="text-slate-700">{barangay.name}</span>
-                                  <span className="text-right">
-                                    <BarangayLoanReport
-                                      officerId={Number(officer.key)}
-                                      areaTeamLeaderId={areaTeamLeader.key === "unassigned-tl" ? "unassigned" : Number(areaTeamLeader.key)}
-                                      locationId={barangay.id}
-                                      clientCount={barangay.metrics.numberOfClients ?? 0}
-                                      officerName={officer.name}
-                                      locationName={`${barangay.name}, ${municipality.name}, ${province.name}`}
-                                    />
-                                  </span>
-                                  <MetricCells
-                                    metrics={barangay.metrics}
-                                    showClients={false}
-                                    reportScope={{
-                                      officerId: Number(officer.key),
-                                      areaTeamLeaderId: areaTeamLeader.key === "unassigned-tl" ? "unassigned" : Number(areaTeamLeader.key),
-                                      officerName: officer.name,
-                                      locationId: barangay.id,
-                                      locationName: `${officer.name} — ${barangay.name}, ${municipality.name}, ${province.name}`
-                                    }}
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                          </details>
-                        ))}
+                      <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
+                        {group.officers.map((officer) => <OfficerPivotRow key={officer.id} officer={officer} />)}
                       </div>
                     </details>
-                  ))}
-                </div>
-              </details>
-                ))}
+                  ) : (
+                    <div key={group.key} className="border-b border-slate-100 last:border-b-0">
+                      {group.officers.map((officer) => <OfficerPivotRow key={officer.id} officer={officer} />)}
+                    </div>
+                  )))}
+                  {!leader.groups.length ? <p className="px-4 py-4 text-sm text-slate-500">No officers assigned to this team leader yet.</p> : null}
                 </div>
               </details>
             ))}
-            {!accountOfficerCount ? <p className="px-4 py-8 text-center font-semibold text-slate-500">No linked Account Officer assignments found.</p> : null}
+            {!pivotOfficerCount ? <p className="px-4 py-8 text-center font-semibold text-slate-500">No Remedial or Loan Officers are assigned to a team leader yet.</p> : null}
           </div>
-          {accountOfficerCount ? (
+          {pivotOfficerCount ? (
             <div className={`${officerRowGrid} border-t-2 border-slate-300 bg-slate-50 px-4 py-3 font-extrabold text-slate-950`}>
               <span>Account Officer Total</span>
               <MetricCells
@@ -841,16 +881,10 @@ export default async function LocationMasterlistPage() {
       <AssignmentSummaryTable
         title="Zone Summary"
         label="Zone"
+        childLabel="District"
         rows={zoneSummary}
         total={accountOfficerTotal}
-      />
-
-      <AssignmentSummaryTable
-        title="District Summary"
-        label="District"
-        rows={districtSummary}
-        total={accountOfficerTotal}
-        description="District uses the Division value recorded in Account Tagging."
+        description="Assigned outstanding-loan portfolio summarized by Zone. Open a zone for its districts, which use the Division value recorded in Account Tagging."
       />
 
       <section className="panel overflow-hidden">
@@ -895,52 +929,23 @@ export default async function LocationMasterlistPage() {
   );
 }
 
-function AssignmentSummaryTable({
-  title,
-  label,
-  rows,
-  total,
-  description
-}: {
-  title: string;
-  label: string;
-  rows: AssignmentSummaryNode[];
-  total: Metrics;
-  description?: string;
-}) {
+function OfficerPivotRow({ officer }: { officer: PivotOfficerNode }) {
   return (
-    <section className="panel overflow-hidden">
-      <div className="border-b border-slate-200 p-5">
-        <h3 className="text-lg font-bold text-slate-950">{title}</h3>
-        <p className="mt-1 text-sm text-slate-600">
-          {description ?? `Assigned outstanding-loan portfolio summarized by ${label}.`}
-          {" "}The grand total counts each client only once.
-        </p>
-      </div>
-      <div className="overflow-x-auto text-sm">
-        <div className={`${officerRowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 shadow-sm`}>
-          <span>{label}</span><span className="text-right">No. of Clients</span>
-          <span className="text-right">Portfolio</span>
-          <StatusHeader label="Current" /><StatusHeader label="Delayed" />
-          <StatusHeader label="Past Due" /><StatusHeader label="Litigated" />
-        </div>
-        <div className="min-w-[1350px] divide-y divide-slate-100">
-          {rows.map((row) => (
-            <div key={row.key} className={`${officerRowGrid} px-4 py-3`}>
-              <span className="font-bold text-slate-900">{row.name}</span>
-              <MetricCells metrics={row.metrics} />
-            </div>
-          ))}
-          {!rows.length ? <p className="px-4 py-8 text-center font-semibold text-slate-500">No assigned {label.toLocaleLowerCase("en-US")} data found.</p> : null}
-        </div>
-        {rows.length ? (
-          <div className={`${officerRowGrid} border-t-2 border-slate-300 bg-slate-50 px-4 py-3 font-extrabold text-slate-950`}>
-            <span>Grand Total</span>
-            <MetricCells metrics={total} />
-          </div>
-        ) : null}
-      </div>
-    </section>
+    <div className={`${officerRowGrid} selected-report-row border-b border-slate-100 px-4 py-3 last:border-b-0`}>
+      <span className="font-semibold text-slate-800">
+        {officer.name}
+        <OfficerBranchSummary officerId={officer.id} officerName={officer.name} />
+        <OfficerLocationSummary officerId={officer.id} officerName={officer.name} />
+      </span>
+      <MetricCells
+        metrics={officer.metrics}
+        reportScope={{
+          officerId: officer.id,
+          officerName: officer.name,
+          locationName: `${officer.name} \u2014 All Assigned Locations`
+        }}
+      />
+    </div>
   );
 }
 
