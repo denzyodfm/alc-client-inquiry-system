@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Pencil, Plus, Search, Trash2, UserCog, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, Pencil, Plus, Search, Trash2, UserCog, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type User = {
@@ -50,6 +50,36 @@ function branchAccessLabel(user: User, branches: BranchOption[]) {
   return labels.length ? labels.join(", ") : "No branch access";
 }
 
+type SortKey = "name" | "email" | "privilege" | "position" | "baseBranch" | "branchTeamLeader" | "area" | "areaTeamLeader" | "branchAccess" | "status";
+
+function sortValue(user: User, key: SortKey, branches: BranchOption[]) {
+  switch (key) {
+    case "name": return user.name;
+    case "email": return user.email;
+    case "privilege": return user.role === "ADMIN" ? "Full access" : user.privilegeTemplate?.name ?? "";
+    case "position": return user.position ?? "";
+    case "baseBranch": return user.baseBranch ? `${user.baseBranch.branchName} - ${user.baseBranch.branchCode}` : "";
+    case "branchTeamLeader": return user.branchTeamLeader?.name ?? user.baseBranch?.branchTeamLeaderName ?? "";
+    case "area": return user.area?.name ?? "";
+    case "areaTeamLeader": return user.areaTeamLeader?.name ?? user.area?.areaTeamLeaderName ?? "";
+    case "branchAccess": return branchAccessLabel(user, branches);
+    case "status": return user.isActive ? "Active" : "Inactive";
+  }
+}
+
+const SORT_COLUMNS: Array<[SortKey, string]> = [
+  ["name", "User"],
+  ["email", "Email"],
+  ["privilege", "Privilege"],
+  ["position", "Position"],
+  ["baseBranch", "Base Branch"],
+  ["branchTeamLeader", "Branch TL"],
+  ["area", "Area"],
+  ["areaTeamLeader", "Area TL"],
+  ["branchAccess", "Branches"],
+  ["status", "Status"]
+];
+
 export function UserManager({
   initialUsers,
   branches,
@@ -81,6 +111,7 @@ export function UserManager({
   const [areaFilter, setAreaFilter] = useState("ALL");
   const [selectedAreaId, setSelectedAreaId] = useState("");
   const [selectedBaseBranchId, setSelectedBaseBranchId] = useState("");
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -104,6 +135,21 @@ export function UserManager({
     }),
     [users, searchFilter, privilegeFilter, baseBranchFilter, areaFilter]
   );
+  // Blank cells sort last in both directions so the filled rows stay together.
+  const sortedUsers = useMemo(
+    () => [...visibleUsers].sort((a, b) => {
+      const left = sortValue(a, sort.key, branches);
+      const right = sortValue(b, sort.key, branches);
+      if (!left || !right) return left ? -1 : right ? 1 : 0;
+      const comparison = left.localeCompare(right, "en", { numeric: true, sensitivity: "base" });
+      return sort.dir === "asc" ? comparison : -comparison;
+    }),
+    [visibleUsers, sort, branches]
+  );
+
+  function toggleSort(key: SortKey) {
+    setSort((current) => current.key === key ? { key, dir: current.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" });
+  }
 
   useEffect(() => {
     if (!formOpen) return;
@@ -443,7 +489,7 @@ export function UserManager({
       ) : null}
 
       <div className="panel overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-3 py-1.5">
           <div>
             <h3 className="font-bold text-slate-950">Users</h3>
             <p className="text-xs text-slate-500">{visibleUsers.length} of {users.length} shown</p>
@@ -455,7 +501,7 @@ export function UserManager({
             </button>
           ) : null}
         </div>
-        <div className="grid gap-2 border-b border-slate-200 bg-slate-50 p-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-2 border-b border-slate-200 bg-slate-50 p-2 sm:grid-cols-2 xl:grid-cols-4">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input
@@ -483,26 +529,38 @@ export function UserManager({
             <option value="UNSET">Area not set</option>
           </select>
         </div>
-        <div className="max-h-[calc(100vh-24rem)] min-h-80 overflow-auto overscroll-contain" style={{ scrollbarGutter: "stable" }}>
-          <table className="w-full min-w-[1340px] text-left text-xs">
-            <thead className="bg-slate-50 text-slate-500">
+        <div className="max-h-[calc(100vh-21rem)] min-h-64 overflow-auto overscroll-contain" style={{ scrollbarGutter: "stable" }}>
+          <table className="w-full min-w-[1400px] text-left text-xs">
+            <thead className="text-slate-500">
               <tr>
-                <th className="px-3 py-2">User</th>
-                <th className="px-3 py-2">Email</th>
-                <th className="px-3 py-2">Privilege</th>
-                <th className="px-3 py-2">Position</th>
-                <th className="px-3 py-2">Base Branch</th>
-                <th className="px-3 py-2">Branch TL</th>
-                <th className="px-3 py-2">Area</th>
-                <th className="px-3 py-2">Area TL</th>
-                <th className="px-3 py-2">Branches</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2 text-right">Actions</th>
+                <th scope="col" className="sticky top-0 z-10 bg-slate-50 px-3 py-2 font-semibold">#</th>
+                {SORT_COLUMNS.map(([key, label]) => (
+                  <th
+                    key={key}
+                    scope="col"
+                    aria-sort={sort.key === key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+                    className="sticky top-0 z-10 bg-slate-50 px-3 py-2"
+                  >
+                    <button
+                      type="button"
+                      className={`flex items-center gap-1 font-semibold transition hover:text-brand-blue ${sort.key === key ? "text-brand-blue" : ""}`}
+                      onClick={() => toggleSort(key)}
+                      title={`Sort by ${label}`}
+                    >
+                      {label}
+                      {sort.key === key
+                        ? sort.dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        : <ArrowUpDown className="h-3 w-3 opacity-30" />}
+                    </button>
+                  </th>
+                ))}
+                <th scope="col" className="sticky top-0 z-10 bg-slate-50 px-3 py-2 text-right font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {visibleUsers.map((user) => (
+              {sortedUsers.map((user, index) => (
                 <tr key={user.id} className="border-t border-slate-100">
+                  <td className="px-3 py-2 text-slate-400">{index + 1}</td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2 whitespace-nowrap font-semibold text-slate-900">
                       <UserCog className="h-3.5 w-3.5 shrink-0 text-brand-blue" />
@@ -568,9 +626,9 @@ export function UserManager({
                   </td>
                 </tr>
               ))}
-              {!visibleUsers.length ? (
+              {!sortedUsers.length ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={11}>No users match the selected filters.</td>
+                  <td className="px-4 py-6 text-slate-500" colSpan={12}>No users match the selected filters.</td>
                 </tr>
               ) : null}
             </tbody>

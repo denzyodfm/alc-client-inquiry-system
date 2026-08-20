@@ -1,6 +1,6 @@
 "use client";
 
-import { FileSpreadsheet, Printer, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, FileSpreadsheet, Printer, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { money } from "@/lib/format";
@@ -19,6 +19,27 @@ export type AccountOfficerSummaryRow = {
   litigated: number;
   litigatedBalance: number;
 };
+
+type SortKey = "name" | "numberOfClients" | "portfolio" | "current" | "delayed" | "pastDue" | "litigated";
+
+// Metric columns show a client count over a principal balance, so they sort on the count
+// with the balance breaking ties.
+const METRIC_BALANCE: Partial<Record<SortKey, keyof AccountOfficerSummaryRow>> = {
+  current: "currentBalance",
+  delayed: "delayedBalance",
+  pastDue: "pastDueBalance",
+  litigated: "litigatedBalance"
+};
+
+const GRID_COLUMNS = "grid min-w-[940px] grid-cols-[minmax(220px,1.6fr)_90px_150px_repeat(4,minmax(140px,1fr))] gap-2";
+
+function compareRows(a: AccountOfficerSummaryRow, b: AccountOfficerSummaryRow, key: SortKey) {
+  if (key === "name") return a.name.localeCompare(b.name, "en", { sensitivity: "base" });
+  const difference = (a[key] as number) - (b[key] as number);
+  if (difference) return difference;
+  const balanceKey = METRIC_BALANCE[key];
+  return balanceKey ? (a[balanceKey] as number) - (b[balanceKey] as number) : 0;
+}
 
 function countValue(value: number) {
   return value ? value.toLocaleString("en-US") : "-";
@@ -85,6 +106,15 @@ export function AccountOfficerSummary({
   rows: AccountOfficerSummaryRow[];
 }) {
   const [open, setOpen] = useState(false);
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
+  const sortedRows = useMemo(
+    () => [...rows].sort((a, b) => (sort.dir === "asc" ? 1 : -1) * compareRows(a, b, sort.key)),
+    [rows, sort]
+  );
+
+  function toggleSort(key: SortKey) {
+    setSort((current) => current.key === key ? { key, dir: current.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "name" ? "asc" : "desc" });
+  }
   const title = `Account Officer Summary - ${locationName}`;
   const excelFileName = useMemo(
     () => `account-officer-summary-${locationName.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLocaleLowerCase("en") || "location"}.xls`,
@@ -109,12 +139,12 @@ export function AccountOfficerSummary({
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
     printWindow.opener = null;
-    printWindow.document.write(`<!doctype html><html><head><title>${escapeHtml(title)}</title><style>${reportStyles}</style></head><body>${reportTable(locationName, rows)}<script>window.addEventListener("load",()=>window.print())</script></body></html>`);
+    printWindow.document.write(`<!doctype html><html><head><title>${escapeHtml(title)}</title><style>${reportStyles}</style></head><body>${reportTable(locationName, sortedRows)}<script>window.addEventListener("load",()=>window.print())</script></body></html>`);
     printWindow.document.close();
   }
 
   function downloadExcel() {
-    const workbook = `<!doctype html><html><head><meta charset="utf-8"><style>${reportStyles}</style></head><body>${reportTable(locationName, rows)}</body></html>`;
+    const workbook = `<!doctype html><html><head><meta charset="utf-8"><style>${reportStyles}</style></head><body>${reportTable(locationName, sortedRows)}</body></html>`;
     const url = URL.createObjectURL(new Blob(["\ufeff", workbook], { type: "application/vnd.ms-excel;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
@@ -149,7 +179,7 @@ export function AccountOfficerSummary({
             role="dialog"
             aria-modal="true"
             aria-label={title}
-            className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-2xl"
+            className="flex max-h-[92vh] w-full max-w-[96rem] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-2xl"
             onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >
@@ -171,13 +201,17 @@ export function AccountOfficerSummary({
               </div>
             </header>
             <div className="overflow-auto">
-              <div className="sticky top-0 z-10 grid min-w-[940px] grid-cols-[minmax(180px,1fr)_80px_130px_repeat(4,125px)] gap-2 border-b border-slate-200 bg-white px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-slate-500 shadow-sm">
-                <span>Account Officer</span><span className="text-right">Clients</span><span className="text-right">Portfolio</span>
-                <SummaryHeader label="Current" /><SummaryHeader label="Delayed" />
-                <SummaryHeader label="Past Due" /><SummaryHeader label="Litigated" />
+              <div className={`sticky top-0 z-10 ${GRID_COLUMNS} border-b border-slate-200 bg-white px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-slate-500 shadow-sm`}>
+                <SummaryHeader label="Account Officer" sortKey="name" sort={sort} onSort={toggleSort} />
+                <SummaryHeader label="Clients" sortKey="numberOfClients" sort={sort} onSort={toggleSort} align="right" />
+                <SummaryHeader label="Portfolio" sortKey="portfolio" sort={sort} onSort={toggleSort} align="right" />
+                <SummaryHeader label="Current" sortKey="current" sort={sort} onSort={toggleSort} align="right" caption />
+                <SummaryHeader label="Delayed" sortKey="delayed" sort={sort} onSort={toggleSort} align="right" caption />
+                <SummaryHeader label="Past Due" sortKey="pastDue" sort={sort} onSort={toggleSort} align="right" caption />
+                <SummaryHeader label="Litigated" sortKey="litigated" sort={sort} onSort={toggleSort} align="right" caption />
               </div>
-              {rows.map((row) => (
-                <div key={row.key} className="grid min-w-[940px] grid-cols-[minmax(180px,1fr)_80px_130px_repeat(4,125px)] gap-2 border-b border-slate-100 px-4 py-3 last:border-b-0">
+              {sortedRows.map((row) => (
+                <div key={row.key} className={`${GRID_COLUMNS} border-b border-slate-100 px-4 py-3 last:border-b-0`}>
                   <span className="font-semibold text-slate-800">{row.name.toLocaleUpperCase("en")}</span>
                   <span className="text-right font-bold text-brand-blue">{countValue(row.numberOfClients)}</span>
                   <span className="text-right font-bold text-red-700">{money(row.portfolio)}</span>
@@ -197,8 +231,38 @@ export function AccountOfficerSummary({
   );
 }
 
-function SummaryHeader({ label }: { label: string }) {
-  return <span className="text-right"><span className="block">{label}</span><span className="block text-[9px] normal-case tracking-normal">Clients / Principal</span></span>;
+function SummaryHeader({
+  label,
+  sortKey,
+  sort,
+  onSort,
+  align,
+  caption
+}: {
+  label: string;
+  sortKey: SortKey;
+  sort: { key: SortKey; dir: "asc" | "desc" };
+  onSort: (key: SortKey) => void;
+  align?: "right";
+  caption?: boolean;
+}) {
+  const active = sort.key === sortKey;
+  return (
+    <span className={align === "right" ? "text-right" : ""}>
+      <button
+        type="button"
+        className={`flex w-full items-center gap-1 uppercase tracking-wide transition hover:text-brand-blue ${align === "right" ? "justify-end" : ""} ${active ? "text-brand-blue" : ""}`}
+        onClick={() => onSort(sortKey)}
+        title={`Sort by ${label}`}
+      >
+        {label}
+        {active
+          ? sort.dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+          : <ArrowUpDown className="h-3 w-3 opacity-30" />}
+      </button>
+      {caption ? <span className="block text-[9px] normal-case tracking-normal">Clients / Principal</span> : null}
+    </span>
+  );
 }
 
 function SummaryMetric({ count, balance }: { count: number; balance: number }) {

@@ -54,10 +54,10 @@ export default async function UsersPage() {
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div>
-        <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Access control</p>
-        <h2 className="mt-2 text-3xl font-bold text-slate-950">User Management</h2>
+        <p className="text-xs font-semibold uppercase tracking-wide text-brand-green">Access control</p>
+        <h2 className="text-2xl font-bold text-slate-950">User Management</h2>
       </div>
       <UserManager
         initialUsers={users.map(({ area, baseBranch, ...user }) => ({

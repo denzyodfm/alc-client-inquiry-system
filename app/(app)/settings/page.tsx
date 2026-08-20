@@ -72,13 +72,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const areaOptions = areas.map(({ id, name, areaTeamLeader }) => ({ id, name, areaTeamLeaderName: areaTeamLeader?.name ?? null }));
   const teamLeaderOptions = canSettings || canUsers ? await listAreaTeamLeaders() : [];
 
-  return <div className="space-y-4">
-    <h2 className="text-xl font-bold text-slate-950">Settings</h2>
-    <nav className="flex gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1" aria-label="Settings sections">
+  return <div className="space-y-2">
+    <h2 className="text-lg font-bold text-slate-950">Settings</h2>
+    <nav className="flex gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-white p-0.5" aria-label="Settings sections">
       {allowedTabs.map((tab) => <Link key={tab.key} href={`/settings?tab=${tab.key}`} className={`whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-semibold transition ${activeTab === tab.key ? "bg-brand-blue text-white" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"}`}>{tab.label}</Link>)}
     </nav>
 
-    <div className="max-h-[calc(100vh-25rem)] min-h-64 overflow-auto overscroll-contain pr-1">
+    <div className={activeTab === "users" ? "min-h-64 pr-1" : "max-h-[calc(100vh-25rem)] min-h-64 overflow-auto overscroll-contain pr-1"}>
     {activeTab === "general" ? <section className="grid gap-4 xl:grid-cols-3">
       <div className="panel p-5"><div className="mb-4 flex h-11 w-11 items-center justify-center rounded-md bg-blue-50 text-brand-blue"><TimerReset className="h-5 w-5" /></div><h3 className="font-bold text-slate-950">Midnight Sync Cron</h3><p className="mt-4 text-sm leading-6 text-slate-600">Automatically syncs online active branches every midnight while the app server is running.</p><dl className="mt-4 space-y-2 text-sm"><div className="flex justify-between gap-3"><dt className="font-semibold text-slate-500">Status</dt><dd className="font-bold text-slate-950">{schedule.enabled ? "Enabled" : "Disabled"}</dd></div><div className="flex justify-between gap-3"><dt className="font-semibold text-slate-500">Next run</dt><dd className="font-bold text-slate-950">{dateTime(schedule.nextRunAt)}</dd></div></dl></div>
       <div className="panel p-5"><div className="mb-4 flex h-11 w-11 items-center justify-center rounded-md bg-emerald-50 text-brand-green"><ServerCog className="h-5 w-5" /></div><h3 className="font-bold text-slate-950">Sync Batch Size</h3><p className="mt-4 text-3xl font-bold text-slate-950">{process.env.SYNC_BATCH_SIZE || 500}</p><p className="mt-2 text-sm text-slate-500">Rows requested from each branch table per run.</p></div>
