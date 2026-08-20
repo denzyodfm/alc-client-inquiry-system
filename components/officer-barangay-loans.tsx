@@ -93,6 +93,8 @@ export function BarangayLoanReport({
   locationName,
   province,
   municipality,
+  zone,
+  district,
   assignedOnly = false,
   category = "all"
 }: {
@@ -105,6 +107,8 @@ export function BarangayLoanReport({
   locationName: string;
   province?: string;
   municipality?: string;
+  zone?: string;
+  district?: string;
   assignedOnly?: boolean;
   category?: LocationReportCategory;
 }) {
@@ -126,9 +130,11 @@ export function BarangayLoanReport({
     if (areaTeamLeaderId !== undefined) params.set("areaTeamLeaderId", String(areaTeamLeaderId));
     if (province) params.set("province", province);
     if (municipality) params.set("municipality", municipality);
+    if (zone) params.set("zone", zone);
+    if (district) params.set("district", district);
     if (assignedOnly) params.set("assignedOnly", "1");
     return `/api/location-masterlist/officer-loans?${params.toString()}`;
-  }, [areaTeamLeaderId, assignedOnly, branchId, category, locationId, locationName, municipality, officerId, province, sort]);
+  }, [areaTeamLeaderId, assignedOnly, branchId, category, district, locationId, locationName, municipality, officerId, province, sort, zone]);
 
   function toggleSort(key: SortKey) {
     setPage(1);

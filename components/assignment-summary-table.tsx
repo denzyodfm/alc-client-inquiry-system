@@ -2,6 +2,7 @@
 
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { useMemo, useState } from "react";
+import { DistrictOfficerSummary } from "@/components/district-officer-summary";
 
 export type SummaryMetrics = {
   numberOfClients: number | null;
@@ -21,6 +22,9 @@ export type SummaryRow = {
   name: string;
   metrics: SummaryMetrics;
   children?: SummaryRow[];
+  // Set on district rows so the name opens the officers carrying that district's loans.
+  zone?: string;
+  district?: string;
 };
 
 type SortKey = "name" | "numberOfClients" | "portfolio" | "current" | "delayed" | "pastDue" | "litigated";
@@ -113,7 +117,11 @@ export function AssignmentSummaryTable({
               <div className="bg-white/60">
                 {row.children.map((child) => (
                   <div key={child.key} className={`${ROW_GRID} border-t border-slate-100 px-4 py-3 pl-10`}>
-                    <span className="text-slate-700">{child.name}</span>
+                    <span className="text-slate-700">
+                      {child.zone && child.district
+                        ? <DistrictOfficerSummary zone={child.zone} district={child.district} label={child.name} />
+                        : child.name}
+                    </span>
                     <MetricCells metrics={child.metrics} />
                   </div>
                 ))}

@@ -685,6 +685,8 @@ export default async function LocationMasterlistPage() {
         .map(([districtKey, districtName]) => ({
           key: `${zoneKey}-${districtKey}`,
           name: districtName,
+          zone: name,
+          district: districtName,
           metrics: accumulatedMetrics(metricsByZoneDistrict.get(`${zoneKey}\u0000${districtKey}`))
         }))
         .sort(byPortfolioDesc)
@@ -870,13 +872,6 @@ export default async function LocationMasterlistPage() {
           ) : null}
         </div>
       </section>
-
-      <AssignmentSummaryTable
-        title="Area Team Leader Summary"
-        label="Area Team Leader"
-        rows={areaTeamLeaderSummary}
-        total={accountOfficerTotal}
-      />
 
       <AssignmentSummaryTable
         title="Zone Summary"

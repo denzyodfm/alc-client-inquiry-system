@@ -78,6 +78,20 @@ export async function GET(request: NextRequest) {
   const province = request.nextUrl.searchParams.get("province")?.trim() || "";
   const municipality = request.nextUrl.searchParams.get("municipality")?.trim() || "";
   const assignedOnly = request.nextUrl.searchParams.get("assignedOnly") === "1";
+  // Zone and district come from Account Tagging. The "NOT SET" rows stand for assignments
+  // that carry no value, so they match null and empty alike.
+  const zone = request.nextUrl.searchParams.get("zone")?.trim() || "";
+  const district = request.nextUrl.searchParams.get("district")?.trim() || "";
+  const zoneWhere: Prisma.RemedialAssignmentWhereInput = !zone
+    ? {}
+    : zone.toLocaleUpperCase("en") === "ZONE NOT SET"
+      ? { OR: [{ zone: null }, { zone: "" }] }
+      : { zone };
+  const districtWhere: Prisma.RemedialAssignmentWhereInput = !district
+    ? {}
+    : district.toLocaleUpperCase("en") === "DISTRICT NOT SET"
+      ? { OR: [{ division: null }, { division: "" }] }
+      : { division: district };
   const requestedCategory = request.nextUrl.searchParams.get("category") ?? "all";
   const category: Category = categories.includes(requestedCategory as Category) ? requestedCategory as Category : "all";
   const context = request.nextUrl.searchParams.get("context")?.trim() || "Account Officer Location Pivot";
@@ -92,7 +106,7 @@ export async function GET(request: NextRequest) {
       && (!Number.isInteger(areaTeamLeaderId) || Number(areaTeamLeaderId) <= 0))
     || (locationId !== null && (!Number.isInteger(locationId) || locationId <= 0))
     || (branchId !== null && (!Number.isInteger(branchId) || branchId <= 0))
-    || (!locationId && !officerId && !assignedOnly)
+    || (!locationId && !officerId && !assignedOnly && !zone && !district)
   ) {
     return NextResponse.json({ error: "A valid Account Officer or location report scope is required." }, { status: 400 });
   }
@@ -110,7 +124,8 @@ export async function GET(request: NextRequest) {
     ...(effectiveOfficerId ? { assignedToId: effectiveOfficerId } : assignedOnly ? { assignedToId: { not: null } } : {}),
     ...(areaTeamLeaderParam
       ? { areaTeamLeaderId: areaTeamLeaderParam === "unassigned" ? null : areaTeamLeaderId }
-      : {})
+      : {}),
+    ...(zone || district ? { AND: [zoneWhere, districtWhere] } : {})
   };
 
   const accessibleBranchIds = user.role === "ACCOUNT_OFFICER" ? null : await getAccessibleBranchIds(user);
