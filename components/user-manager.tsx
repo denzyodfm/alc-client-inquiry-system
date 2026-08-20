@@ -2,6 +2,7 @@
 
 import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, Pencil, Plus, Search, Trash2, UserCog, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { privilegeAssignmentRules } from "@/lib/privilege-assignment";
 
 type User = {
   id: number;
@@ -59,9 +60,13 @@ function sortValue(user: User, key: SortKey, branches: BranchOption[]) {
     case "privilege": return user.role === "ADMIN" ? "Full access" : user.privilegeTemplate?.name ?? "";
     case "position": return user.position ?? "";
     case "baseBranch": return user.baseBranch ? `${user.baseBranch.branchName} - ${user.baseBranch.branchCode}` : "";
-    case "branchTeamLeader": return user.branchTeamLeader?.name ?? user.baseBranch?.branchTeamLeaderName ?? "";
+    case "branchTeamLeader": return privilegeAssignmentRules(user.privilegeTemplate?.name).allowsBranchTeamLeader
+      ? user.branchTeamLeader?.name ?? user.baseBranch?.branchTeamLeaderName ?? ""
+      : "";
     case "area": return user.area?.name ?? "";
-    case "areaTeamLeader": return user.areaTeamLeader?.name ?? user.area?.areaTeamLeaderName ?? "";
+    case "areaTeamLeader": return privilegeAssignmentRules(user.privilegeTemplate?.name).allowsAreaTeamLeader
+      ? user.areaTeamLeader?.name ?? user.area?.areaTeamLeaderName ?? ""
+      : "";
     case "branchAccess": return branchAccessLabel(user, branches);
     case "status": return user.isActive ? "Active" : "Inactive";
   }
@@ -112,6 +117,7 @@ export function UserManager({
   const [selectedAreaId, setSelectedAreaId] = useState("");
   const [selectedBaseBranchId, setSelectedBaseBranchId] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
+  const [selectedPrivilegeId, setSelectedPrivilegeId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -183,6 +189,7 @@ export function UserManager({
     setAllBranches(canGrantAllBranches);
     setSelectedAreaId("");
     setSelectedBaseBranchId("");
+    setSelectedPrivilegeId("");
     setFormOpen(true);
   }
 
@@ -192,6 +199,7 @@ export function UserManager({
     setAllBranches(user.allBranches);
     setSelectedAreaId(user.areaId ? String(user.areaId) : "");
     setSelectedBaseBranchId(user.baseBranchId ? String(user.baseBranchId) : "");
+    setSelectedPrivilegeId(user.privilegeTemplateId ? String(user.privilegeTemplateId) : "");
     setFormOpen(true);
   }
 
@@ -321,6 +329,8 @@ export function UserManager({
   const areaRequired = formRole === "ACCOUNT_OFFICER";
   const selectedArea = areas.find((area) => String(area.id) === selectedAreaId) ?? null;
   const selectedBaseBranch = branches.find((branch) => String(branch.id) === selectedBaseBranchId) ?? null;
+  const selectedPrivilegeName = privileges.find((privilege) => String(privilege.id) === selectedPrivilegeId)?.name ?? null;
+  const assignment = privilegeAssignmentRules(selectedPrivilegeName);
 
   return (
     <div className="space-y-4">
@@ -365,7 +375,7 @@ export function UserManager({
             </div> : null}
             <input type="hidden" name="role" value={formRole} />
             {isAdmin ? (
-              editingUser?.role === "ADMIN" ? <div><label className="mb-1 block text-xs font-semibold text-slate-600">Privilege</label><div className="field bg-emerald-50 font-semibold text-brand-green">Administrator - full access (protected)</div></div> : <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Privilege</span><select name="privilegeTemplateId" className="field" defaultValue={editingUser?.privilegeTemplateId ?? ""} required>
+              editingUser?.role === "ADMIN" ? <div><label className="mb-1 block text-xs font-semibold text-slate-600">Privilege</label><div className="field bg-emerald-50 font-semibold text-brand-green">Administrator - full access (protected)</div></div> : <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Privilege</span><select name="privilegeTemplateId" className="field" value={selectedPrivilegeId} onChange={(event) => setSelectedPrivilegeId(event.target.value)} required>
                   <option value="" disabled>Select privilege</option>
                   {privileges.map((privilege) => <option key={privilege.id} value={privilege.id}>{privilege.name}</option>)}
                 </select></label>
@@ -392,12 +402,20 @@ export function UserManager({
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-semibold text-slate-600">Branch TL</span>
-              <select name="branchTeamLeaderId" className="field" defaultValue={editingUser?.branchTeamLeaderId ?? ""}>
-                <option value="">{selectedBaseBranch?.branchTeamLeaderName ? `Use branch's Branch TL (${selectedBaseBranch.branchTeamLeaderName})` : "No Branch TL"}</option>
+              <select
+                name="branchTeamLeaderId"
+                className="field disabled:bg-slate-100 disabled:text-slate-400"
+                key={assignment.allowsBranchTeamLeader ? "branch-tl" : "branch-tl-off"}
+                defaultValue={assignment.allowsBranchTeamLeader ? editingUser?.branchTeamLeaderId ?? "" : ""}
+                disabled={!assignment.allowsBranchTeamLeader}
+              >
+                <option value="">{assignment.allowsBranchTeamLeader && selectedBaseBranch?.branchTeamLeaderName ? `Use branch's Branch TL (${selectedBaseBranch.branchTeamLeaderName})` : "No Branch TL"}</option>
                 {branchTeamLeaders.filter((leader) => leader.id !== editingUser?.id).map((leader) => <option key={leader.id} value={leader.id}>{leader.name}</option>)}
               </select>
-              <span className="mt-1 block text-xs text-slate-500">This user belongs to the selected Branch TL. Leave blank to follow the base branch{selectedBaseBranch ? (selectedBaseBranch.branchTeamLeaderName ? "" : ", which has no Branch TL set") : ", which is not set"}.</span>
-              {!branchTeamLeaders.length ? <span className="mt-1 block text-xs font-semibold text-red-600">No users hold the Branch TL privilege yet.</span> : null}
+              {assignment.allowsBranchTeamLeader ? <>
+                <span className="mt-1 block text-xs text-slate-500">This user belongs to the selected Branch TL. Leave blank to follow the base branch{selectedBaseBranch ? (selectedBaseBranch.branchTeamLeaderName ? "" : ", which has no Branch TL set") : ", which is not set"}.</span>
+                {!branchTeamLeaders.length ? <span className="mt-1 block text-xs font-semibold text-red-600">No users hold the Branch TL privilege yet.</span> : null}
+              </> : <span className="mt-1 block text-xs text-slate-500">{selectedPrivilegeName} users are organised by area, so they carry no Branch TL.</span>}
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-semibold text-slate-600">Assigned Area{areaRequired ? "" : " (optional)"}</span>
@@ -409,12 +427,20 @@ export function UserManager({
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-semibold text-slate-600">Area TL</span>
-              <select name="areaTeamLeaderId" className="field" defaultValue={editingUser?.areaTeamLeaderId ?? ""}>
-                <option value="">{selectedArea?.areaTeamLeaderName ? `Use area's Area TL (${selectedArea.areaTeamLeaderName})` : "No Area TL"}</option>
+              <select
+                name="areaTeamLeaderId"
+                className="field disabled:bg-slate-100 disabled:text-slate-400"
+                key={assignment.allowsAreaTeamLeader ? "area-tl" : "area-tl-off"}
+                defaultValue={assignment.allowsAreaTeamLeader ? editingUser?.areaTeamLeaderId ?? "" : ""}
+                disabled={!assignment.allowsAreaTeamLeader}
+              >
+                <option value="">{assignment.allowsAreaTeamLeader && selectedArea?.areaTeamLeaderName ? `Use area's Area TL (${selectedArea.areaTeamLeaderName})` : "No Area TL"}</option>
                 {teamLeaders.filter((leader) => leader.id !== editingUser?.id).map((leader) => <option key={leader.id} value={leader.id}>{leader.name}</option>)}
               </select>
-              <span className="mt-1 block text-xs text-slate-500">This user belongs to the selected Area TL. Leave blank to follow the assigned area{selectedArea?.areaTeamLeaderName ? "" : ", which has no Area TL set"}.</span>
-              {!teamLeaders.length ? <span className="mt-1 block text-xs font-semibold text-red-600">No users hold the Area TL privilege yet.</span> : null}
+              {assignment.allowsAreaTeamLeader ? <>
+                <span className="mt-1 block text-xs text-slate-500">This user belongs to the selected Area TL. Leave blank to follow the assigned area{selectedArea?.areaTeamLeaderName ? "" : ", which has no Area TL set"}.</span>
+                {!teamLeaders.length ? <span className="mt-1 block text-xs font-semibold text-red-600">No users hold the Area TL privilege yet.</span> : null}
+              </> : <span className="mt-1 block text-xs text-slate-500">{selectedPrivilegeName} users are organised by branch, so they carry no Area TL.</span>}
             </label>
             <div className="rounded-lg border border-slate-200 p-3">
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
@@ -558,7 +584,9 @@ export function UserManager({
               </tr>
             </thead>
             <tbody>
-              {sortedUsers.map((user, index) => (
+              {sortedUsers.map((user, index) => {
+                const rowAssignment = privilegeAssignmentRules(user.privilegeTemplate?.name);
+                return (
                 <tr key={user.id} className="border-t border-slate-100">
                   <td className="px-3 py-2 text-slate-400">{index + 1}</td>
                   <td className="px-3 py-2">
@@ -574,21 +602,25 @@ export function UserManager({
                     {user.baseBranch ? `${user.baseBranch.branchName} - ${user.baseBranch.branchCode}` : <span className="text-slate-400">-</span>}
                   </td>
                   <td className="px-3 py-2">
-                    {user.branchTeamLeader
-                      ? <span className="font-semibold text-slate-900">{user.branchTeamLeader.name}</span>
-                      : user.baseBranch?.branchTeamLeaderName
-                        ? <><span className="block text-slate-700">{user.baseBranch.branchTeamLeaderName}</span><span className="block text-xs text-slate-400">from branch</span></>
-                        : <span className="text-slate-400">-</span>}
+                    {!rowAssignment.allowsBranchTeamLeader
+                      ? <span className="text-slate-400">-</span>
+                      : user.branchTeamLeader
+                        ? <span className="font-semibold text-slate-900">{user.branchTeamLeader.name}</span>
+                        : user.baseBranch?.branchTeamLeaderName
+                          ? <><span className="block text-slate-700">{user.baseBranch.branchTeamLeaderName}</span><span className="block text-xs text-slate-400">from branch</span></>
+                          : <span className="text-slate-400">-</span>}
                   </td>
                   <td className="px-3 py-2">
                     {user.area ? user.area.name : user.role === "ACCOUNT_OFFICER" ? <span className="font-semibold text-red-600">No area</span> : <span className="text-slate-400">-</span>}
                   </td>
                   <td className="px-3 py-2">
-                    {user.areaTeamLeader
-                      ? <span className="font-semibold text-slate-900">{user.areaTeamLeader.name}</span>
-                      : user.area?.areaTeamLeaderName
-                        ? <><span className="block text-slate-700">{user.area.areaTeamLeaderName}</span><span className="block text-xs text-slate-400">from area</span></>
-                        : user.role === "ACCOUNT_OFFICER" ? <span className="font-semibold text-red-600">No Area TL</span> : <span className="text-slate-400">-</span>}
+                    {!rowAssignment.allowsAreaTeamLeader
+                      ? <span className="text-slate-400">-</span>
+                      : user.areaTeamLeader
+                        ? <span className="font-semibold text-slate-900">{user.areaTeamLeader.name}</span>
+                        : user.area?.areaTeamLeaderName
+                          ? <><span className="block text-slate-700">{user.area.areaTeamLeaderName}</span><span className="block text-xs text-slate-400">from area</span></>
+                          : user.role === "ACCOUNT_OFFICER" ? <span className="font-semibold text-red-600">No Area TL</span> : <span className="text-slate-400">-</span>}
                   </td>
                   <td className="px-3 py-2">
                     {user.role === "ADMIN" || user.allBranches ? (
@@ -625,7 +657,8 @@ export function UserManager({
                     </div> : <span className="text-xs text-slate-400">View only</span>}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {!sortedUsers.length ? (
                 <tr>
                   <td className="px-4 py-6 text-slate-500" colSpan={12}>No users match the selected filters.</td>

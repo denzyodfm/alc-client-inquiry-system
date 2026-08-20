@@ -5,6 +5,7 @@ import { requireApiFunction } from "@/lib/api";
 import { getAccessibleBranchIds } from "@/lib/auth";
 import { isAreaTeamLeader } from "@/lib/area-team-leaders";
 import { isBranchTeamLeader } from "@/lib/branch-team-leaders";
+import { privilegeAssignmentRules } from "@/lib/privilege-assignment";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -87,9 +88,9 @@ export async function POST(request: Request) {
   const requestedAreaId = Number(body.areaId);
   const areaId = Number.isInteger(requestedAreaId) && requestedAreaId > 0 ? requestedAreaId : null;
   const requestedAreaTeamLeaderId = Number(body.areaTeamLeaderId);
-  const areaTeamLeaderId = Number.isInteger(requestedAreaTeamLeaderId) && requestedAreaTeamLeaderId > 0 ? requestedAreaTeamLeaderId : null;
+  let areaTeamLeaderId = Number.isInteger(requestedAreaTeamLeaderId) && requestedAreaTeamLeaderId > 0 ? requestedAreaTeamLeaderId : null;
   const requestedBranchTeamLeaderId = Number(body.branchTeamLeaderId);
-  const branchTeamLeaderId = Number.isInteger(requestedBranchTeamLeaderId) && requestedBranchTeamLeaderId > 0 ? requestedBranchTeamLeaderId : null;
+  let branchTeamLeaderId = Number.isInteger(requestedBranchTeamLeaderId) && requestedBranchTeamLeaderId > 0 ? requestedBranchTeamLeaderId : null;
 
   if (!name || !email || !password) {
     return NextResponse.json({ error: "Name, email, and password are required." }, { status: 400 });
@@ -126,9 +127,15 @@ export async function POST(request: Request) {
   if (baseBranchId !== null && !(await prisma.branch.count({ where: { id: baseBranchId } }))) {
     return NextResponse.json({ error: "Invalid base branch selected." }, { status: 400 });
   }
-  if (privilegeTemplateId !== null && !(await prisma.privilegeTemplate.count({ where: { id: privilegeTemplateId } }))) {
+  const privilege = privilegeTemplateId !== null
+    ? await prisma.privilegeTemplate.findUnique({ where: { id: privilegeTemplateId }, select: { name: true } })
+    : null;
+  if (privilegeTemplateId !== null && !privilege) {
     return NextResponse.json({ error: "Invalid privilege selected." }, { status: 400 });
   }
+  const assignment = privilegeAssignmentRules(privilege?.name);
+  if (!assignment.allowsAreaTeamLeader) areaTeamLeaderId = null;
+  if (!assignment.allowsBranchTeamLeader) branchTeamLeaderId = null;
   if (role === "ACCOUNT_OFFICER" && areaId === null) {
     return NextResponse.json({ error: "Select an assigned area for this Account Officer." }, { status: 400 });
   }
