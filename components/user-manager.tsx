@@ -38,10 +38,6 @@ type BranchOption = {
   branchTeamLeaderName?: string | null;
 };
 
-function roleLabel(role: string) {
-  return role.replace(/_/g, " ");
-}
-
 function branchAccessLabel(user: User, branches: BranchOption[]) {
   if (user.role === "ADMIN" || user.allBranches) return "All branches";
 
@@ -488,12 +484,11 @@ export function UserManager({
           </select>
         </div>
         <div className="max-h-[calc(100vh-24rem)] min-h-80 overflow-auto overscroll-contain" style={{ scrollbarGutter: "stable" }}>
-          <table className="w-full min-w-[1460px] text-left text-xs">
+          <table className="w-full min-w-[1340px] text-left text-xs">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
                 <th className="px-3 py-2">User</th>
                 <th className="px-3 py-2">Email</th>
-                <th className="px-3 py-2">Role</th>
                 <th className="px-3 py-2">Privilege</th>
                 <th className="px-3 py-2">Position</th>
                 <th className="px-3 py-2">Base Branch</th>
@@ -515,7 +510,6 @@ export function UserManager({
                     </div>
                   </td>
                   <td className="whitespace-nowrap px-3 py-2">{user.email}</td>
-                  <td className="whitespace-nowrap px-3 py-2">{roleLabel(user.role)}</td>
                   <td className="px-3 py-2">{user.role === "ADMIN" ? <span className="font-semibold text-brand-green">Full access</span> : user.privilegeTemplate?.name || <span className="font-semibold text-red-600">No app access</span>}</td>
                   <td className="px-3 py-2">{user.position || <span className="text-slate-400">-</span>}</td>
                   <td className="px-3 py-2">
@@ -576,7 +570,7 @@ export function UserManager({
               ))}
               {!visibleUsers.length ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={12}>No users match the selected filters.</td>
+                  <td className="px-4 py-6 text-slate-500" colSpan={11}>No users match the selected filters.</td>
                 </tr>
               ) : null}
             </tbody>
