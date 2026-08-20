@@ -6,7 +6,7 @@ import { getAccessibleBranchIds } from "@/lib/auth";
 import { isAreaTeamLeader } from "@/lib/area-team-leaders";
 import { isBranchTeamLeader } from "@/lib/branch-team-leaders";
 import { privilegeAssignmentRules } from "@/lib/privilege-assignment";
-import { requestIp, writeAudit } from "@/lib/audit";
+import { auditAction } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 function parseRole(value: unknown) {
@@ -155,16 +155,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
       return updated;
     });
+    await auditAction(request, currentUser!, "USER_UPDATE", "User Management", `Updated ${name} (${email})`);
     if (passwordHash) {
-      await writeAudit({
-        userId: currentUser!.id,
-        userName: currentUser!.name,
-        userEmail: currentUser!.email,
-        action: "PASSWORD_RESET",
-        module: "User Management",
-        details: `Reset password for ${name} (${email})`,
-        ipAddress: requestIp(request)
-      });
+      await auditAction(request, currentUser!, "PASSWORD_RESET", "User Management", `Reset password for ${name} (${email})`);
     }
     return NextResponse.json(user);
   } catch (error) {
@@ -222,15 +215,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
       await tx.user.delete({ where: { id: userId } });
       return detached.count;
     });
-    await writeAudit({
-      userId: currentUser!.id,
-      userName: currentUser!.name,
-      userEmail: currentUser!.email,
-      action: "USER_DELETE",
-      module: "User Management",
-      details: `Deleted ${existingUser.name} (${existingUser.email})${unassignedRemedial ? `, unassigning ${countLabel(unassignedRemedial, "remedial assignment")}` : ""}`,
-      ipAddress: requestIp(request)
-    });
+    await auditAction(request, currentUser!, "USER_DELETE", "User Management", `Deleted ${existingUser.name} (${existingUser.email})${unassignedRemedial ? `, unassigning ${countLabel(unassignedRemedial, "remedial assignment")}` : ""}`);
     return NextResponse.json({ ok: true, unassignedRemedial });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {

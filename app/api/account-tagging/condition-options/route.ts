@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireApiFunction } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { auditAction } from "@/lib/audit";
 
 export async function POST(request: Request) {
   const { user, response } = await requireApiFunction("ACCOUNT_TAGGING");
@@ -18,5 +19,6 @@ export async function POST(request: Request) {
     update: {}
   });
 
+  await auditAction(request, user, "CLIENT_CONDITION_OPTION_ADD", "Client Condition", `Added the client condition option ${name}`);
   return NextResponse.json({ ok: true, name });
 }

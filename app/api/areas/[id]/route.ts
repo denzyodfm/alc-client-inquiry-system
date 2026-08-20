@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { requireApiFunction } from "@/lib/api";
+import { auditAction } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { isAreaTeamLeader } from "@/lib/area-team-leaders";
 
@@ -16,7 +17,7 @@ async function resolveAreaTeamLeaderId(value: unknown) {
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const { response } = await requireApiFunction("SETTINGS_ACCESS");
+  const { user, response } = await requireApiFunction("SETTINGS_ACCESS");
   if (response) return response;
   const { id } = await context.params;
   const areaId = Number(id);
@@ -30,6 +31,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (leaderError) return NextResponse.json({ error: leaderError }, { status: 400 });
   try {
     await prisma.area.update({ where: { id: areaId }, data: { name, description, areaTeamLeaderId } });
+    await auditAction(request, user!, "AREA_UPDATE", "Areas", `Updated area ${name}`);
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -42,8 +44,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 }
 
-export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const { response } = await requireApiFunction("SETTINGS_ACCESS");
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+  const { user, response } = await requireApiFunction("SETTINGS_ACCESS");
   if (response) return response;
   const { id } = await context.params;
   const areaId = Number(id);
@@ -59,7 +61,8 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   }
 
   try {
-    await prisma.area.delete({ where: { id: areaId } });
+    const deleted = await prisma.area.delete({ where: { id: areaId } });
+    await auditAction(request, user!, "AREA_DELETE", "Areas", `Deleted area ${deleted.name}`);
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {

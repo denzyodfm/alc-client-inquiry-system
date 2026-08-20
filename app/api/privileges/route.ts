@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { requireApiFunction } from "@/lib/api";
+import { auditAction } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -17,7 +18,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { response } = await requireApiFunction("SETTINGS_ACCESS");
+  const { user, response } = await requireApiFunction("SETTINGS_ACCESS");
   if (response) return response;
   const body = await request.json();
   const name = String(body.name ?? "").trim();
@@ -26,6 +27,7 @@ export async function POST(request: Request) {
 
   try {
     const template = await prisma.privilegeTemplate.create({ data: { name, description } });
+    await auditAction(request, user!, "PRIVILEGE_CREATE", "Privileges", `Created privilege ${name}`);
     return NextResponse.json(template, { status: 201 });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {

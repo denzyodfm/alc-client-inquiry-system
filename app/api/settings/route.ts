@@ -3,6 +3,7 @@ import { requireApiFunction } from "@/lib/api";
 import { getMidnightSyncSchedule } from "@/lib/midnight-sync-scheduler";
 import { getFooterBranding } from "@/lib/footer-branding";
 import { prisma } from "@/lib/prisma";
+import { auditAction } from "@/lib/audit";
 
 export async function GET() {
   const { response } = await requireApiFunction("SETTINGS_ACCESS");
@@ -18,7 +19,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const { response } = await requireApiFunction("SETTINGS_ACCESS");
+  const { user, response } = await requireApiFunction("SETTINGS_ACCESS");
   if (response) return response;
   const body = await request.json().catch(() => null);
   const poweredByLabel = String(body?.poweredByLabel ?? "").trim();
@@ -32,5 +33,6 @@ export async function PATCH(request: Request) {
     update: { poweredByLabel, partnerName, itTeamLabel },
     select: { poweredByLabel: true, partnerName: true, itTeamLabel: true }
   });
+  await auditAction(request, user!, "SETTINGS_UPDATE", "Settings", "Updated the footer branding");
   return NextResponse.json({ footerBranding });
 }

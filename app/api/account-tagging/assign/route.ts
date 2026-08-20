@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { canAccessBranch, getAccessibleBranchIds } from "@/lib/auth";
 import { requireApiFunction } from "@/lib/api";
+import { auditAction } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 const ASSIGNMENT_ROLES = ["ADMIN", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] as const;
@@ -151,6 +152,7 @@ export async function POST(request: Request) {
       )
     );
 
+    await auditAction(request, user!, "ACCOUNT_TAGGING_UPDATE", "Account Tagging", `Corrected the location of ${loans.length} loan(s) from the Location Report`);
     return NextResponse.json({ ok: true, count: loans.length });
   }
 
@@ -221,6 +223,7 @@ export async function POST(request: Request) {
       }
     });
 
+    await auditAction(request, user!, "ACCOUNT_TAGGING_UPDATE", "Account Tagging", `Corrected the tagging of loan ${loanId}`);
     return NextResponse.json({ ok: true, count: 1 });
   }
 
@@ -355,5 +358,6 @@ export async function POST(request: Request) {
     return saved;
   });
 
+  await auditAction(request, user!, "ACCOUNT_TAGGING_ASSIGN", "Account Tagging", `Tagged ${assignments.length} account(s)`);
   return NextResponse.json({ ok: true, count: assignments.length });
 }

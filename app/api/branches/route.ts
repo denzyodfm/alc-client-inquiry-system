@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireBranchAccess, toAssignOnlyBranch } from "@/lib/branch-access";
 import { isBranchTeamLeader } from "@/lib/branch-team-leaders";
 import { prisma } from "@/lib/prisma";
+import { auditAction } from "@/lib/audit";
 import { encryptSecret } from "@/lib/crypto";
 import { Prisma } from "@prisma/client";
 
@@ -35,7 +36,7 @@ async function resolveBranchTeamLeaderId(value: unknown) {
 }
 
 export async function POST(request: Request) {
-  const { response } = await requireBranchAccess("FULL");
+  const { user, response } = await requireBranchAccess("FULL");
   if (response) return response;
 
   try {
@@ -62,6 +63,7 @@ export async function POST(request: Request) {
       }
     });
     const { encryptedDbPassword: _encryptedDbPassword, ...safeBranch } = branch;
+    await auditAction(request, user!, "BRANCH_CREATE", "Branches", `Created branch ${branch.branchName} (${branch.branchCode})`);
     return NextResponse.json(safeBranch, { status: 201 });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {

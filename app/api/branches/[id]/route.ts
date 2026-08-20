@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireBranchAccess, toAssignOnlyBranch } from "@/lib/branch-access";
 import { isBranchTeamLeader } from "@/lib/branch-team-leaders";
 import { prisma } from "@/lib/prisma";
+import { auditAction } from "@/lib/audit";
 import { encryptSecret } from "@/lib/crypto";
 import { Prisma } from "@prisma/client";
 
@@ -14,7 +15,7 @@ async function resolveBranchTeamLeaderId(value: unknown) {
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const { level, response } = await requireBranchAccess("ASSIGN_ONLY");
+  const { user, level, response } = await requireBranchAccess("ASSIGN_ONLY");
   if (response) return response;
 
   try {
@@ -30,6 +31,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         include: { branchTeamLeader: { select: { id: true, name: true } } }
       });
       const { encryptedDbPassword: _encryptedDbPassword, ...safeAssigned } = assigned;
+      await auditAction(request, user!, "BRANCH_TL_ASSIGN", "Branches", `Set the Branch TL of ${assigned.branchName} to ${assigned.branchTeamLeader?.name ?? "none"}`);
       return NextResponse.json(toAssignOnlyBranch(safeAssigned));
     }
 
@@ -56,6 +58,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       }
     });
     const { encryptedDbPassword: _encryptedDbPassword, ...safeBranch } = branch;
+    await auditAction(request, user!, "BRANCH_UPDATE", "Branches", `Updated branch ${branch.branchName} (${branch.branchCode})`);
     return NextResponse.json(safeBranch);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -75,13 +78,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 }
 
-export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const { response } = await requireBranchAccess("FULL");
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+  const { user, response } = await requireBranchAccess("FULL");
   if (response) return response;
 
   try {
     const { id } = await context.params;
-    await prisma.branch.delete({ where: { id: Number(id) } });
+    const deleted = await prisma.branch.delete({ where: { id: Number(id) } });
+    await auditAction(request, user!, "BRANCH_DELETE", "Branches", `Deleted branch ${deleted.branchName} (${deleted.branchCode})`);
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {

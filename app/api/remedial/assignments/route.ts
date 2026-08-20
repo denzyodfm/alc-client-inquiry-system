@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { canAccessBranch, canAssignRemedial } from "@/lib/auth";
 import { requireApiFunction } from "@/lib/api";
+import { auditAction } from "@/lib/audit";
 import { remedialEligibleLoanWhere, REMEDIAL_ROLES } from "@/lib/remedial";
 import { prisma } from "@/lib/prisma";
 
@@ -133,5 +134,6 @@ export async function POST(request: Request) {
     return savedAssignments;
   });
 
+  await auditAction(request, user, "REMEDIAL_ASSIGN", "Remedial", `Scheduled ${assignments.length} remedial assignment(s)`);
   return NextResponse.json({ ok: true, count: assignments.length });
 }

@@ -4,6 +4,7 @@ import { getAccessibleBranchIds } from "@/lib/auth";
 import { requireApiFunction } from "@/lib/api";
 import { visibleSyncedLoanWhere } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
+import { auditAction } from "@/lib/audit";
 
 const CLIENT_LOG_ROLES = ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] as const;
 
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
       ...(user.role === "ACCOUNT_OFFICER" ? { NOT: { branch: { branchName: { contains: "ALC HO" } } } } : {}),
       loans: { some: visibleClientLoanFilter() }
     },
-    select: { id: true, branchId: true }
+    select: { id: true, branchId: true, fullName: true, clientId: true }
   });
 
   if (!client) {
@@ -69,5 +70,6 @@ export async function POST(request: Request) {
     }
   });
 
+  await auditAction(request, user, "CLIENT_LOG_CREATE", "Client Logs", `Logged ${logType.toLocaleLowerCase("en").replace(/_/g, " ")} for ${client.fullName} (${client.clientId ?? "no client number"})`);
   return NextResponse.json({ logId: log.id });
 }

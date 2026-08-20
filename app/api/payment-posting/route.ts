@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { requireApiFunction } from "@/lib/api";
+import { auditAction } from "@/lib/audit";
 import { numberValue } from "@/lib/loan-amounts";
 import { prisma } from "@/lib/prisma";
 
@@ -194,6 +195,7 @@ export async function POST(request: Request) {
       select: { id: true, totalAmount: true }
     });
 
+    await auditAction(request, user!, "PAYMENT_POSTED", "Payment Posting", `Posted ${posting.totalAmount.toString()} on loan ${loan.id}`);
     return NextResponse.json({
       id: posting.id,
       totalAmount: posting.totalAmount.toString(),

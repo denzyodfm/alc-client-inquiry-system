@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireApiFunction } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { auditAction } from "@/lib/audit";
 
 export async function POST(request: Request) {
-  const { response } = await requireApiFunction("VERIFY_ADDRESS");
+  const { user, response } = await requireApiFunction("VERIFY_ADDRESS");
   if (response) return response;
 
   const body = await request.json().catch(() => null);
@@ -42,5 +43,6 @@ export async function POST(request: Request) {
     }
   });
 
+  await auditAction(request, user!, "ADDRESS_VERIFY", "Verify Address", `Verified the address of loan ${loanId}`);
   return NextResponse.json({ ok: true, locationId: location.id });
 }

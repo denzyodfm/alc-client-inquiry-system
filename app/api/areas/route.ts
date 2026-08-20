@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { requireApiFunction } from "@/lib/api";
+import { auditAction } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { isAreaTeamLeader } from "@/lib/area-team-leaders";
 
@@ -29,7 +30,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { response } = await requireApiFunction("SETTINGS_ACCESS");
+  const { user, response } = await requireApiFunction("SETTINGS_ACCESS");
   if (response) return response;
   const body = await request.json();
   const name = String(body.name ?? "").trim();
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
 
   try {
     const area = await prisma.area.create({ data: { name, description, areaTeamLeaderId } });
+    await auditAction(request, user!, "AREA_CREATE", "Areas", `Created area ${name}`);
     return NextResponse.json(area, { status: 201 });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {

@@ -93,7 +93,10 @@ export function UserManager({
   privileges,
   areas,
   teamLeaders,
-  branchTeamLeaders
+  branchTeamLeaders,
+  title = "Users",
+  allowCreate = true,
+  showAssignmentFilters = true
 }: {
   initialUsers: User[];
   branches: BranchOption[];
@@ -103,6 +106,9 @@ export function UserManager({
   areas: AreaOption[];
   teamLeaders: TeamLeaderOption[];
   branchTeamLeaders: TeamLeaderOption[];
+  title?: string;
+  allowCreate?: boolean;
+  showAssignmentFilters?: boolean;
 }) {
   const isAdmin = currentUserRole === "ADMIN";
   const canEditUsers = isAdmin || currentUserRole === "AREA_TEAM_LEADER";
@@ -517,17 +523,17 @@ export function UserManager({
       <div className="panel overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-3 py-1.5">
           <div>
-            <h3 className="font-bold text-slate-950">Users</h3>
+            <h3 className="font-bold text-slate-950">{title}</h3>
             <p className="text-xs text-slate-500">{visibleUsers.length} of {users.length} shown</p>
           </div>
-          {canEditUsers ? (
+          {canEditUsers && allowCreate ? (
             <button type="button" className="btn-primary h-9 px-3 text-xs" onClick={openCreate} disabled={loading}>
               <Plus className="h-4 w-4" />
               Create User
             </button>
           ) : null}
         </div>
-        <div className="grid gap-2 border-b border-slate-200 bg-slate-50 p-2 sm:grid-cols-2 xl:grid-cols-4">
+        <div className={`grid gap-2 border-b border-slate-200 bg-slate-50 p-2 ${showAssignmentFilters ? "sm:grid-cols-2 xl:grid-cols-4" : ""}`}>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input
@@ -539,7 +545,7 @@ export function UserManager({
               aria-label="Search users by name or email"
             />
           </div>
-          <select className="field h-9 bg-white" value={privilegeFilter} onChange={(event) => setPrivilegeFilter(event.target.value)} aria-label="Filter users by privilege">
+          {showAssignmentFilters ? <><select className="field h-9 bg-white" value={privilegeFilter} onChange={(event) => setPrivilegeFilter(event.target.value)} aria-label="Filter users by privilege">
             <option value="ALL">All privileges</option>
             {privilegeNames.map((name) => <option key={name} value={name}>{name}</option>)}
             <option value="UNSET">No privilege set</option>
@@ -553,7 +559,7 @@ export function UserManager({
             <option value="ALL">All areas</option>
             {areas.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
             <option value="UNSET">Area not set</option>
-          </select>
+          </select></> : null}
         </div>
         <div className="max-h-[calc(100vh-21rem)] min-h-64 overflow-auto overscroll-contain" style={{ scrollbarGutter: "stable" }}>
           <table className="w-full min-w-[1400px] text-left text-xs">

@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { isAppFunctionKey } from "@/lib/access-control";
 import { requireApiFunction } from "@/lib/api";
+import { auditAction } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 export async function PUT(request: Request) {
-  const { response } = await requireApiFunction("SETTINGS_ACCESS");
+  const { user, response } = await requireApiFunction("SETTINGS_ACCESS");
   if (response) return response;
   const body = await request.json();
   if (!Array.isArray(body.matrix)) return NextResponse.json({ error: "Invalid access matrix." }, { status: 400 });
@@ -23,5 +24,6 @@ export async function PUT(request: Request) {
     const permissions = rows.flatMap((row: { privilegeTemplateId: number; functionKeys: string[] }) => row.functionKeys.map((functionKey) => ({ privilegeTemplateId: row.privilegeTemplateId, functionKey })));
     if (permissions.length) await tx.privilegePermission.createMany({ data: permissions, skipDuplicates: true });
   });
+  await auditAction(request, user!, "ACCESS_MATRIX_UPDATE", "Privileges", `Updated the access matrix for ${rows.length} privilege(s)`);
   return NextResponse.json({ ok: true });
 }

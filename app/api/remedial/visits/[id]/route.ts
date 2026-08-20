@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { canAccessBranch, canApproveRemedial } from "@/lib/auth";
 import { requireApiFunction } from "@/lib/api";
+import { auditAction } from "@/lib/audit";
 import { REMEDIAL_ROLES } from "@/lib/remedial";
 import { prisma } from "@/lib/prisma";
 
@@ -56,6 +57,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         approvedAt: new Date()
       }
     });
+    await auditAction(request, user, action === "approve" ? "REMEDIAL_VISIT_APPROVE" : "REMEDIAL_VISIT_REJECT", "Remedial", `${action === "approve" ? "Approved" : "Rejected"} visit schedule ${visit.id}`);
     return NextResponse.json({ ok: true, status: updated.status });
   }
 
@@ -100,6 +102,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       }
     });
 
+    await auditAction(request, user, "REMEDIAL_VISIT_COMPLETE", "Remedial", `Recorded visit ${visit.id}${nextVisitDate ? " and scheduled a follow-up" : ""}`);
     return NextResponse.json({ ok: true });
   }
 

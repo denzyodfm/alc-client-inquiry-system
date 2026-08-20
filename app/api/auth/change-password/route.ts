@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { auditAction } from "@/lib/audit";
 
 export async function POST(request: Request) {
   const { user, response } = await requireApiUser();
@@ -35,5 +36,6 @@ export async function POST(request: Request) {
     data: { passwordHash: await bcrypt.hash(newPassword, 12) }
   });
 
+  await auditAction(request, user!, "PASSWORD_CHANGE", "Authentication", "Changed their own password");
   return NextResponse.json({ ok: true });
 }

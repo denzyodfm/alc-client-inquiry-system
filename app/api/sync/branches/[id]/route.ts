@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { requireBranchAccess } from "@/lib/branch-access";
 import { prisma } from "@/lib/prisma";
 import { checkBranchConnection, syncBranch } from "@/scripts/sync-service";
+import { auditAction } from "@/lib/audit";
 
-export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const { response } = await requireBranchAccess("FULL");
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  const { user, response } = await requireBranchAccess("FULL");
   if (response) return response;
 
   const { id } = await context.params;
@@ -23,5 +24,6 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   }
 
   const result = await syncBranch(branch);
+  await auditAction(request, user!, "SYNC_BRANCH", "Sync", `Started a sync of ${branch.branchName}`);
   return NextResponse.json(result);
 }

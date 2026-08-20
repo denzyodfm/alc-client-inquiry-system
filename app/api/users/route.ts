@@ -6,6 +6,7 @@ import { getAccessibleBranchIds } from "@/lib/auth";
 import { isAreaTeamLeader } from "@/lib/area-team-leaders";
 import { isBranchTeamLeader } from "@/lib/branch-team-leaders";
 import { privilegeAssignmentRules } from "@/lib/privilege-assignment";
+import { auditAction } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -179,6 +180,7 @@ export async function POST(request: Request) {
 
       return created;
     });
+    await auditAction(request, currentUser!, "USER_CREATE", "User Management", `Created ${name} (${email})`);
     const saved = await prisma.user.findUnique({
       where: { id: user.id },
       select: { id: true, name: true, email: true, role: true, isActive: true }

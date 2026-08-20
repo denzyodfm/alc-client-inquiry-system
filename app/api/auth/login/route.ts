@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
-    await writeAudit({ userId: user.id, userName: user.name, userEmail: user.email, action: "LOGIN_FAILED", module: "Authentication", details: "Invalid password", ipAddress: requestIp(request) });
+    await writeAudit({ userId: user.id, userName: user.name, userEmail: user.email, role: user.role, action: "LOGIN_FAILED", module: "Authentication", details: "Invalid password", ipAddress: requestIp(request) });
     return NextResponse.json({ error: "Invalid credentials." }, { status: 401 });
   }
 
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     allBranches: user.allBranches,
     privilegeTemplateId: user.privilegeTemplateId
   });
-  await writeAudit({ userId: user.id, userName: user.name, userEmail: user.email, action: "LOGIN", module: "Authentication", details: "Signed in successfully", ipAddress: requestIp(request) });
+  await writeAudit({ userId: user.id, userName: user.name, userEmail: user.email, role: user.role, action: "LOGIN", module: "Authentication", details: "Signed in successfully", ipAddress: requestIp(request) });
 
   return NextResponse.json({ ok: true });
 }

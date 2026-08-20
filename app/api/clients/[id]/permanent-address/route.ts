@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireApiFunction } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { auditAction } from "@/lib/audit";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const { response } = await requireApiFunction("CLIENT_INQUIRY");
+  const { user, response } = await requireApiFunction("CLIENT_INQUIRY");
   if (response) return response;
 
   const { id } = await context.params;
@@ -19,7 +20,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const permanentMunicipality = String(body?.permanentMunicipality ?? "").trim();
   const permanentBarangay = String(body?.permanentBarangay ?? "").trim();
 
-  const client = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } });
+  const client = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true, fullName: true } });
   if (!client) {
     return NextResponse.json({ error: "Client not found." }, { status: 404 });
   }
@@ -37,5 +38,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     select: { id: true, permanentAddress: true, permanentProvince: true, permanentMunicipality: true, permanentBarangay: true }
   });
 
+  await auditAction(request, user!, "CLIENT_ADDRESS_UPDATE", "Client Inquiry", `${sameAsCurrent ? "Cleared" : "Updated"} the permanent address of ${client.fullName}`);
   return NextResponse.json({ ok: true, client: updated });
 }

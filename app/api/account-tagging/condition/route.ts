@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireApiFunction } from "@/lib/api";
+import { auditAction } from "@/lib/audit";
 import { canAccessBranch } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
         conditionApprovedAt: new Date()
       }
     });
+    await auditAction(request, user, "CLIENT_CONDITION_APPROVE", "Client Condition", `Approved the client condition on assignment ${assignment.id}`);
     return NextResponse.json({ ok: true });
   }
 
@@ -62,6 +64,7 @@ export async function POST(request: Request) {
         conditionApprovedAt: null
       }
     });
+    await auditAction(request, user, "CLIENT_CONDITION_CLEAR", "Client Condition", `Cleared the client condition on assignment ${assignment.id}`);
     return NextResponse.json({ ok: true });
   }
   if (!condition || condition.length > 20 || /[\u0000-\u001f\u007f]/.test(condition)) {
@@ -80,5 +83,6 @@ export async function POST(request: Request) {
       conditionApprovedAt: automaticallyApproved ? new Date() : null
     }
   });
+  await auditAction(request, user, "CLIENT_CONDITION_SET", "Client Condition", `Set the client condition on assignment ${assignment.id} to ${condition}${automaticallyApproved ? " (approved)" : " (pending approval)"}`);
   return NextResponse.json({ ok: true });
 }

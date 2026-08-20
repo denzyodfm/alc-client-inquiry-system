@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { requestIp, writeAudit } from "@/lib/audit";
+import { auditAction } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -20,7 +20,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const existing = await prisma.clientLog.findUnique({ where: { id: logId }, select: { client: { select: { fullName: true, clientId: true } } } });
   if (!existing) return NextResponse.json({ error: "Client log not found." }, { status: 404 });
   await prisma.clientLog.update({ where: { id: logId }, data: { logType, subject: subject || null, notes, newDate, newAmount } });
-  await writeAudit({ userId: user.id, userName: user.name, userEmail: user.email, action: "CLIENT_LOG_EDIT", module: "Client Logs", details: `Edited log ${logId} for ${existing.client.fullName} (${existing.client.clientId ?? "no client number"})`, ipAddress: requestIp(request) });
+  await auditAction(request, user, "CLIENT_LOG_EDIT", "Client Logs", `Edited log ${logId} for ${existing.client.fullName} (${existing.client.clientId ?? "no client number"})`);
   return NextResponse.json({ ok: true });
 }
 
@@ -37,6 +37,6 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   if (!log) return NextResponse.json({ error: "Client log not found." }, { status: 404 });
 
   await prisma.clientLog.delete({ where: { id: logId } });
-  await writeAudit({ userId: user.id, userName: user.name, userEmail: user.email, action: "CLIENT_LOG_DELETE", module: "Client Logs", details: `Deleted log ${log.id} for ${log.client.fullName} (${log.client.clientId ?? "no client number"})${log.subject ? `: ${log.subject}` : ""}`, ipAddress: requestIp(request) });
+  await auditAction(request, user, "CLIENT_LOG_DELETE", "Client Logs", `Deleted log ${log.id} for ${log.client.fullName} (${log.client.clientId ?? "no client number"})${log.subject ? `: ${log.subject}` : ""}`);
   return NextResponse.json({ ok: true });
 }

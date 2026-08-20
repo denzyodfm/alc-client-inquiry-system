@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { requireApiFunction } from "@/lib/api";
+import { auditAction } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const { response } = await requireApiFunction("SETTINGS_ACCESS");
+  const { user, response } = await requireApiFunction("SETTINGS_ACCESS");
   if (response) return response;
   const { id } = await context.params;
   const privilegeTemplateId = Number(id);
@@ -15,6 +16,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!name) return NextResponse.json({ error: "Privilege name is required." }, { status: 400 });
   try {
     await prisma.privilegeTemplate.update({ where: { id: privilegeTemplateId }, data: { name, description } });
+    await auditAction(request, user!, "PRIVILEGE_UPDATE", "Privileges", `Updated privilege ${name}`);
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -27,12 +29,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 }
 
-export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const { response } = await requireApiFunction("SETTINGS_ACCESS");
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+  const { user, response } = await requireApiFunction("SETTINGS_ACCESS");
   if (response) return response;
   const { id } = await context.params;
   try {
-    await prisma.privilegeTemplate.delete({ where: { id: Number(id) } });
+    const deleted = await prisma.privilegeTemplate.delete({ where: { id: Number(id) } });
+    await auditAction(request, user!, "PRIVILEGE_DELETE", "Privileges", `Deleted privilege ${deleted.name}`);
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
