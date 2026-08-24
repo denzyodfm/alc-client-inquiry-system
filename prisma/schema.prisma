@@ -74,6 +74,7 @@ model User {
   localPaymentPostings LocalPaymentPosting[] @relation("LocalPaymentPostedBy")
   locationLinkRuns LocationLinkRun[] @relation("LocationLinkRunStartedBy")
   auditLogs    AuditLog[]
+  preferences  UserPreference[]
   baseBranch   Branch?  @relation("UserBaseBranch", fields: [baseBranchId], references: [id], onDelete: SetNull)
   privilegeTemplate PrivilegeTemplate? @relation(fields: [privilegeTemplateId], references: [id], onDelete: SetNull)
   area         Area?    @relation("AreaMembers", fields: [areaId], references: [id], onDelete: SetNull)
@@ -90,6 +91,20 @@ model User {
   @@index([areaTeamLeaderId])
   @@index([branchTeamLeaderId])
   @@map("users")
+}
+
+// Per-account view settings, such as a hand-arranged row order. Keyed by the account, so
+// one user's arrangement is never visible to another.
+model UserPreference {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  key       String   @db.VarChar(120)
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@map("user_preferences")
 }
 
 model AuditLog {

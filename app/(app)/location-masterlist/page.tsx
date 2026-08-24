@@ -16,6 +16,7 @@ import { OfficerBranchSummary } from "@/components/officer-branch-summary";
 import { OfficerLocationSummary } from "@/components/officer-location-summary";
 import { AccountOfficerSummary, type AccountOfficerSummaryRow } from "./account-officer-summary";
 import { AssignmentSummaryTable, type SummaryRow } from "@/components/assignment-summary-table";
+import { ReorderableRows } from "@/components/reorderable-rows";
 
 export const dynamic = "force-dynamic";
 
@@ -724,7 +725,12 @@ export default async function LocationMasterlistPage() {
             <StatusHeader label="Current" /><StatusHeader label="Delayed" />
             <StatusHeader label="Past Due" /><StatusHeader label="Litigated" />
           </div>
-          <div className="min-w-[1480px] divide-y divide-slate-200">
+          <div className="min-w-[1480px]">
+            <ReorderableRows
+              ids={provinceList.map((province) => province.name)}
+              storageKey="location-pivot-province-order"
+              defaultOrderLabel="portfolio order"
+            >
             {provinceList.map((province) => (
               <details key={province.name} className="group">
                 <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open:bg-blue-100`}>
@@ -736,6 +742,12 @@ export default async function LocationMasterlistPage() {
                   <MetricCells metrics={province.metrics} showClients={false} showWithAccountOfficer />
                 </summary>
                 <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
+                  <ReorderableRows
+                    ids={Array.from(province.municipalities.values()).sort(byPortfolioDesc).map((municipality) => municipality.name)}
+                    storageKey={`location-pivot-city-order:${province.name}`}
+                    defaultOrderLabel="portfolio order"
+                    variant="compact"
+                  >
                   {Array.from(province.municipalities.values()).sort(byPortfolioDesc).map((municipality) => (
                     <details key={municipality.name} className="group/city border-b border-slate-100 last:border-b-0">
                       <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/city:bg-blue-100`}>
@@ -750,6 +762,12 @@ export default async function LocationMasterlistPage() {
                         <MetricCells metrics={municipality.metrics} showClients={false} showWithAccountOfficer />
                       </summary>
                       <div className="border-t border-slate-100 bg-white pl-8">
+                        <ReorderableRows
+                          ids={[...municipality.barangays].sort(byPortfolioDesc).map((barangay) => String(barangay.id))}
+                          storageKey={`location-pivot-barangay-order:${province.name}|${municipality.name}`}
+                          defaultOrderLabel="portfolio order"
+                          variant="compact"
+                        >
                         {[...municipality.barangays].sort(byPortfolioDesc).map((barangay) => (
                           <details key={barangay.id} className="group/barangay border-b border-slate-100 last:border-b-0">
                             <summary className={`${locationRowGrid} selected-report-row cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/barangay:bg-blue-100`}>
@@ -792,12 +810,15 @@ export default async function LocationMasterlistPage() {
                             </div>
                           </details>
                         ))}
+                        </ReorderableRows>
                       </div>
                     </details>
                   ))}
+                  </ReorderableRows>
                 </div>
               </details>
             ))}
+            </ReorderableRows>
             {!provinceList.length ? <p className="px-4 py-10 text-center font-semibold text-slate-500">No masterlist locations imported.</p> : null}
           </div>
           {provinceList.length ? (
