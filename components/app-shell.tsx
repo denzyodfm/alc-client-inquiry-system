@@ -19,6 +19,7 @@ import {
   MapPin,
   MapPinned,
   Menu,
+  Percent,
   ReceiptText,
   Search,
   Settings,
@@ -50,6 +51,7 @@ const icons = {
   KeyRound,
   MapPin,
   MapPinned,
+  Percent,
   ReceiptText,
   Search,
   Settings,
@@ -147,12 +149,12 @@ export function AppShell({
       <main className={`flex min-h-screen min-w-0 flex-1 flex-col transition-[padding] ${desktopSidebarHidden ? "lg:pl-0" : "lg:pl-72"}`}>
         <header className="sticky top-0 z-20 flex min-h-24 flex-wrap items-center justify-between gap-3 border-b border-blue-100 bg-white/95 px-4 py-2 shadow-sm backdrop-blur sm:px-5 lg:flex-nowrap lg:px-8">
           <div className="flex min-w-0 items-center gap-2">
-            <button type="button" className="flex h-5 w-8 shrink-0 items-center justify-center rounded-full bg-brand-blue text-white shadow-sm ring-2 ring-yellow-200 transition hover:bg-brand-navy lg:hidden" aria-label="Open menu" onClick={() => setMobileMenuOpen(true)}>
+            <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-blue text-white shadow-sm ring-2 ring-yellow-200 transition hover:bg-brand-navy lg:hidden" aria-label="Open menu" onClick={() => setMobileMenuOpen(true)}>
               <Menu className="h-3 w-3" />
             </button>
             <button
               type="button"
-              className="hidden h-5 w-8 shrink-0 items-center justify-center rounded-full bg-brand-blue text-white shadow-sm ring-2 ring-yellow-200 transition hover:bg-brand-navy lg:inline-flex"
+              className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-blue text-white shadow-sm ring-2 ring-yellow-200 transition hover:bg-brand-navy lg:inline-flex"
               aria-label={desktopSidebarHidden ? "Show menu" : "Hide menu"}
               onClick={() => setDesktopSidebarHidden((value) => !value)}
             >

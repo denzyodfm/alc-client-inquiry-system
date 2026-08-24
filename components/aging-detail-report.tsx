@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { FileSpreadsheet, Search } from "lucide-react";
 import { LoanDetailWindow, type LoanDetailLoan } from "@/components/loan-detail-window";
 import { PrintReportButton } from "@/components/print-report-button";
 import { dateOnly, money } from "@/lib/format";
+import { useModalAccessibility } from "@/components/use-modal-accessibility";
 
 function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (character) => ({
@@ -49,8 +51,11 @@ export function AgingDetailReport({
   rows: AgingDetailRow[];
   closeHref: string;
 }) {
+  const router = useRouter();
   const [selectedLoan, setSelectedLoan] = useState<LoanDetailLoan | null>(null);
   const [query, setQuery] = useState("");
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalAccessibility(!selectedLoan, dialogRef, () => router.push(closeHref));
 
   const filteredRows = useMemo(() => {
     const terms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
@@ -113,12 +118,12 @@ export function AgingDetailReport({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/50 px-8 py-4">
-      <div className="mx-auto flex max-h-[calc(100vh-2rem)] max-w-[1600px] flex-col overflow-hidden rounded-lg bg-white shadow-2xl print-area">
+    <div className="fixed inset-0 z-50 bg-slate-950/50 px-3 py-4 sm:px-8" role="presentation">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="aging-detail-title" tabIndex={-1} className="mx-auto flex max-h-[calc(100vh-2rem)] max-w-[1600px] flex-col overflow-hidden rounded-lg bg-white shadow-2xl outline-none print-area">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-brand-green">Aging Detail Report</p>
-            <h3 className="text-xl font-bold text-slate-950">{title}</h3>
+            <h3 id="aging-detail-title" className="text-xl font-bold text-slate-950">{title}</h3>
             <p className="text-sm text-slate-500">
               Showing {filteredRows.length.toLocaleString("en-US")} of {count.toLocaleString("en-US")} loan(s) | Due as of today {money(dueToday)} | Balance {money(balance)}
             </p>

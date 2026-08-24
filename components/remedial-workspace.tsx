@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { CalendarCheck, CheckCircle2, ClipboardList, MapPinned, Send, XCircle } from "lucide-react";
-import { FormEvent, useState, useTransition } from "react";
+import { FormEvent, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { LoanDetailLink } from "@/components/loan-detail-link";
 import type { LoanDetailLoan } from "@/components/loan-detail-window";
 import { PrintReportButton } from "@/components/print-report-button";
 import { dateOnly, money } from "@/lib/format";
+import { useModalAccessibility } from "@/components/use-modal-accessibility";
 
 export type RemedialVisitRow = {
   id: number;
@@ -132,6 +133,14 @@ export function RemedialWorkspace({
   const [assignmentSearch, setAssignmentSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const itineraryDialogRef = useRef<HTMLDivElement>(null);
+  const assignmentDialogRef = useRef<HTMLDivElement>(null);
+  const scheduleDialogRef = useRef<HTMLDivElement>(null);
+  const approvalDialogRef = useRef<HTMLDivElement>(null);
+  useModalAccessibility(selectedItineraryBranchId !== null, itineraryDialogRef, () => setSelectedItineraryBranchId(null));
+  useModalAccessibility(showAssignmentModal, assignmentDialogRef, () => setShowAssignmentModal(false));
+  useModalAccessibility(showScheduleModal, scheduleDialogRef, () => setShowScheduleModal(false));
+  useModalAccessibility(showApprovalModal, approvalDialogRef, () => setShowApprovalModal(false));
   const reportDate = new Intl.DateTimeFormat("en-US", {
     year: "numeric",
     month: "short",
@@ -609,8 +618,8 @@ export function RemedialWorkspace({
       </div>
 
       {selectedItinerarySummary ? (
-        <div className="fixed inset-0 z-50 bg-slate-950/50 p-4">
-          <div className="mx-auto flex max-h-[calc(100vh-2rem)] max-w-7xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl print-area">
+        <div className="fixed inset-0 z-50 bg-slate-950/50 p-4" role="presentation">
+          <div ref={itineraryDialogRef} role="dialog" aria-modal="true" aria-label="Remedial itinerary details" tabIndex={-1} className="mx-auto flex max-h-[calc(100vh-2rem)] max-w-7xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl outline-none print-area">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-brand-green">Officer Itinerary Detail</p>
@@ -688,8 +697,8 @@ export function RemedialWorkspace({
       ) : null}
 
       {canAssign && showAssignmentModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-lg bg-white shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="presentation">
+          <div ref={assignmentDialogRef} role="dialog" aria-modal="true" aria-label="Assign remedial loans" tabIndex={-1} className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-lg bg-white shadow-xl outline-none">
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Remedial Assignment</p>
@@ -810,8 +819,8 @@ export function RemedialWorkspace({
       ) : null}
 
       {canCreateOwnSchedule && showScheduleModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-lg bg-white shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="presentation">
+          <div ref={scheduleDialogRef} role="dialog" aria-modal="true" aria-label="Create follow-up schedule" tabIndex={-1} className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-lg bg-white shadow-xl outline-none">
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Follow-up Schedule</p>
@@ -880,8 +889,8 @@ export function RemedialWorkspace({
       ) : null}
 
       {canApprove && showApprovalModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-lg bg-white shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="presentation">
+          <div ref={approvalDialogRef} role="dialog" aria-modal="true" aria-label="Review remedial visits" tabIndex={-1} className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-lg bg-white shadow-xl outline-none">
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Area Team Lead Approval</p>

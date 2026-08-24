@@ -7,6 +7,7 @@ import { money } from "@/lib/format";
 
 type LoanRow = {
   id: number;
+  clientId: number;
   branchId: number;
   clientName: string;
   clientNumber: string | null;
@@ -34,6 +35,8 @@ type OfficerOption = { id: number; name: string; allBranches: boolean; branchIds
 
 type Result = {
   rows: LoanRow[];
+  clientStartIndex: number;
+  clientsOnPage: number;
   officers: OfficerOption[];
   canAssignOfficer: boolean;
   page: number;
@@ -229,7 +232,9 @@ export function BarangayLoanReport({
               </div>
             </div>
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3 text-sm font-semibold text-slate-600">
-              <span>{result ? `Showing ${((result.page - 1) * result.pageSize + 1).toLocaleString("en-US")}–${Math.min(result.page * result.pageSize, result.total).toLocaleString("en-US")} of ${result.total.toLocaleString("en-US")} loan(s)` : "Loading loan details..."}</span>
+              <span>{result
+                ? `${result.clientTotal.toLocaleString("en-US")} client(s) holding ${result.total.toLocaleString("en-US")} loan(s) | showing client ${(result.clientStartIndex + 1).toLocaleString("en-US")}–${(result.clientStartIndex + result.clientsOnPage).toLocaleString("en-US")}`
+                : "Loading loan details..."}</span>
               <span>{result ? `Page ${result.page.toLocaleString("en-US")} of ${result.totalPages.toLocaleString("en-US")}` : null}</span>
             </div>
             <div className="min-h-0 flex-1 overflow-auto">
@@ -262,14 +267,24 @@ export function BarangayLoanReport({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {result.rows.map((row, rowIndex) => (
-                      <tr key={row.id}>
+                    {result.rows.map((row, rowIndex) => {
+                      const firstOfClient = rowIndex === 0 || result.rows[rowIndex - 1].clientId !== row.clientId;
+                      const clientNumber = result.clientStartIndex
+                        + new Set(result.rows.slice(0, rowIndex + 1).map((item) => item.clientId)).size;
+                      return (
+                      <tr key={row.id} className={firstOfClient ? "border-t border-slate-200" : ""}>
                         <td className="px-3 py-3">
-                          <p className="font-bold text-slate-950">
-                            <span className="mr-1 text-brand-blue">{(result.page - 1) * result.pageSize + rowIndex + 1}.</span>
-                            {row.clientName}
-                          </p>
-                          <p className="text-slate-500">{row.clientNumber || "-"}</p>
+                          {firstOfClient ? (
+                            <>
+                              <p className="font-bold text-slate-950">
+                                <span className="mr-1 text-brand-blue">{clientNumber}.</span>
+                                {row.clientName}
+                              </p>
+                              <p className="text-slate-500">{row.clientNumber || "-"}</p>
+                            </>
+                          ) : (
+                            <p className="pl-4 text-slate-400">same client, another loan</p>
+                          )}
                         </td>
                         <td className="px-3 py-3">{row.contactNumber || "-"}</td><td className="px-3 py-3 font-bold text-brand-blue">{row.loanNumber}</td>
                         <td className="px-3 py-3">{row.branch}</td><td className="px-3 py-3">{row.product || "-"}</td>
@@ -308,7 +323,8 @@ export function BarangayLoanReport({
                           ) : <span className="font-semibold">{row.accountOfficer}</span>}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                     {!result.rows.length ? <tr><td className="px-3 py-10 text-center font-semibold text-slate-500" colSpan={18}>No matching loans found.</td></tr> : null}
                   </tbody>
                 </table>

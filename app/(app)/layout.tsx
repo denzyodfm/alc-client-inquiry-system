@@ -6,8 +6,8 @@ import { AuditTracker } from "@/components/audit-tracker";
 import { canAccessAnyFunction, canAccessFunction, type AppFunctionKey } from "@/lib/access-control";
 import { getFooterBranding } from "@/lib/footer-branding";
 
-type IconName = "Gauge" | "Banknote" | "Search" | "ClipboardCheck" | "ClipboardList" | "FileClock" | "Hourglass" | "ReceiptText" | "UserRoundCheck" | "MapPinned" | "Tag" | "History" | "Users" | "Settings" | "MapPin" | "KeyRound";
-type NavConfig = { href?: string; label: string; icon: IconName; functionKey?: AppFunctionKey; functionKeys?: AppFunctionKey[]; children?: NavConfig[] };
+type IconName = "Gauge" | "Banknote" | "Search" | "ClipboardCheck" | "ClipboardList" | "FileClock" | "Hourglass" | "Percent" | "ReceiptText" | "UserRoundCheck" | "MapPinned" | "Tag" | "History" | "Users" | "Settings" | "MapPin" | "KeyRound";
+type NavConfig = { href?: string; label: string; icon: IconName; functionKey?: AppFunctionKey; functionKeys?: AppFunctionKey[]; adminOnly?: boolean; children?: NavConfig[] };
 
 const nav: NavConfig[] = [
   { href: "/dashboard", label: "Dashboard", icon: "Gauge", functionKey: "DASHBOARD" },
@@ -29,9 +29,13 @@ const nav: NavConfig[] = [
   ] },
   { label: "Taggings", icon: "Tag", children: [
     { href: "/account-tagging", label: "Account Tagging", icon: "Tag", functionKey: "ACCOUNT_TAGGING" },
+    { href: "/new-loans", label: "New Loans", icon: "ClipboardCheck", functionKey: "ACCOUNT_TAGGING" },
     { href: "/location-masterlist", label: "Location Masterlist", icon: "MapPinned", functionKey: "LOCATION_MASTERLIST" },
     { href: "/verify-address", label: "Verify Address", icon: "MapPin", functionKey: "VERIFY_ADDRESS" }
   ] },
+  // Rediscounting is an administrator report, so it is gated on the role rather than on a
+  // privilege that could be granted to someone else.
+  { href: "/rediscounting", label: "Rediscounting", icon: "Percent", adminOnly: true },
   { href: "/settings", label: "Settings", icon: "Settings" }
 ];
 
@@ -44,6 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       const children = (await Promise.all(item.children.map(allowed))).filter((child): child is NavConfig => Boolean(child));
       return children.length ? { ...item, children } : null;
     }
+    if (item.adminOnly && user!.role !== "ADMIN") return null;
     const hasAccess = item.functionKey ? await canAccessFunction(user!, item.functionKey) : item.functionKeys ? await canAccessAnyFunction(user!, item.functionKeys) : true;
     if (!hasAccess) return null;
     if (user!.role === "ACCOUNT_OFFICER" && item.href === "/account-tagging") return { ...item, href: "/account-tagging?view=tagging", label: "Account View" };

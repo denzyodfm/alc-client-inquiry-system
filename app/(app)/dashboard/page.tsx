@@ -6,6 +6,7 @@ import { ClientLogLiveSearch } from "@/components/client-log-live-search";
 import { inactiveStatus12Where } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 import { getClientLogBranchIds, requireFunction } from "@/lib/auth";
+import { branchIdentityScope, branchRecordScope } from "@/lib/branch-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -54,12 +55,14 @@ export default async function DashboardPage({ searchParams }: { searchParams?: P
   const period = PERIOD_OPTIONS.some((option) => option.value === params?.period) ? params!.period! : (params?.from || params?.to ? "custom" : "all");
   const { from, to } = periodRange(period, params?.from, params?.to);
   const clientLogBranchIds = await getClientLogBranchIds(currentUser);
+  const branchScope = branchIdentityScope(clientLogBranchIds);
+  const recordScope = branchRecordScope(clientLogBranchIds);
   const clientLogScope = { ...(clientLogBranchIds === null ? {} : clientLogBranchIds.length ? { branchId: { in: clientLogBranchIds } } : { branchId: -1 }), ...(currentUser.role === "ACCOUNT_OFFICER" ? { encodedById: currentUser.id } : {}) };
   const [branchCount, activeBranchCount, clientCount, activeLoanCount, clientLogs, officers] = await Promise.all([
-    prisma.branch.count(),
-    prisma.branch.count({ where: { status: "ACTIVE" } }),
-    prisma.client.count(),
-    prisma.loan.count({ where: { AND: [{ balance: { gt: 0 } }, inactiveStatus12Where()] } }),
+    prisma.branch.count({ where: branchScope }),
+    prisma.branch.count({ where: { ...branchScope, status: "ACTIVE" } }),
+    prisma.client.count({ where: recordScope }),
+    prisma.loan.count({ where: { ...recordScope, AND: [{ balance: { gt: 0 } }, inactiveStatus12Where()] } }),
     prisma.clientLog.findMany({ take: 500, where: { ...clientLogScope, ...(client ? { OR: [{ client: { fullName: { contains: client } } }, { client: { clientId: { contains: client } } }, { branch: { branchName: { contains: client } } }, { branch: { branchCode: { contains: client } } }, { logType: { contains: client } }, { subject: { contains: client } }, { notes: { contains: client } }] } : {}), ...(officer !== "ALL" && currentUser.role !== "ACCOUNT_OFFICER" ? { encodedById: Number(officer) } : {}), ...(from || to ? { visitAt: { gte: from, lte: to } } : {}) }, orderBy: { visitAt: "desc" }, include: { client: { include: { branch: true } }, encodedBy: true } }),
     prisma.user.findMany({ where: currentUser.role === "ACCOUNT_OFFICER" ? { id: currentUser.id } : { clientLogs: { some: clientLogBranchIds === null ? {} : { branchId: { in: clientLogBranchIds } } } }, orderBy: { name: "asc" }, select: { id: true, name: true } })
   ]);

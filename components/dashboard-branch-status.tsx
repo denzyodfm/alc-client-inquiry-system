@@ -1,8 +1,9 @@
 "use client";
 
 import { BarChart3, Building2, CheckCircle2, Clock, CreditCard, FileText, Plug, TrendingUp, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { dateTime, money } from "@/lib/format";
+import { useModalAccessibility } from "@/components/use-modal-accessibility";
 
 export type DashboardBranchAnalysis = {
   branchId: number;
@@ -127,11 +128,13 @@ export function DashboardBranchStatus({ branches }: DashboardBranchStatusProps) 
 }
 
 function BranchAnalysisModal({ branch, onClose }: { branch: DashboardBranchAnalysis; onClose: () => void }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalAccessibility(true, dialogRef, onClose);
   const behavior = classifyBranch(branch);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4">
-      <div className="w-full max-w-6xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4" role="presentation">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Branch analysis" tabIndex={-1} className="w-full max-w-6xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl outline-none">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Branch loan performance</p>

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { requireApiFunction } from "@/lib/api";
 import { getAccessibleBranchIds } from "@/lib/auth";
+import { officerAccountFamily } from "@/lib/officer-account";
 import { effectiveLocationCategory, higherRiskLocationCategory, manilaDateKey, type LocationClientCategory } from "@/lib/location-loan-aging";
 import { prisma } from "@/lib/prisma";
 
@@ -71,6 +72,8 @@ export async function GET(request: NextRequest) {
   if (user.role === "ACCOUNT_OFFICER" && officerId !== user.id) {
     return NextResponse.json({ error: "You can view only your assigned loans." }, { status: 403 });
   }
+  const officerFamily = await officerAccountFamily(officerId);
+  if (!officerFamily) return NextResponse.json({ error: "Account Officer not found." }, { status: 404 });
 
   const accessibleBranchIds = user.role === "ACCOUNT_OFFICER" ? null : await getAccessibleBranchIds(user);
   const branchWhere: Prisma.LoanWhereInput =
@@ -82,7 +85,7 @@ export async function GET(request: NextRequest) {
         branchWhere,
         accountTaggingSearchWhere({}),
         { locationLinked: true, locationMasterlistId: { not: null } },
-        { remedialAssignment: { is: { status: "ACTIVE", assignedToId: officerId } } }
+        { remedialAssignment: { is: { status: "ACTIVE", assignedToId: { in: officerFamily.accountIds } } } }
       ]
     },
     select: {
@@ -144,7 +147,5 @@ export async function GET(request: NextRequest) {
     }))
     .sort(byPortfolio);
 
-  const officer = await prisma.user.findUnique({ where: { id: officerId }, select: { name: true } });
-
-  return NextResponse.json({ officerName: officer?.name ?? "Account Officer", provinces: result, totals: summarize(overall) });
+  return NextResponse.json({ officerName: officerFamily.canonicalName, provinces: result, totals: summarize(overall) });
 }

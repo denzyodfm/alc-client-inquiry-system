@@ -1,8 +1,9 @@
 "use client";
 
 import { FileSpreadsheet, Printer, Search, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { money } from "@/lib/format";
+import { useModalAccessibility } from "@/components/use-modal-accessibility";
 
 type LocationOption = { id: number; province: string; municipality: string; barangay: string };
 type LoanRow = {
@@ -51,6 +52,8 @@ export function UnlinkedLoansManager({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  useModalAccessibility(open, dialogRef, () => setOpen(false));
 
   const baseUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -77,7 +80,7 @@ export function UnlinkedLoansManager({
     return () => controller.abort();
   }, [baseUrl, open, page, reload]);
 
-  const locations = result?.locations ?? [];
+  const locations = useMemo(() => result?.locations ?? [], [result?.locations]);
   const provinces = useMemo(() => Array.from(new Set(locations.map((item) => item.province))), [locations]);
   const municipalities = useMemo(
     () => Array.from(new Set(locations.filter((item) => item.province === province).map((item) => item.municipality))),
@@ -140,8 +143,8 @@ export function UnlinkedLoansManager({
         {count.toLocaleString("en-US")}
       </button>
       {open ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 p-3" onClick={() => setOpen(false)}>
-          <section className="flex max-h-[95vh] w-full max-w-[98vw] flex-col overflow-hidden rounded-xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 p-3" onClick={() => setOpen(false)} role="presentation">
+          <section ref={dialogRef} role="dialog" aria-modal="true" aria-label="Unlinked loans and client details" tabIndex={-1} className="flex max-h-[95vh] w-full max-w-[98vw] flex-col overflow-hidden rounded-xl bg-white shadow-2xl outline-none" onClick={(event) => event.stopPropagation()}>
             <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-brand-green">Location Masterlist</p>

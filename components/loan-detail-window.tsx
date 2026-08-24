@@ -2,9 +2,10 @@
 
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { dateOnly, money } from "@/lib/format";
 import { amountDueAsOfToday } from "@/lib/loan-amounts";
+import { useModalAccessibility } from "@/components/use-modal-accessibility";
 
 export type LoanDetailSchedule = {
   id: number;
@@ -214,6 +215,8 @@ function amortizationTotals(schedules: LoanDetailSchedule[]) {
 
 export function LoanDetailWindow({ loan, onClose }: LoanDetailWindowProps) {
   const [activeTab, setActiveTab] = useState<DetailTab>("Amortization Schedule");
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalAccessibility(true, dialogRef, onClose);
   const branch = loan.branch ?? loan.client.branch;
   const totals = amortizationTotals(loan.amortizationSchedules);
   const loanTotal = Number(loan.principalAmount) + Number(loan.interestAmount) + Number(loan.penaltyAmount);
@@ -229,10 +232,10 @@ export function LoanDetailWindow({ loan, onClose }: LoanDetailWindowProps) {
   const totalAmountDue = isClosed ? 0 : amountDueAsOfToday(loan);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-8 py-3">
-      <div className="w-full max-w-[1400px] overflow-hidden border border-slate-900 bg-[#ececec] shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-3 py-3 sm:px-8" role="presentation">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="loan-detail-title" tabIndex={-1} className="w-full max-w-[1400px] overflow-hidden border border-slate-900 bg-[#ececec] shadow-2xl outline-none">
         <div className="flex h-5 items-center justify-between bg-[#0b2d73] px-1.5 text-[11px] font-semibold text-white">
-          <span>Loan Account Details - {loanNumber}</span>
+          <span id="loan-detail-title">Loan Account Details - {loanNumber}</span>
           <button type="button" className="inline-flex items-center gap-1 hover:text-blue-100" onClick={onClose}>
             <X className="h-3 w-3" />
             Close

@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { MapPinned, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { BarangayLoanReport } from "@/components/officer-barangay-loans";
@@ -118,7 +118,7 @@ export function OfficerLocationSummary({ officerId, officerName }: { officerId: 
                         <details key={province.name} className="group/province border-b border-slate-100 last:border-b-0" open>
                           <summary className={`${ROW_GRID} cursor-pointer list-none bg-slate-50 px-4 py-3 hover:bg-blue-50`}>
                             <span className="font-extrabold text-slate-950 before:mr-2 before:inline-block before:text-[10px] before:content-['▶'] group-open/province:before:rotate-90">
-                              {province.name}
+                              {province.name}<MapScopeLink officerId={officerId} province={province.name} label={`${province.name} province`} />
                             </span>
                             <span className="text-right font-bold text-brand-blue">{countValue(province.numberOfClients)}</span>
                             <span className="text-right font-bold text-red-700">{money(province.portfolio)}</span>
@@ -131,7 +131,7 @@ export function OfficerLocationSummary({ officerId, officerName }: { officerId: 
                             <details key={`${province.name}-${municipality.name}`} className="group/city border-t border-slate-100">
                               <summary className={`${ROW_GRID} cursor-pointer list-none bg-white px-4 py-3 pl-8 hover:bg-blue-50`}>
                                 <span className="font-bold text-slate-800 before:mr-2 before:inline-block before:text-[10px] before:content-['▶'] group-open/city:before:rotate-90">
-                                  {municipality.name}
+                                  {municipality.name}<MapScopeLink officerId={officerId} province={province.name} municipality={municipality.name} label={municipality.name} />
                                 </span>
                                 <span className="text-right font-bold text-brand-blue">{countValue(municipality.numberOfClients)}</span>
                                 <span className="text-right font-bold text-red-700">{money(municipality.portfolio)}</span>
@@ -142,7 +142,7 @@ export function OfficerLocationSummary({ officerId, officerName }: { officerId: 
                               </summary>
                               {municipality.barangays.map((barangay) => (
                                 <div key={barangay.locationId} className={`${ROW_GRID} border-t border-slate-100 px-4 py-3 pl-12`}>
-                                  <span className="text-slate-700">{barangay.name}</span>
+                                  <span className="text-slate-700">{barangay.name}<MapScopeLink officerId={officerId} province={province.name} municipality={municipality.name} locationId={barangay.locationId} label={barangay.name} /></span>
                                   <span className="text-right font-bold text-brand-blue">
                                     <BarangayLoanReport
                                       officerId={officerId}
@@ -185,6 +185,13 @@ export function OfficerLocationSummary({ officerId, officerName }: { officerId: 
         : null}
     </span>
   );
+}
+
+function MapScopeLink({ officerId, province, municipality, locationId, label }: { officerId: number; province: string; municipality?: string; locationId?: number; label: string }) {
+  const params = new URLSearchParams({ province });
+  if (municipality) params.set("municipality", municipality);
+  if (locationId) params.set("locationId", String(locationId));
+  return <a href={`/location-map/${officerId}?${params}`} target="_blank" rel="noreferrer" aria-label={`Open ${label} collection map`} title={`Open ${label} collection map`} className="ml-2 inline-flex shrink-0 items-center gap-1 rounded border border-amber-300 bg-white px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 hover:bg-amber-50" onClick={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()}><MapPinned className="h-3 w-3" />Map</a>;
 }
 
 function SummaryHeader({ label }: { label: string }) {

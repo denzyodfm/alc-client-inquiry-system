@@ -3,6 +3,7 @@
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { useMemo, useState } from "react";
 import { DistrictOfficerSummary } from "@/components/district-officer-summary";
+import { ReorderableRows } from "@/components/reorderable-rows";
 
 export type SummaryMetrics = {
   numberOfClients: number | null;
@@ -64,7 +65,8 @@ export function AssignmentSummaryTable({
   childLabel,
   rows,
   total,
-  description
+  description,
+  storageKey
 }: {
   title: string;
   label: string;
@@ -72,6 +74,8 @@ export function AssignmentSummaryTable({
   rows: SummaryRow[];
   total: SummaryMetrics;
   description?: string;
+  // When given, each level can be dragged into a reader's own order.
+  storageKey?: string;
 }) {
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "portfolio", dir: "desc" });
   const sortedRows = useMemo(() => {
@@ -106,6 +110,7 @@ export function AssignmentSummaryTable({
           <SortHeader label="Litigated" sortKey="litigated" sort={sort} onSort={toggleSort} align="right" caption />
         </div>
         <div className="min-w-[1350px] divide-y divide-slate-100">
+          <Reorderable storageKey={storageKey} ids={sortedRows.map((row) => row.key)} label={`${label.toLocaleLowerCase("en")} order`}>
           {sortedRows.map((row) => (row.children?.length ? (
             <details key={row.key} className="group/summary">
               <summary className={`${ROW_GRID} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/summary:bg-blue-50`}>
@@ -115,6 +120,12 @@ export function AssignmentSummaryTable({
                 <MetricCells metrics={row.metrics} />
               </summary>
               <div className="bg-white/60">
+                <Reorderable
+                  storageKey={storageKey ? `${storageKey}:${row.key}` : undefined}
+                  ids={row.children.map((child) => child.key)}
+                  label={`${(childLabel ?? "child").toLocaleLowerCase("en")} order`}
+                  compact
+                >
                 {row.children.map((child) => (
                   <div key={child.key} className={`${ROW_GRID} border-t border-slate-100 px-4 py-3 pl-10`}>
                     <span className="text-slate-700">
@@ -125,6 +136,7 @@ export function AssignmentSummaryTable({
                     <MetricCells metrics={child.metrics} />
                   </div>
                 ))}
+                </Reorderable>
               </div>
             </details>
           ) : (
@@ -133,6 +145,7 @@ export function AssignmentSummaryTable({
               <MetricCells metrics={row.metrics} />
             </div>
           )))}
+          </Reorderable>
           {!rows.length ? <p className="px-4 py-8 text-center font-semibold text-slate-500">No assigned {label.toLocaleLowerCase("en-US")} data found.</p> : null}
         </div>
         {rows.length ? (
@@ -143,6 +156,27 @@ export function AssignmentSummaryTable({
         ) : null}
       </div>
     </section>
+  );
+}
+
+function Reorderable({
+  storageKey,
+  ids,
+  label,
+  compact,
+  children
+}: {
+  storageKey?: string;
+  ids: string[];
+  label: string;
+  compact?: boolean;
+  children: React.ReactNode;
+}) {
+  if (!storageKey) return <>{children}</>;
+  return (
+    <ReorderableRows ids={ids} storageKey={storageKey} defaultOrderLabel={label} variant={compact ? "compact" : "full"}>
+      {children}
+    </ReorderableRows>
   );
 }
 

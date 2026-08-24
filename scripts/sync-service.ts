@@ -39,6 +39,8 @@ type BranchLoanRow = {
   source_status_name?: string | null;
   loan_type2_code?: string | number | null;
   loan_type2_name?: string | null;
+  loan_security_code?: string | null;
+  loan_security_name?: string | null;
   released_at?: Date | string | null;
   maturity_at?: Date | string | null;
   updated_at?: Date | string | null;
@@ -530,6 +532,23 @@ async function fetchBranchRows<T>(connection: ConnectionPool, table: BranchTable
     ? `LEFT JOIN dbo.tb_loan_product loan_product ON CONVERT(NVARCHAR(255), loan_product.${bracketColumn(productCodeColumn!)}) = CONVERT(NVARCHAR(255), loan.${bracketColumn(loanProductColumn!)})`
     : "";
 
+  // Loan security is the rediscounting report's "Loan Sec" column: a code such as CLN or LBP
+  // on the loan, described in the branch's own lookup table.
+  const loanSecurityColumn = firstExistingColumn(loanColumns, ["loan_security", "loansecurity", "security"]);
+  const securityLookupColumns = tableColumns["dbo.tb_loan_security"] ?? tableColumns.tb_loan_security;
+  const securityCodeColumn = firstExistingColumn(securityLookupColumns, ["id_code", "code", "security_code"]);
+  const securityNameColumn = firstExistingColumn(securityLookupColumns, ["description", "name"]);
+  const canJoinSecurityLookup = Boolean(loanSecurityColumn && securityCodeColumn && securityNameColumn);
+  const loanSecurityCodeExpression = loanSecurityColumn
+    ? `NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(20), loan.${bracketColumn(loanSecurityColumn)}))), '') AS loan_security_code`
+    : "CAST(NULL AS NVARCHAR(20)) AS loan_security_code";
+  const loanSecurityNameExpression = canJoinSecurityLookup
+    ? `NULLIF(LTRIM(RTRIM(CONVERT(NVARCHAR(120), loan_security.${bracketColumn(securityNameColumn!)}))), '') AS loan_security_name`
+    : "CAST(NULL AS NVARCHAR(120)) AS loan_security_name";
+  const loanSecurityJoin = canJoinSecurityLookup
+    ? `LEFT JOIN dbo.tb_loan_security loan_security ON CONVERT(NVARCHAR(50), loan_security.${bracketColumn(securityCodeColumn!)}) = CONVERT(NVARCHAR(50), loan.${bracketColumn(loanSecurityColumn!)})`
+    : "";
+
   const loanType2Column = firstExistingColumn(loanColumns, ["loan_type2", "loantype2", "loan_type_2"]);
   const loanType2LookupColumns = tableColumns["dbo.tb_loan_type2"] ?? tableColumns.tb_loan_type2;
   const loanType2CodeColumn = firstExistingColumn(loanType2LookupColumns, ["id_code", "code"]);
@@ -617,6 +636,8 @@ async function fetchBranchRows<T>(connection: ConnectionPool, table: BranchTable
         loan_status.description AS source_status_name,
         ${loanType2CodeExpression},
         ${loanType2NameExpression},
+        ${loanSecurityCodeExpression},
+        ${loanSecurityNameExpression},
         loan.date_created AS released_at,
         loan.due_date AS maturity_at,
         COALESCE(loan.date_created, loan.due_date) AS updated_at
@@ -624,6 +645,7 @@ async function fetchBranchRows<T>(connection: ConnectionPool, table: BranchTable
       LEFT JOIN dbo.tb_loan_status loan_status ON loan_status.id_code = COALESCE(NULLIF(loan.p_loan_status, 0), loan.loan_status)
       ${loanProductJoin}
       ${loanType2Join}
+      ${loanSecurityJoin}
       OUTER APPLY (
         SELECT SUM(COALESCE(paid_principal, 0) + COALESCE(paid_interest, 0)) AS paid_amount
         FROM dbo.tb_payment_history
@@ -991,6 +1013,8 @@ async function runSyncBranch(branch: Branch, startedAt: Date): Promise<BranchSyn
       const remoteBalance = asNullableNumber(row.remote_balance);
       const loanType2Code = asNullableNumber(row.loan_type2_code);
       const loanType2Name = row.loan_type2_name ?? null;
+      const loanSecurityCode = row.loan_security_code?.trim() || null;
+      const loanSecurityName = row.loan_security_name?.trim() || null;
 
       const loan = await prisma.loan.upsert({
         where: { branchId_remoteId: { branchId: branch.id, remoteId: String(row.id) } },
@@ -1015,6 +1039,8 @@ async function runSyncBranch(branch: Branch, startedAt: Date): Promise<BranchSyn
           sourceStatusName,
           loanType2Code: loanType2Code === null ? null : Math.trunc(loanType2Code),
           loanType2Name,
+          loanSecurityCode,
+          loanSecurityName,
           releasedAt: asDate(row.released_at),
           maturityAt: asDate(row.maturity_at),
           remoteUpdatedAt: asDate(row.updated_at)
@@ -1038,6 +1064,8 @@ async function runSyncBranch(branch: Branch, startedAt: Date): Promise<BranchSyn
           sourceStatusName,
           loanType2Code: loanType2Code === null ? null : Math.trunc(loanType2Code),
           loanType2Name,
+          loanSecurityCode,
+          loanSecurityName,
           releasedAt: asDate(row.released_at),
           maturityAt: asDate(row.maturity_at),
           remoteUpdatedAt: asDate(row.updated_at)

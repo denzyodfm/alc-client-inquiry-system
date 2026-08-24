@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { requireApiFunction } from "@/lib/api";
 import { canAccessBranch, getAccessibleBranchIds } from "@/lib/auth";
+import { officerAccountFamily } from "@/lib/officer-account";
 import {
   effectiveLocationCategory,
   higherRiskLocationCategory,
@@ -114,6 +115,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "You can view only your assigned loans." }, { status: 403 });
   }
   const effectiveOfficerId = officerId ?? (user.role === "ACCOUNT_OFFICER" ? user.id : null);
+  const officerFamily = effectiveOfficerId ? await officerAccountFamily(effectiveOfficerId) : null;
+  if (effectiveOfficerId && !officerFamily) {
+    return NextResponse.json({ error: "Account Officer not found." }, { status: 404 });
+  }
   const locationWhere: Prisma.LoanWhereInput = locationId
     ? { locationMasterlistId: locationId }
     : province
@@ -121,7 +126,7 @@ export async function GET(request: NextRequest) {
       : {};
   const assignmentWhere: Prisma.RemedialAssignmentWhereInput = {
     status: "ACTIVE",
-    ...(effectiveOfficerId ? { assignedToId: effectiveOfficerId } : assignedOnly ? { assignedToId: { not: null } } : {}),
+    ...(officerFamily ? { assignedToId: { in: officerFamily.accountIds } } : assignedOnly ? { assignedToId: { not: null } } : {}),
     ...(areaTeamLeaderParam
       ? { areaTeamLeaderId: areaTeamLeaderParam === "unassigned" ? null : areaTeamLeaderId }
       : {}),
@@ -191,11 +196,10 @@ export async function GET(request: NextRequest) {
     : loans.filter((loan) => categoryByClient.get(loan.clientId) === category);
   const total = matchingLoans.length;
   const clientTotal = new Set(matchingLoans.map((loan) => loan.clientId)).size;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const page = Math.min(requestedPage, totalPages);
   const allRows = format === "excel" || format === "print";
   const everyRow = matchingLoans.map((loan) => ({
     id: loan.id,
+    clientId: loan.clientId,
     clientName: loan.client.fullName,
     clientNumber: loan.client.clientId,
     contactNumber: loan.client.contactNumber,
@@ -222,13 +226,37 @@ export async function GET(request: NextRequest) {
     barangay: loan.locationMasterlist?.barangay ?? "-"
   }));
   everyRow.sort((left, right) => (sortDir === "asc" ? 1 : -1) * compareRows(left, right, sortKey));
-  const rows = allRows ? everyRow : everyRow.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // The summaries count clients, so this list is paged and numbered by client: a borrower with
+  // several loans is one entry, with each of their loans listed under it.
+  const loansByClient = new Map<number, typeof everyRow>();
+  const clientOrder: number[] = [];
+  for (const row of everyRow) {
+    const existing = loansByClient.get(row.clientId);
+    if (existing) {
+      existing.push(row);
+      continue;
+    }
+    loansByClient.set(row.clientId, [row]);
+    clientOrder.push(row.clientId);
+  }
+  const clientPages = Math.max(1, Math.ceil(clientOrder.length / PAGE_SIZE));
+  const clientPage = Math.min(requestedPage, clientPages);
+  const pageClientIds = allRows ? clientOrder : clientOrder.slice((clientPage - 1) * PAGE_SIZE, clientPage * PAGE_SIZE);
+  const rows = pageClientIds.flatMap((clientId) => loansByClient.get(clientId) ?? []);
+  const clientStartIndex = allRows ? 0 : (clientPage - 1) * PAGE_SIZE;
 
   if (format === "excel" || format === "print") {
     const categoryLabel = category === "pastDue" ? "Past Due" : category.charAt(0).toUpperCase() + category.slice(1);
     const title = `${categoryLabel} Clients and Loan Information - ${context}`;
-    const body = rows.map((row, index) => `<tr>
-      <td>${index + 1}</td><td>${escapeHtml(row.clientName)}</td><td>${escapeHtml(row.clientNumber || "-")}</td>
+    // One number per client, repeated blank for that client's further loans.
+    const clientNumbers = new Map<number, number>();
+    const body = rows.map((row) => {
+      const seen = clientNumbers.get(row.clientId);
+      const number = seen ?? clientNumbers.size + 1;
+      if (seen === undefined) clientNumbers.set(row.clientId, number);
+      return `<tr>
+      <td>${seen === undefined ? number : ""}</td><td>${escapeHtml(row.clientName)}</td><td>${escapeHtml(row.clientNumber || "-")}</td>
       <td>${escapeHtml(row.contactNumber || "-")}</td><td>${escapeHtml(row.loanNumber)}</td><td>${escapeHtml(row.branch)}</td>
       <td>${escapeHtml(row.product || "-")}</td><td>${escapeHtml(row.releasedAt?.slice(0, 10) || "-")}</td>
       <td>${escapeHtml(row.maturityAt?.slice(0, 10) || "-")}</td><td>${escapeHtml(row.status || "-")}</td>
@@ -238,11 +266,12 @@ export async function GET(request: NextRequest) {
       <td class="number">${money(row.totalBalance)}</td><td class="number">${row.remoteBalance === null ? "-" : money(row.remoteBalance)}</td>
       <td>${escapeHtml(row.address || "-")}</td>
       <td>${escapeHtml(row.accountOfficer)}</td>
-    </tr>`).join("");
+    </tr>`;
+    }).join("");
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
       <style>body{font-family:Arial,sans-serif;font-size:11px;color:#0f172a}h1{font-size:18px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #cbd5e1;padding:5px;vertical-align:top}th{background:#f1f5f9;text-transform:uppercase;font-size:9px}.number{text-align:right;white-space:nowrap}.actions{margin-bottom:12px}@media print{.actions{display:none}body{font-size:8px}th,td{padding:3px}}</style>
       </head><body>${format === "print" ? '<div class="actions"><button onclick="window.print()">Print</button></div>' : ""}
-      <h1>${escapeHtml(title)}</h1><p>${clientTotal.toLocaleString("en-US")} client(s), ${rows.length.toLocaleString("en-US")} loan(s)</p><table><thead><tr>
+      <h1>${escapeHtml(title)}</h1><p>${clientTotal.toLocaleString("en-US")} client(s) holding ${rows.length.toLocaleString("en-US")} loan(s)</p><table><thead><tr>
       <th>No.</th><th>Client</th><th>Client ID</th><th>Contact</th><th>Loan</th><th>Branch</th><th>Product</th>
       <th>Released</th><th>Maturity</th><th>Status</th><th>Original Principal</th><th>Principal Balance</th>
       <th>Interest</th><th>Penalty</th><th>Other Charges</th><th>Paid</th><th>Total Balance</th><th>Remote Balance</th>
@@ -269,6 +298,8 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     rows,
+    clientStartIndex,
+    clientsOnPage: pageClientIds.length,
     officers: officers.map((officer) => ({
       id: officer.id,
       name: officer.name,
@@ -276,11 +307,11 @@ export async function GET(request: NextRequest) {
       branchIds: officer.branchAccess.map((access) => access.branchId)
     })),
     canAssignOfficer: user.role === "ADMIN" || user.role === "AREA_TEAM_LEADER",
-    page,
+    page: clientPage,
     pageSize: PAGE_SIZE,
     total,
     clientTotal,
-    totalPages,
+    totalPages: clientPages,
     context,
     category
   });

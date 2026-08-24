@@ -273,6 +273,8 @@ model Loan {
   sourceStatusName String?   @map("source_status_name") @db.VarChar(80)
   loanType2Code   Int?       @map("loan_type2_code")
   loanType2Name   String?    @map("loan_type2_name") @db.VarChar(80)
+  loanSecurityCode String?   @map("loan_security_code") @db.VarChar(20)
+  loanSecurityName String?   @map("loan_security_name") @db.VarChar(120)
   releasedAt      DateTime?  @map("released_at") @db.Date
   maturityAt      DateTime?  @map("maturity_at") @db.Date
   remoteUpdatedAt DateTime?  @map("remote_updated_at")
@@ -294,6 +296,7 @@ model Loan {
   @@index([balance])
   @@index([loanNumber])
   @@index([loanProduct])
+  @@index([loanSecurityCode])
   @@index([locationLinked])
   @@index([locationMasterlistId])
   @@map("loans")

@@ -4,6 +4,8 @@ import { AlertTriangle, BarChart3, CheckCircle2, Clock, FileText, ShieldCheck, X
 import { dateOnly, money } from "@/lib/format";
 import type { LoanDetailLoan, LoanDetailSchedule } from "@/components/loan-detail-window";
 import { LoanDetailLink } from "@/components/loan-detail-link";
+import { useRef } from "react";
+import { useModalAccessibility } from "@/components/use-modal-accessibility";
 
 type ClientLoanAnalysisReportProps = {
   clientName: string;
@@ -135,6 +137,8 @@ function recommendationForClient({
 }
 
 export function ClientLoanAnalysisReport({ clientName, customerNo, loans, onClose }: ClientLoanAnalysisReportProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalAccessibility(true, dialogRef, onClose);
   const today = new Date();
   const sortedLoans = [...loans].sort((a, b) => dueTime(b.releasedAt) - dueTime(a.releasedAt));
   const totalDue = sortedLoans.reduce((sum, loan) => sum + loanDueTotal(loan), 0);
@@ -177,8 +181,8 @@ export function ClientLoanAnalysisReport({ clientName, customerNo, loans, onClos
   });
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4">
-      <div className="w-full max-w-6xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4" role="presentation">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Client loan analysis" tabIndex={-1} className="w-full max-w-6xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl outline-none">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Client loan analysis</p>

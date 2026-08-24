@@ -3,6 +3,8 @@
 import { AlertTriangle, BarChart3, CheckCircle2, ShieldCheck, TrendingUp, X } from "lucide-react";
 import { dateOnly, money } from "@/lib/format";
 import type { LoanDetailLoan, LoanDetailSchedule } from "@/components/loan-detail-window";
+import { useRef } from "react";
+import { useModalAccessibility } from "@/components/use-modal-accessibility";
 
 type PaymentBehaviorReportProps = {
   loan: LoanDetailLoan;
@@ -105,6 +107,8 @@ function recommendationForLoan({
 }
 
 export function PaymentBehaviorReport({ loan, onClose }: PaymentBehaviorReportProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalAccessibility(true, dialogRef, onClose);
   const today = new Date();
   const schedules = [...loan.amortizationSchedules].sort((a, b) => dueTime(a) - dueTime(b));
   const totalAmort = schedules.reduce((sum, schedule) => sum + numberValue(schedule.totalAmort), 0);
@@ -141,8 +145,8 @@ export function PaymentBehaviorReport({ loan, onClose }: PaymentBehaviorReportPr
   });
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4">
-      <div className="w-full max-w-5xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4" role="presentation">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Payment behavior report" tabIndex={-1} className="w-full max-w-5xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-2xl outline-none">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Payment behavior analysis</p>

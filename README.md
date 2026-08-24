@@ -183,3 +183,10 @@ scripts/
 - Replace seeded credentials immediately after first login.
 - Use read-only branch database users for sync.
 - Keep `SESSION_SECRET` and `SYNC_ENCRYPTION_KEY` private and stable between deployments.
+
+## Security baseline
+
+- Production startup requires `SESSION_SECRET` to contain at least 32 characters.
+- Sign-in attempts are temporarily blocked after five failures for the same account and IP within 15 minutes. The built-in limiter is process-local; multi-instance deployments should replace it with a shared Redis or database-backed limiter at the reverse proxy or application layer.
+- Dashboard totals are restricted to the signed-in user's accessible branches.
+- Run the security regression checks with `npm test` before deployment.

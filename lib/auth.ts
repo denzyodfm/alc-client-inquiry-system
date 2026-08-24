@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import type { UserRole } from "@prisma/client";
 import { canAccessAnyFunction, canAccessFunction, type AppFunctionKey } from "@/lib/access-control";
+import { sessionSecret } from "@/lib/session-security";
 
 export type SessionUser = {
   id: number;
@@ -19,7 +20,7 @@ export type SessionUser = {
 const COOKIE_NAME = "alc_session";
 
 function getSecret() {
-  return process.env.SESSION_SECRET || "development-only-secret-change-me";
+  return sessionSecret();
 }
 
 function sign(payload: string) {
