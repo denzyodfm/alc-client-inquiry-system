@@ -196,7 +196,7 @@ export function NewLoansTable({ rows, officers, locations, rowOffset = 0 }: { ro
               const barangayOptions = barangays(draft.province, draft.municipality);
               return (
                 <Fragment key={row.id}>
-                <tr>
+                <tr className="border-t-2 border-blue-200 bg-white">
                   <td className="px-2 py-2 text-slate-400">{rowOffset + index + 1}</td>
                   <td className="px-2 py-2">
                     <span className="block font-bold text-slate-900">{row.clientName}</span>
@@ -217,11 +217,12 @@ export function NewLoansTable({ rows, officers, locations, rowOffset = 0 }: { ro
                       : row.assignedToName ?? <span className="font-semibold text-amber-600">Unassigned</span>}
                   </td>
                   <td className="px-2 py-2 print:hidden">
-                    <span className="font-semibold text-slate-600">See the blue panel below</span>
+                    <span className="font-semibold text-brand-blue">Location &amp; officer below</span>
                   </td>
                 </tr>
-                <tr className="bg-blue-50/70 print:hidden">
+                <tr className="border-b-2 border-blue-200 bg-blue-50/70 print:hidden">
                   <td colSpan={13} className="px-3 py-3">
+                    <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-brand-blue">Assignment for #{rowOffset + index + 1} — {row.clientName} — {row.loanNumber}</p>
                     <div className="grid gap-3 xl:grid-cols-[minmax(260px,1.4fr)_minmax(150px,.7fr)_minmax(520px,2.4fr)] xl:items-end">
                       <div><span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Address</span><p className="min-h-8 rounded-md border border-blue-100 bg-white px-2 py-1.5 text-xs text-slate-700">{row.address || "No address"}</p></div>
                       <div><span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Area TL / Branch TL</span><p className="min-h-8 rounded-md border border-blue-100 bg-white px-2 py-1.5 font-semibold text-slate-700">{teamLeader}</p></div>
