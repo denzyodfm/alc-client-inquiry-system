@@ -1,4 +1,5 @@
 import { FileSpreadsheet, Printer, Search } from "lucide-react";
+import Link from "next/link";
 import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NewLoansTable } from "@/components/new-loans-table";
@@ -13,33 +14,44 @@ function money(value: number) {
 export default async function NewLoansPage({
   searchParams
 }: {
-  searchParams?: Promise<{ period?: string; from?: string; to?: string; branchIds?: string | string[] }>;
+  searchParams?: Promise<{ period?: string; from?: string; to?: string; branchIds?: string | string[]; page?: string }>;
 }) {
   const user = await requireFunction("ACCOUNT_TAGGING");
   const params = await searchParams;
   const period = (NEW_LOAN_PERIODS.some((option) => option.value === params?.period) ? params!.period! : "all") as NewLoansPeriod;
   const { from, to } = newLoansRange(period, params?.from, params?.to);
+  const requestedPage = Math.max(1, Number.parseInt(params?.page ?? "1", 10) || 1);
   const branchIds = (Array.isArray(params?.branchIds) ? params!.branchIds : params?.branchIds ? [params.branchIds] : [])
     .flatMap((value) => value.split(","))
     .map((value) => Number(value.trim()))
     .filter((value) => Number.isInteger(value) && value > 0);
 
   const accessibleBranchIds = await getAccessibleBranchIds(user);
-  const [branches, officers, { rows, totals, matching, truncated }] = await Promise.all([
+  const [branches, officers, locations, result] = await Promise.all([
     prisma.branch.findMany({
       where: accessibleBranchIds === null ? undefined : { id: { in: accessibleBranchIds } },
       orderBy: { branchName: "asc" },
       select: { id: true, branchName: true, branchCode: true }
     }),
     assignableOfficers(),
-    newLoanRows({ from, to, branchIds, accessibleBranchIds })
+    prisma.locationMasterlist.findMany({
+      orderBy: [{ province: "asc" }, { municipality: "asc" }, { barangay: "asc" }],
+      select: { id: true, province: true, municipality: true, barangay: true }
+    }),
+    newLoanRows({ from, to, branchIds, accessibleBranchIds, page: requestedPage })
   ]);
+  const { rows, totals, matching, page, pageSize, totalPages } = result;
 
   const exportParams = new URLSearchParams({ period });
   if (params?.from) exportParams.set("from", params.from);
   if (params?.to) exportParams.set("to", params.to);
   if (branchIds.length) exportParams.set("branchIds", branchIds.join(","));
   const exportUrl = `/api/new-loans/export?${exportParams.toString()}`;
+  function pageHref(targetPage: number) {
+    const next = new URLSearchParams(exportParams);
+    if (targetPage > 1) next.set("page", String(targetPage));
+    return `/new-loans?${next.toString()}`;
+  }
 
   return (
     <div className="space-y-3">
@@ -78,9 +90,9 @@ export default async function NewLoansPage({
 
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <span className="text-xs font-semibold text-slate-500">
-          {truncated
-            ? `Showing the first ${totals.count.toLocaleString("en-US")} of ${matching.toLocaleString("en-US")} unassigned loan(s) - narrow the period or branch to see the rest`
-            : `${totals.count.toLocaleString("en-US")} unassigned loan(s)`}
+          {matching
+            ? `Showing ${((page - 1) * pageSize + 1).toLocaleString("en-US")}-${Math.min(page * pageSize, matching).toLocaleString("en-US")} of ${matching.toLocaleString("en-US")} unassigned loan(s)`
+            : "0 unassigned loan(s)"}
           {" | "}principal {money(totals.principalAmount)} | balance {money(totals.balance)}
         </span>
         <div className="flex gap-2">
@@ -100,7 +112,25 @@ export default async function NewLoansPage({
           maturityAt: row.maturityAt ? row.maturityAt.toISOString() : null
         }))}
         officers={officers}
+        locations={locations}
+        rowOffset={(page - 1) * pageSize}
       />
+
+      <nav className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 print:hidden" aria-label="New Loans pagination">
+        <p className="text-xs font-semibold text-slate-600">Page {page.toLocaleString("en-US")} of {totalPages.toLocaleString("en-US")}</p>
+        <div className="flex flex-wrap gap-2">
+          <PaginationLink href={pageHref(1)} disabled={page <= 1}>First</PaginationLink>
+          <PaginationLink href={pageHref(Math.max(1, page - 1))} disabled={page <= 1}>Prev</PaginationLink>
+          <PaginationLink href={pageHref(Math.min(totalPages, page + 1))} disabled={page >= totalPages}>Next</PaginationLink>
+          <PaginationLink href={pageHref(totalPages)} disabled={page >= totalPages}>Last</PaginationLink>
+        </div>
+      </nav>
     </div>
   );
+}
+
+function PaginationLink({ href, disabled, children }: { href: string; disabled: boolean; children: React.ReactNode }) {
+  return disabled
+    ? <span aria-disabled="true" className="inline-flex h-9 min-w-16 cursor-not-allowed items-center justify-center rounded-md border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-400">{children}</span>
+    : <Link className="btn-secondary h-9 min-w-16 px-3 text-xs" href={href} scroll={false}>{children}</Link>;
 }

@@ -28,6 +28,7 @@ export async function GET() {
     select: {
       id: true,
       name: true,
+      userCode: true,
       email: true,
       role: true,
       position: true,
@@ -73,6 +74,7 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const name = String(body.name ?? "").trim();
+  const userCode = String(body.userCode ?? "").trim().toUpperCase() || null;
   const email = String(body.email ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");
   const confirmPassword = String(body.confirmPassword ?? "");
@@ -95,6 +97,9 @@ export async function POST(request: Request) {
 
   if (!name || !email || !password) {
     return NextResponse.json({ error: "Name, email, and password are required." }, { status: 400 });
+  }
+  if (userCode && userCode.length > 40) {
+    return NextResponse.json({ error: "User Code must be 40 characters or fewer." }, { status: 400 });
   }
   if (password !== confirmPassword) {
     return NextResponse.json({ error: "Passwords do not match." }, { status: 400 });
@@ -156,6 +161,7 @@ export async function POST(request: Request) {
       const created = await tx.user.create({
         data: {
           name,
+          userCode,
           email,
           role,
           position,
@@ -168,7 +174,7 @@ export async function POST(request: Request) {
           branchTeamLeaderId,
           passwordHash
         },
-        select: { id: true, name: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, isActive: true }
+        select: { id: true, name: true, userCode: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, isActive: true }
       });
 
       if (!allBranches && branchIds.length) {
@@ -183,12 +189,12 @@ export async function POST(request: Request) {
     await auditAction(request, currentUser!, "USER_CREATE", "User Management", `Created ${name} (${email})`);
     const saved = await prisma.user.findUnique({
       where: { id: user.id },
-      select: { id: true, name: true, email: true, role: true, isActive: true }
+      select: { id: true, name: true, userCode: true, email: true, role: true, isActive: true }
     });
     return NextResponse.json(saved, { status: 201 });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return NextResponse.json({ error: "A user with this email already exists." }, { status: 409 });
+      return NextResponse.json({ error: "That email or User Code is already assigned to another user." }, { status: 409 });
     }
     return NextResponse.json({ error: "Unable to create user." }, { status: 500 });
   }

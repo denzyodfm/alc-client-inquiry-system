@@ -11,6 +11,8 @@ type MasterlistLocation = {
   barangay: string;
 };
 
+export type AddressLocationOption = MasterlistLocation;
+
 type AddressMatcher = {
   term: string;
   locations: MasterlistLocation[];
@@ -123,6 +125,21 @@ function resolveFromAddress(address: string | null, matchers: AddressMatcher[]) 
 
   if (!scored.length) return null;
   return scored[0].score > (scored[1]?.score ?? -1) ? scored[0].candidate : null;
+}
+
+// Gives interactive assignment screens the same conservative unique match as the
+// background linker, without writing anything until the operator confirms.
+export function locationSuggestionFromAddress(address: string | null, locations: AddressLocationOption[]) {
+  const byBarangay = new Map<string, MasterlistLocation[]>();
+  for (const location of locations) {
+    for (const barangay of barangayAliases(location.barangay)) {
+      byBarangay.set(barangay, [...(byBarangay.get(barangay) ?? []), location]);
+    }
+  }
+  const matchers = Array.from(byBarangay.entries())
+    .map(([term, matchingLocations]) => ({ term: searchableText(term), locations: uniqueLocations(matchingLocations) }))
+    .filter((matcher) => matcher.term.length >= 2);
+  return resolveFromAddress(address, matchers);
 }
 
 function resolveLocation(

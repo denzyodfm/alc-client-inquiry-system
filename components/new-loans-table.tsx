@@ -2,7 +2,7 @@
 
 import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 
 export type NewLoanTableRow = {
   id: number;
@@ -22,6 +22,11 @@ export type NewLoanTableRow = {
   status: string | null;
   assignedToId: number | null;
   assignedToName: string | null;
+  locationId: number | null;
+  province: string;
+  municipality: string;
+  barangay: string;
+  teamLeader: string | null;
 };
 
 export type AssignableOfficer = {
@@ -30,7 +35,13 @@ export type AssignableOfficer = {
   privilege: string;
   allBranches: boolean;
   branchIds: number[];
+  teamLeaderId: number | null;
+  teamLeaderName: string | null;
+  teamLeaderType: string | null;
 };
+
+type LocationOption = { id: number; province: string; municipality: string; barangay: string };
+type AssignmentDraft = { province: string; municipality: string; barangay: string };
 
 type SortKey = "clientName" | "loanNumber" | "branch" | "product" | "grantedAt" | "maturityAt" | "principalAmount" | "balance" | "status" | "branchAo" | "assignedToName";
 
@@ -59,13 +70,34 @@ function shortDate(value: string | null) {
   return value ? new Date(value).toLocaleDateString("en-US") : "-";
 }
 
-export function NewLoansTable({ rows, officers }: { rows: NewLoanTableRow[]; officers: AssignableOfficer[] }) {
+export function NewLoansTable({ rows, officers, locations, rowOffset = 0 }: { rows: NewLoanTableRow[]; officers: AssignableOfficer[]; locations: LocationOption[]; rowOffset?: number }) {
   const router = useRouter();
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "grantedAt", dir: "desc" });
   const [choice, setChoice] = useState<Record<number, string>>({});
   const [savingId, setSavingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Record<number, string>>({});
+  const [drafts, setDrafts] = useState<Record<number, AssignmentDraft>>({});
+
+  function draftFor(row: NewLoanTableRow) {
+    return drafts[row.id] ?? { province: row.province, municipality: row.municipality, barangay: row.barangay };
+  }
+
+  function updateDraft(row: NewLoanTableRow, changes: Partial<AssignmentDraft>) {
+    setDrafts((current) => ({ ...current, [row.id]: { ...draftFor(row), ...changes } }));
+  }
+
+  function provinces() {
+    return Array.from(new Set(locations.map((location) => location.province)));
+  }
+
+  function municipalities(province: string) {
+    return Array.from(new Set(locations.filter((location) => location.province === province).map((location) => location.municipality)));
+  }
+
+  function barangays(province: string, municipality: string) {
+    return locations.filter((location) => location.province === province && location.municipality === municipality);
+  }
 
   const sortedRows = useMemo(() => {
     const direction = sort.dir === "asc" ? 1 : -1;
@@ -97,13 +129,19 @@ export function NewLoansTable({ rows, officers }: { rows: NewLoanTableRow[]; off
       setError("Choose an officer first.");
       return;
     }
+    const draft = draftFor(row);
+    const location = locations.find((item) => item.province === draft.province && item.municipality === draft.municipality && item.barangay === draft.barangay);
+    if (!location) {
+      setError("Select a complete Province, City/Municipality, and Barangay from the masterlist.");
+      return;
+    }
     setSavingId(row.id);
     setError(null);
     try {
       const response = await fetch("/api/new-loans", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ loanId: row.id, assignedToId })
+        body: JSON.stringify({ loanId: row.id, assignedToId, locationId: location.id })
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.error ?? "Unable to assign this loan.");
@@ -143,15 +181,23 @@ export function NewLoansTable({ rows, officers }: { rows: NewLoanTableRow[]; off
                   </button>
                 </th>
               ))}
-              <th className="min-w-[280px] px-2 py-2 print:hidden">Assign to</th>
+              <th className="min-w-[280px] px-2 py-2 print:hidden">Assignment details</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {sortedRows.map((row, index) => {
               const available = officersFor(row.branchId);
+              const draft = draftFor(row);
+              const selectedOfficer = officers.find((officer) => officer.id === Number(choice[row.id] ?? row.assignedToId ?? 0));
+              const teamLeader = selectedOfficer?.teamLeaderName
+                ? `${selectedOfficer.teamLeaderType}: ${selectedOfficer.teamLeaderName}`
+                : row.teamLeader ? `Branch TL: ${row.teamLeader}` : "Not set";
+              const cityOptions = municipalities(draft.province);
+              const barangayOptions = barangays(draft.province, draft.municipality);
               return (
-                <tr key={row.id}>
-                  <td className="px-2 py-2 text-slate-400">{index + 1}</td>
+                <Fragment key={row.id}>
+                <tr>
+                  <td className="px-2 py-2 text-slate-400">{rowOffset + index + 1}</td>
                   <td className="px-2 py-2">
                     <span className="block font-bold text-slate-900">{row.clientName}</span>
                     <span className="text-slate-500">{row.clientNumber || "-"}{row.contactNumber ? ` | ${row.contactNumber}` : ""}</span>
@@ -171,29 +217,44 @@ export function NewLoansTable({ rows, officers }: { rows: NewLoanTableRow[]; off
                       : row.assignedToName ?? <span className="font-semibold text-amber-600">Unassigned</span>}
                   </td>
                   <td className="px-2 py-2 print:hidden">
-                    <div className="flex min-w-[260px] items-center gap-2">
-                      <select
-                        className="field h-8 flex-1 px-2 py-0 text-xs"
-                        value={choice[row.id] ?? (row.assignedToId ? String(row.assignedToId) : "")}
-                        onChange={(event) => setChoice((current) => ({ ...current, [row.id]: event.target.value }))}
-                      >
-                        <option value="">Select officer</option>
-                        {available.map((officer) => (
-                          <option key={officer.id} value={officer.id}>{officer.name}{officer.privilege ? ` (${officer.privilege})` : ""}</option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        className="btn-secondary h-8 px-2 text-xs"
-                        onClick={() => assign(row)}
-                        disabled={savingId === row.id || !available.length}
-                      >
-                        {savingId === row.id ? "Assigning..." : "Assign"}
-                      </button>
+                    <span className="font-semibold text-slate-600">See the blue panel below</span>
+                  </td>
+                </tr>
+                <tr className="bg-blue-50/70 print:hidden">
+                  <td colSpan={13} className="px-3 py-3">
+                    <div className="grid gap-3 xl:grid-cols-[minmax(260px,1.4fr)_minmax(150px,.7fr)_minmax(520px,2.4fr)] xl:items-end">
+                      <div><span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Address</span><p className="min-h-8 rounded-md border border-blue-100 bg-white px-2 py-1.5 text-xs text-slate-700">{row.address || "No address"}</p></div>
+                      <div><span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Area TL / Branch TL</span><p className="min-h-8 rounded-md border border-blue-100 bg-white px-2 py-1.5 font-semibold text-slate-700">{teamLeader}</p></div>
+                      <div className="grid gap-2">
+                        <div className="grid grid-cols-3 gap-2">
+                        <select className="field h-8 px-2 py-0 text-xs" aria-label={`Province for ${row.clientName}`} value={draft.province} onChange={(event) => updateDraft(row, { province: event.target.value, municipality: "", barangay: "" })}>
+                          <option value="">Province</option>
+                          {provinces().map((province) => <option key={province} value={province}>{province}</option>)}
+                        </select>
+                        <select className="field h-8 px-2 py-0 text-xs" aria-label={`City or municipality for ${row.clientName}`} value={draft.municipality} disabled={!draft.province} onChange={(event) => updateDraft(row, { municipality: event.target.value, barangay: "" })}>
+                          <option value="">City/Municipality</option>
+                          {cityOptions.map((municipality) => <option key={municipality} value={municipality}>{municipality}</option>)}
+                        </select>
+                        <select className="field h-8 px-2 py-0 text-xs" aria-label={`Barangay for ${row.clientName}`} value={draft.barangay} disabled={!draft.municipality} onChange={(event) => updateDraft(row, { barangay: event.target.value })}>
+                          <option value="">Barangay</option>
+                          {barangayOptions.map((location) => <option key={location.id} value={location.barangay}>{location.barangay}</option>)}
+                        </select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <select className="field h-8 flex-1 px-2 py-0 text-xs" value={choice[row.id] ?? (row.assignedToId ? String(row.assignedToId) : "")} onChange={(event) => setChoice((current) => ({ ...current, [row.id]: event.target.value }))}>
+                            <option value="">Select Loan/Remedial Officer</option>
+                            {available.map((officer) => <option key={officer.id} value={officer.id}>{officer.name}{officer.privilege ? ` (${officer.privilege})` : ""}</option>)}
+                          </select>
+                          <button type="button" className="btn-primary h-8 px-3 text-xs" onClick={() => assign(row)} disabled={savingId === row.id || !available.length}>
+                            {savingId === row.id ? "Assigning..." : "Confirm & Assign"}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                     {!available.length ? <span className="text-[10px] text-red-600">No officer has access to this branch.</span> : null}
                   </td>
                 </tr>
+                </Fragment>
               );
             })}
             {!sortedRows.length ? (

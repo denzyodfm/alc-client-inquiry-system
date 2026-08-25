@@ -24,6 +24,7 @@ export default async function UsersPage() {
       select: {
         id: true,
         name: true,
+        userCode: true,
         email: true,
         role: true,
         position: true,

@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   const format = params.get("format") === "excel" ? "excel" : "print";
 
   const accessibleBranchIds = await getAccessibleBranchIds(user!);
-  const { rows, totals } = await newLoanRows({ from, to, branchIds, accessibleBranchIds });
+  const { rows, totals } = await newLoanRows({ from, to, branchIds, accessibleBranchIds, paginate: false });
 
   const heading = `NEW LOANS: ${NEW_LOAN_PERIODS.find((option) => option.value === period)?.label ?? "All dates granted"}`;
   const body = rows.map((row, index) => `<tr>

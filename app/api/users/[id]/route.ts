@@ -28,6 +28,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const userId = Number(id);
   const body = await request.json();
   const name = String(body.name ?? "").trim();
+  const userCode = String(body.userCode ?? "").trim().toUpperCase() || null;
   const email = String(body.email ?? "").trim().toLowerCase();
   const position = String(body.position ?? "").trim() || null;
   const requestedBaseBranchId = Number(body.baseBranchId);
@@ -83,6 +84,9 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!name || !email) {
     return NextResponse.json({ error: "Name and email are required." }, { status: 400 });
   }
+  if (userCode && userCode.length > 40) {
+    return NextResponse.json({ error: "User Code must be 40 characters or fewer." }, { status: 400 });
+  }
   if (currentUser?.id === userId && body.isActive === false) {
     return NextResponse.json({ error: "You cannot deactivate your own account." }, { status: 400 });
   }
@@ -130,6 +134,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         where: { id: userId },
         data: {
           name,
+          userCode,
           email,
           role,
           position,
@@ -142,7 +147,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           branchTeamLeaderId,
           ...(passwordHash ? { passwordHash } : {})
         },
-        select: { id: true, name: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, isActive: true }
+        select: { id: true, name: true, userCode: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, isActive: true }
       });
 
       await tx.userBranchAccess.deleteMany({ where: { userId } });
@@ -162,7 +167,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json(user);
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return NextResponse.json({ error: "A user with this email already exists." }, { status: 409 });
+      return NextResponse.json({ error: "That email or User Code is already assigned to another user." }, { status: 409 });
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
       return NextResponse.json({ error: "User not found." }, { status: 404 });

@@ -7,6 +7,7 @@ import { privilegeAssignmentRules } from "@/lib/privilege-assignment";
 type User = {
   id: number;
   name: string;
+  userCode: string | null;
   email: string;
   role: string;
   position: string | null;
@@ -51,11 +52,12 @@ function branchAccessLabel(user: User, branches: BranchOption[]) {
   return labels.length ? labels.join(", ") : "No branch access";
 }
 
-type SortKey = "name" | "email" | "privilege" | "position" | "baseBranch" | "branchTeamLeader" | "area" | "areaTeamLeader" | "branchAccess" | "status";
+type SortKey = "name" | "userCode" | "email" | "privilege" | "position" | "baseBranch" | "branchTeamLeader" | "area" | "areaTeamLeader" | "branchAccess" | "status";
 
 function sortValue(user: User, key: SortKey, branches: BranchOption[]) {
   switch (key) {
     case "name": return user.name;
+    case "userCode": return user.userCode ?? "";
     case "email": return user.email;
     case "privilege": return user.role === "ADMIN" ? "Full access" : user.privilegeTemplate?.name ?? "";
     case "position": return user.position ?? "";
@@ -74,6 +76,7 @@ function sortValue(user: User, key: SortKey, branches: BranchOption[]) {
 
 const SORT_COLUMNS: Array<[SortKey, string]> = [
   ["name", "User"],
+  ["userCode", "User Code"],
   ["email", "Email"],
   ["privilege", "Privilege"],
   ["position", "Position"],
@@ -138,7 +141,7 @@ export function UserManager({
   const visibleUsers = useMemo(
     () => users.filter((user) => {
       const term = searchFilter.trim().toLowerCase();
-      const matchesSearch = !term || user.name.toLowerCase().includes(term) || user.email.toLowerCase().includes(term);
+      const matchesSearch = !term || user.name.toLowerCase().includes(term) || user.email.toLowerCase().includes(term) || user.userCode?.toLowerCase().includes(term);
       const matchesPrivilege = privilegeFilter === "ALL"
         || (privilegeFilter === "UNSET" ? !user.privilegeTemplate : user.privilegeTemplate?.name === privilegeFilter);
       const matchesBranch = baseBranchFilter === "ALL" || (baseBranchFilter === "UNSET" ? !user.baseBranchId : user.baseBranchId === Number(baseBranchFilter));
@@ -275,6 +278,7 @@ export function UserManager({
         headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: user.name,
+        userCode: user.userCode ?? "",
         email: user.email,
         role: user.role,
         position: user.position ?? "",
@@ -366,6 +370,7 @@ export function UserManager({
               ) : null}
 
             <input name="name" className="field" placeholder="Full name" defaultValue={editingUser?.name ?? ""} required />
+            <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">User Code</span><input name="userCode" className="field uppercase" placeholder="Unique user code (optional)" defaultValue={editingUser?.userCode ?? ""} maxLength={40} /></label>
             <input name="email" className="field" type="email" placeholder="Email" defaultValue={editingUser?.email ?? ""} required />
             {!editingUser ? <>
               <input name="password" className="field" type="password" placeholder="Temporary password" required />
@@ -541,8 +546,8 @@ export function UserManager({
               type="search"
               value={searchFilter}
               onChange={(event) => setSearchFilter(event.target.value)}
-              placeholder="Search user or email"
-              aria-label="Search users by name or email"
+              placeholder="Search user, code, or email"
+              aria-label="Search users by name, code, or email"
             />
           </div>
           {showAssignmentFilters ? <><select className="field h-9 bg-white" value={privilegeFilter} onChange={(event) => setPrivilegeFilter(event.target.value)} aria-label="Filter users by privilege">
@@ -601,6 +606,7 @@ export function UserManager({
                       {user.name}
                     </div>
                   </td>
+                  <td className="whitespace-nowrap px-3 py-2 font-bold text-brand-blue">{user.userCode || <span className="font-normal text-slate-400">-</span>}</td>
                   <td className="whitespace-nowrap px-3 py-2">{user.email}</td>
                   <td className="px-3 py-2">{user.role === "ADMIN" ? <span className="font-semibold text-brand-green">Full access</span> : user.privilegeTemplate?.name || <span className="font-semibold text-red-600">No app access</span>}</td>
                   <td className="px-3 py-2">{user.position || <span className="text-slate-400">-</span>}</td>
@@ -667,7 +673,7 @@ export function UserManager({
               })}
               {!sortedUsers.length ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-500" colSpan={12}>No users match the selected filters.</td>
+                  <td className="px-4 py-6 text-slate-500" colSpan={13}>No users match the selected filters.</td>
                 </tr>
               ) : null}
             </tbody>
