@@ -1,49 +1,57 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { requireApiFunction } from "@/lib/api";
+import { configuredGeocodingProvider } from "@/lib/geocoding/provider";
+import { processLocationGeocoding } from "@/lib/geocoding/service";
+import { prisma } from "@/lib/prisma";
 
-type LocationInput = { id: number; province: string; municipality: string; barangay: string };
-type Result = LocationInput & { latitude: number | null; longitude: number | null; precision: "BARANGAY" | "MUNICIPALITY" | "UNMAPPED" };
-type Candidate = { name?: string; latitude?: number; longitude?: number; admin1?: string; admin2?: string; admin3?: string; admin4?: string; country_code?: string };
-const cache = new Map<string, Promise<Omit<Result, keyof LocationInput>>>();
+const inFlight = new Set<number>();
+const locationSelect = {
+  id: true, province: true, municipality: true, barangay: true,
+  latitude: true, longitude: true, coordinatePrecision: true, coordinateSource: true,
+  geocodedAt: true, geocodeError: true, retryAfter: true
+} as const;
+type StoredResult = Awaited<ReturnType<typeof loadLocations>>[number];
 
-function normalized(value?: string) { return (value ?? "").trim().replace(/^(?:barangay|brgy)\.?\s+/i, "").replace(/\s+/g, " ").toLocaleUpperCase("en"); }
-function score(candidate: Candidate, location: LocationInput, target: "BARANGAY" | "MUNICIPALITY") {
-  const names = [candidate.name, candidate.admin2, candidate.admin3, candidate.admin4].map(normalized);
-  const targetName = normalized(target === "BARANGAY" ? location.barangay : location.municipality);
-  let value = names[0] === targetName ? 20 : names.some((name) => name === targetName) ? 12 : names.some((name) => name.includes(targetName) || targetName.includes(name)) ? 5 : 0;
-  if (names.includes(normalized(location.municipality))) value += 8;
-  if (normalized(candidate.admin1) === normalized(location.province) || names.includes(normalized(location.province))) value += 8;
-  if (candidate.country_code === "PH") value += 4;
-  return value;
+function loadLocations(ids: number[]) {
+  return prisma.locationMasterlist.findMany({ where: { id: { in: ids } }, select: locationSelect });
 }
-async function search(location: LocationInput, target: "BARANGAY" | "MUNICIPALITY") {
-  const url = new URL("https://geocoding-api.open-meteo.com/v1/search");
-  url.searchParams.set("name", target === "BARANGAY" ? location.barangay : location.municipality);
-  url.searchParams.set("count", "100"); url.searchParams.set("language", "en"); url.searchParams.set("countryCode", "PH");
-  const response = await fetch(url, { signal: AbortSignal.timeout(10000), next: { revalidate: 86400 } });
-  if (!response.ok) return null;
-  const body = await response.json() as { results?: Candidate[] };
-  return (body.results ?? []).filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude)).sort((a, b) => score(b, location, target) - score(a, location, target))[0] ?? null;
+
+function serialize(locations: StoredResult[]) {
+  return locations.map((location) => ({
+    ...location,
+    latitude: location.latitude === null ? null : Number(location.latitude),
+    longitude: location.longitude === null ? null : Number(location.longitude),
+    precision: location.coordinatePrecision ?? "UNMAPPED",
+    geocodedAt: location.geocodedAt?.toISOString() ?? null,
+    retryAfter: location.retryAfter?.toISOString() ?? null
+  }));
 }
-async function coordinates(location: LocationInput) {
-  const key = [location.province, location.municipality, location.barangay].map(normalized).join("|");
-  if (cache.has(key)) return cache.get(key)!;
-  const pending = (async () => {
-    try {
-      const barangay = await search(location, "BARANGAY");
-      if (barangay && score(barangay, location, "BARANGAY") >= 12) return { latitude: barangay.latitude!, longitude: barangay.longitude!, precision: "BARANGAY" as const };
-      const municipality = await search(location, "MUNICIPALITY");
-      if (municipality) return { latitude: municipality.latitude!, longitude: municipality.longitude!, precision: "MUNICIPALITY" as const };
-    } catch { /* unresolved locations are returned explicitly */ }
-    return { latitude: null, longitude: null, precision: "UNMAPPED" as const };
-  })();
-  cache.set(key, pending); return pending;
-}
+
 export async function POST(request: Request) {
-  const { response } = await requireApiFunction("LOCATION_MASTERLIST"); if (response) return response;
+  const { response } = await requireApiFunction("LOCATION_MASTERLIST");
+  if (response) return response;
   const body = await request.json().catch(() => null);
-  const locations = Array.isArray(body?.locations) ? body.locations.slice(0, 250) as LocationInput[] : [];
-  const results: Result[] = [];
-  for (let index = 0; index < locations.length; index += 8) results.push(...await Promise.all(locations.slice(index, index + 8).map(async (location) => ({ ...location, ...await coordinates(location) }))));
-  return NextResponse.json({ locations: results });
+  const rawIds: unknown[] = Array.isArray(body?.locationIds) ? body.locationIds : [];
+  const ids: number[] = [...new Set(rawIds.map((value) => Number(value))
+    .filter((id) => Number.isInteger(id) && id > 0))].slice(0, 250);
+  if (!ids.length) return NextResponse.json({ locations: [], queued: false });
+
+  const locations = await loadLocations(ids);
+  let provider = null;
+  try { provider = configuredGeocodingProvider(); }
+  catch (error) {
+    return NextResponse.json({ locations: serialize(locations), queued: false, providerStatus: error instanceof Error ? error.message : "Provider unavailable." });
+  }
+  const now = new Date();
+  const pending = locations.filter((location) => location.latitude === null && location.longitude === null
+    && location.coordinatePrecision !== "MANUAL" && (!location.retryAfter || location.retryAfter <= now) && !inFlight.has(location.id));
+  if (provider && pending.length) {
+    pending.forEach(({ id }) => inFlight.add(id));
+    after(async () => {
+      try { await processLocationGeocoding(pending, provider!); }
+      catch (error) { console.error("Background location geocoding failed", error); }
+      finally { pending.forEach(({ id }) => inFlight.delete(id)); }
+    });
+  }
+  return NextResponse.json({ locations: serialize(locations), queued: Boolean(provider && pending.length), processing: ids.some((id) => inFlight.has(id)), providerStatus: provider ? "configured" : "disabled" });
 }

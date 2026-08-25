@@ -15,6 +15,7 @@ import { LocationLinkControl } from "@/components/location-link-control";
 import { BarangayLoanReport } from "@/components/officer-barangay-loans";
 import { OfficerBranchSummary } from "@/components/officer-branch-summary";
 import { OfficerLocationSummary } from "@/components/officer-location-summary";
+import { OfficerInlineLocationRows } from "@/components/officer-inline-location-rows";
 import { AccountOfficerSummary, type AccountOfficerSummaryRow } from "./account-officer-summary";
 import { AssignmentSummaryTable, type SummaryRow } from "@/components/assignment-summary-table";
 import { ReorderableRows } from "@/components/reorderable-rows";
@@ -91,6 +92,7 @@ type PivotBranchNode = {
 type PivotOfficerNode = {
   id: number;
   name: string;
+  privilege: string;
   metrics: Metrics;
   branches: PivotBranchNode[];
 };
@@ -469,6 +471,7 @@ export default async function LocationMasterlistPage() {
     groupKey: string;
     groupName: string;
     officerName: string;
+    privilege: string;
     listAlways: boolean;
   };
   const pivotByOfficer = new Map<string, PivotPlacement>();
@@ -494,6 +497,7 @@ export default async function LocationMasterlistPage() {
         groupKey: baseBranchGroup.key,
         groupName: baseBranchGroup.name,
         officerName,
+        privilege: officer.privilegeTemplate?.name ?? "Privilege not set",
         listAlways: isRemedialOfficer
       });
       continue;
@@ -506,6 +510,7 @@ export default async function LocationMasterlistPage() {
         groupKey: "all",
         groupName: "",
         officerName,
+        privilege: officer.privilegeTemplate?.name ?? "Privilege not set",
         listAlways: isLoanOfficer
       });
       continue;
@@ -517,6 +522,7 @@ export default async function LocationMasterlistPage() {
       groupKey: "all",
       groupName: "",
       officerName,
+      privilege: officer.privilegeTemplate?.name ?? "Privilege not set",
       listAlways: false
     });
   }
@@ -671,6 +677,7 @@ export default async function LocationMasterlistPage() {
     officers.push({
       id: Number(officerKey),
       name: placement.officerName,
+      privilege: placement.privilege,
       metrics: accumulatedMetrics(metricsByOfficer.get(officerKey)),
       branches: officerBranches(officerKey)
     });
@@ -684,6 +691,7 @@ export default async function LocationMasterlistPage() {
     .map(([officerKey, officerName]) => ({
       id: Number(officerKey),
       name: officerName,
+      privilege: "Privilege not set",
       metrics: accumulatedMetrics(metricsByOfficer.get(officerKey)),
       branches: officerBranches(officerKey)
     }));
@@ -864,7 +872,7 @@ export default async function LocationMasterlistPage() {
         <div className="border-b border-slate-200 p-5">
           <h3 className="text-lg font-bold text-slate-950">Account Officer Location Pivot</h3>
           <p className="mt-1 text-sm text-slate-600">
-            Area Team Leaders and Branch Team Leaders sit side by side. Open a team leader for its officers, then an officer for the branches their loans sit in.
+            Area Team Leaders and Branch Team Leaders sit side by side. Open a team leader for its officers, then an officer for the province, city/municipality, and barangay of their assigned loans.
             Click an officer&apos;s client count for the loan details, or the Location button for their province, city/municipality, and barangay. Every level can be dragged into the order you prefer. The total counts each client only once across all officers.
           </p>
         </div>
@@ -904,10 +912,8 @@ export default async function LocationMasterlistPage() {
                   {leader.officers.map((officer) => (
                     <details key={officer.id} className="group/ao">
                       <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/ao:bg-blue-100`}>
-                        <span className="font-semibold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/ao:before:rotate-90">
-                          {officer.name}
-                          <OfficerBranchSummary officerId={officer.id} officerName={officer.name} />
-                          <OfficerLocationSummary officerId={officer.id} officerName={officer.name} />
+                        <span className="flex items-start font-semibold text-slate-800 before:mr-2 before:mt-1 before:inline-block before:content-['▶'] group-open/ao:before:rotate-90">
+                          <span className="min-w-0"><span className="block">{officer.name}<OfficerLocationSummary officerId={officer.id} officerName={officer.name} /></span><span className="mt-0.5 block text-[10px] font-bold uppercase tracking-wide text-brand-blue">Privilege: {officer.privilege}</span></span>
                         </span>
                         <MetricCells
                           metrics={officer.metrics}
@@ -919,6 +925,8 @@ export default async function LocationMasterlistPage() {
                         />
                       </summary>
                       <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
+                        <OfficerInlineLocationRows officerId={officer.id} officerName={officer.name} />
+                        <div className="hidden">
                         <ReorderableRows
                           ids={officer.branches.map((branch) => branch.key)}
                           storageKey={`officer-pivot-branch-order:${officer.id}`}
@@ -944,6 +952,7 @@ export default async function LocationMasterlistPage() {
                         ))}
                         </ReorderableRows>
                         {!officer.branches.length ? <p className="px-4 py-3 text-sm text-slate-500">No linked outstanding loans.</p> : null}
+                        </div>
                       </div>
                     </details>
                   ))}

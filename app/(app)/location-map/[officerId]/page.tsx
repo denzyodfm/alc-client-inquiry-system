@@ -41,14 +41,26 @@ export default async function OfficerLocationMapPage({ params, searchParams }: {
   const masterlist = await prisma.locationMasterlist.findMany({
     where: { id: { in: locationIds } },
     orderBy: [{ province: "asc" }, { municipality: "asc" }, { barangay: "asc" }],
-    select: { id: true, province: true, municipality: true, barangay: true }
+    select: {
+      id: true, province: true, municipality: true, barangay: true,
+      latitude: true, longitude: true, coordinatePrecision: true, coordinateSource: true,
+      geocodedAt: true, geocodeError: true, retryAfter: true
+    }
   });
   const counts = new Map(grouped.map((row) => [row.locationMasterlistId, row._count._all]));
   const locations = masterlist
     .filter((location) => !filters?.province || location.province === filters.province)
     .filter((location) => !filters?.municipality || location.municipality === filters.municipality)
     .filter((location) => !Number.isInteger(requestedLocationId) || requestedLocationId <= 0 || location.id === requestedLocationId)
-    .map((location) => ({ ...location, loans: counts.get(location.id) ?? 0 }));
+    .map((location) => ({
+      ...location,
+      latitude: location.latitude === null ? null : Number(location.latitude),
+      longitude: location.longitude === null ? null : Number(location.longitude),
+      precision: location.coordinatePrecision ?? "UNMAPPED" as const,
+      geocodedAt: location.geocodedAt?.toISOString() ?? null,
+      retryAfter: location.retryAfter?.toISOString() ?? null,
+      loans: counts.get(location.id) ?? 0
+    }));
   const scopeLabel = Number.isInteger(requestedLocationId) && requestedLocationId > 0
     ? locations[0]?.barangay
     : filters?.municipality || filters?.province || "All assigned locations";
@@ -68,7 +80,7 @@ export default async function OfficerLocationMapPage({ params, searchParams }: {
           <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-brand-blue">{locations.length.toLocaleString("en-US")} mapped location(s)</span>
         </div>
       </header>
-      <OfficerPortfolioMap officerId={family.canonicalId} officerName={family.canonicalName} locations={locations} />
+      <OfficerPortfolioMap officerId={family.canonicalId} officerName={family.canonicalName} locations={locations} isAdmin={user.role === "ADMIN"} />
     </div>
   );
 }

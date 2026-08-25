@@ -237,6 +237,8 @@ model ClientLog {
   subject     String?  @db.VarChar(180)
   notes       String   @db.Text
   newDate     DateTime? @map("new_date") @db.Date
+  originalNewDate DateTime? @map("original_new_date") @db.Date
+  rescheduledAt DateTime? @map("rescheduled_at")
   newAmount   Decimal? @map("new_amount") @db.Decimal(14, 2)
   visitAt     DateTime @default(now()) @map("visit_at")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -541,13 +543,27 @@ model LocationMasterlist {
   delayed          Int?
   pastDue          Int?     @map("past_due")
   litigated        Int?
+  latitude         Decimal? @db.Decimal(10, 7)
+  longitude        Decimal? @db.Decimal(10, 7)
+  coordinatePrecision CoordinatePrecision? @map("coordinate_precision")
+  coordinateSource String? @map("coordinate_source") @db.VarChar(120)
+  geocodedAt       DateTime? @map("geocoded_at")
+  geocodeError     String? @map("geocode_error") @db.Text
+  retryAfter       DateTime? @map("retry_after")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
   loans            Loan[]
 
   @@unique([province, municipality, barangay])
   @@index([province, municipality, barangay])
+  @@index([coordinatePrecision, retryAfter], map: "location_masterlist_geocode_retry_idx")
   @@map("location_masterlist")
+}
+
+enum CoordinatePrecision {
+  BARANGAY
+  MUNICIPALITY
+  MANUAL
 }
 
 model LocationLinkRun {

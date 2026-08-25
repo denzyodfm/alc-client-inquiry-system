@@ -76,7 +76,7 @@ function sortValue(user: User, key: SortKey, branches: BranchOption[]) {
 
 const SORT_COLUMNS: Array<[SortKey, string]> = [
   ["name", "User"],
-  ["userCode", "User Code"],
+  ["userCode", "User/Officer Code"],
   ["email", "Email"],
   ["privilege", "Privilege"],
   ["position", "Position"],
@@ -370,7 +370,7 @@ export function UserManager({
               ) : null}
 
             <input name="name" className="field" placeholder="Full name" defaultValue={editingUser?.name ?? ""} required />
-            <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">User Code</span><input name="userCode" className="field uppercase" placeholder="Unique user code (optional)" defaultValue={editingUser?.userCode ?? ""} maxLength={40} /></label>
+            <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">User/Officer Code</span><input name="userCode" className="field uppercase" placeholder="Unique user/officer code (optional)" defaultValue={editingUser?.userCode ?? ""} maxLength={40} /></label>
             <input name="email" className="field" type="email" placeholder="Email" defaultValue={editingUser?.email ?? ""} required />
             {!editingUser ? <>
               <input name="password" className="field" type="password" placeholder="Temporary password" required />

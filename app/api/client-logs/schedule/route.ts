@@ -37,6 +37,8 @@ export async function GET(request: NextRequest) {
         subject: true,
         notes: true,
         newDate: true,
+        originalNewDate: true,
+        rescheduledAt: true,
         newAmount: true,
         visitAt: true,
         client: { select: { fullName: true, clientId: true } },
@@ -50,6 +52,8 @@ export async function GET(request: NextRequest) {
     entries: logs.map((log) => ({
       id: log.id,
       date: log.newDate!.toISOString().slice(0, 10),
+      originalDate: log.originalNewDate?.toISOString().slice(0, 10) ?? null,
+      rescheduledAt: log.rescheduledAt?.toISOString() ?? null,
       logType: log.logType,
       subject: log.subject,
       notes: log.notes,
