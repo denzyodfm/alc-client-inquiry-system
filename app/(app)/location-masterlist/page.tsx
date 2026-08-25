@@ -15,7 +15,6 @@ import { LocationLinkControl } from "@/components/location-link-control";
 import { BarangayLoanReport } from "@/components/officer-barangay-loans";
 import { OfficerBranchSummary } from "@/components/officer-branch-summary";
 import { OfficerLocationSummary } from "@/components/officer-location-summary";
-import { OfficerLocationMapButton } from "@/components/officer-location-map-button";
 import { AccountOfficerSummary, type AccountOfficerSummaryRow } from "./account-officer-summary";
 import { AssignmentSummaryTable, type SummaryRow } from "@/components/assignment-summary-table";
 import { ReorderableRows } from "@/components/reorderable-rows";
@@ -909,7 +908,6 @@ export default async function LocationMasterlistPage() {
                           {officer.name}
                           <OfficerBranchSummary officerId={officer.id} officerName={officer.name} />
                           <OfficerLocationSummary officerId={officer.id} officerName={officer.name} />
-                          <OfficerLocationMapButton officerId={officer.id} officerName={officer.name} />
                         </span>
                         <MetricCells
                           metrics={officer.metrics}
