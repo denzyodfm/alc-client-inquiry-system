@@ -224,10 +224,10 @@ export function NewLoansTable({ rows, officers, locations, rowOffset = 0 }: { ro
                   <td colSpan={13} className="px-3 py-3">
                     <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-brand-blue">Assignment for #{rowOffset + index + 1} — {row.clientName} — {row.loanNumber}</p>
                     <div className="grid gap-2 xl:grid-cols-4 xl:items-end">
-                      <div><span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Address</span><p className="min-h-8 rounded-md border border-blue-100 bg-white px-2 py-1.5 text-xs text-slate-700">{row.address || "No address"}</p></div>
-                      <div className="xl:row-start-2"><span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Area TL / Branch TL</span><p className="min-h-8 rounded-md border border-blue-100 bg-white px-2 py-1.5 font-semibold text-slate-700">{teamLeader}</p></div>
+                      <div className="xl:col-start-1 xl:row-start-1"><span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Address</span><p className="min-h-8 rounded-md border border-blue-100 bg-white px-2 py-1.5 text-xs text-slate-700">{row.address || "No address"}</p></div>
+                      <div className="xl:col-start-1 xl:row-start-2"><span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Area TL / Branch TL</span><p className="min-h-8 rounded-md border border-blue-100 bg-white px-2 py-1.5 font-semibold text-slate-700">{teamLeader}</p></div>
                       <div className="contents">
-                        <div className="grid grid-cols-3 gap-2 xl:col-span-3 xl:row-start-1">
+                        <div className="grid grid-cols-3 gap-2 xl:col-span-3 xl:col-start-2 xl:row-start-1">
                         <select className="field h-8 px-2 py-0 text-xs" aria-label={`Province for ${row.clientName}`} value={draft.province} onChange={(event) => updateDraft(row, { province: event.target.value, municipality: "", barangay: "" })}>
                           <option value="">Province</option>
                           {provinces().map((province) => <option key={province} value={province}>{province}</option>)}
@@ -241,7 +241,7 @@ export function NewLoansTable({ rows, officers, locations, rowOffset = 0 }: { ro
                           {barangayOptions.map((location) => <option key={location.id} value={location.barangay}>{location.barangay}</option>)}
                         </select>
                         </div>
-                        <div className="flex items-center gap-2 xl:col-span-3 xl:row-start-2">
+                        <div className="flex items-center gap-2 xl:col-span-3 xl:col-start-2 xl:row-start-2">
                           <select className="field h-8 flex-1 px-2 py-0 text-xs" value={choice[row.id] ?? (row.assignedToId ? String(row.assignedToId) : "")} onChange={(event) => setChoice((current) => ({ ...current, [row.id]: event.target.value }))}>
                             <option value="">Select Loan/Remedial Officer</option>
                             {available.map((officer) => <option key={officer.id} value={officer.id}>{officer.name}{officer.privilege ? ` (${officer.privilege})` : ""}</option>)}
