@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { MapPinned } from "lucide-react";
 import { BarangayLoanReport } from "@/components/officer-barangay-loans";
 import { money } from "@/lib/format";
 
@@ -26,11 +27,11 @@ export function OfficerInlineLocationRows({ officerId, officerName }: { officerI
   if (!provinces) return <p className="px-4 py-3 font-semibold text-slate-500">Loading assigned locations...</p>;
   if (!provinces.length) return <p className="px-4 py-3 text-slate-500">No linked outstanding loans.</p>;
   return <div className="divide-y divide-slate-100">{provinces.map((province) => <details key={province.name} className="group/province" open>
-    <summary className={`${GRID} cursor-pointer list-none bg-slate-50 px-4 py-3 hover:bg-blue-50`}><LocationName level="Province" name={province.name} /><MetricsCells metrics={province} /></summary>
+    <summary className={`${GRID} cursor-pointer list-none bg-slate-50 px-4 py-3 hover:bg-blue-50`}><LocationName level="Province" name={province.name} officerId={officerId} province={province.name} /><MetricsCells metrics={province} /></summary>
     <div className="pl-5">{province.municipalities.map((municipality) => <details key={`${province.name}-${municipality.name}`} className="group/municipality border-t border-slate-100">
-      <summary className={`${GRID} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}><LocationName level="City / Municipality" name={municipality.name} /><MetricsCells metrics={municipality} /></summary>
+      <summary className={`${GRID} cursor-pointer list-none px-4 py-3 hover:bg-blue-50`}><LocationName level="City / Municipality" name={municipality.name} officerId={officerId} province={province.name} municipality={municipality.name} /><MetricsCells metrics={municipality} /></summary>
       <div className="pl-5">{municipality.barangays.map((barangay) => <div key={barangay.locationId} className={`${GRID} selected-report-row border-t border-slate-100 px-4 py-3`}>
-        <LocationName level="Barangay" name={barangay.name} leaf />
+        <LocationName level="Barangay" name={barangay.name} leaf officerId={officerId} province={province.name} municipality={municipality.name} locationId={barangay.locationId} />
         <span className="text-right font-bold text-brand-blue"><BarangayLoanReport officerId={officerId} locationId={barangay.locationId} clientCount={barangay.numberOfClients} officerName={officerName} locationName={`${barangay.name}, ${municipality.name}, ${province.name}`} /></span>
         <BalanceAndStatuses metrics={barangay} />
       </div>)}</div>
@@ -38,8 +39,11 @@ export function OfficerInlineLocationRows({ officerId, officerName }: { officerI
   </details>)}</div>;
 }
 
-function LocationName({ level, name, leaf = false }: { level: string; name: string; leaf?: boolean }) {
-  return <span className={`font-semibold text-slate-800 ${leaf ? "pl-4" : "before:mr-2 before:inline-block before:text-[9px] before:content-['▶'] group-open/province:before:rotate-90 group-open/municipality:before:rotate-90"}`}><span className="mr-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">{level}</span>{name}</span>;
+function LocationName({ level, name, leaf = false, officerId, province, municipality, locationId }: { level: string; name: string; leaf?: boolean; officerId: number; province: string; municipality?: string; locationId?: number }) {
+  const params = new URLSearchParams({ province });
+  if (municipality) params.set("municipality", municipality);
+  if (locationId) params.set("locationId", String(locationId));
+  return <span className={`flex items-center font-semibold text-slate-800 ${leaf ? "pl-4" : "before:mr-2 before:inline-block before:text-[9px] before:content-['▶'] group-open/province:before:rotate-90 group-open/municipality:before:rotate-90"}`}><span className="mr-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">{level}</span><span>{name}</span><a href={`/location-map/${officerId}?${params}`} target="_blank" rel="noreferrer" className="ml-2 inline-flex shrink-0 items-center gap-1 rounded border border-amber-300 bg-white px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 hover:bg-amber-50" onClick={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} aria-label={`Open location map for ${name}`}><MapPinned className="h-3 w-3" />Location Map</a></span>;
 }
 function MetricsCells({ metrics }: { metrics: Metrics }) { return <><span className="text-right font-bold text-brand-blue">{count(metrics.numberOfClients)}</span><BalanceAndStatuses metrics={metrics} /></>; }
 function BalanceAndStatuses({ metrics }: { metrics: Metrics }) { return <><span className="text-right font-bold text-red-700">{money(metrics.portfolio)}</span><Status count={metrics.current} balance={metrics.currentBalance} /><Status count={metrics.delayed} balance={metrics.delayedBalance} /><Status count={metrics.pastDue} balance={metrics.pastDueBalance} /><Status count={metrics.litigated} balance={metrics.litigatedBalance} /></>; }
