@@ -158,14 +158,14 @@ export function NewLoansTable({ rows, officers, locations, rowOffset = 0 }: { ro
     <div className="space-y-2">
       {error ? <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</div> : null}
       <div className="panel max-h-[calc(100vh-24rem)] min-h-64 overflow-auto">
-        <table className="w-full min-w-[1700px] text-left text-xs">
+        <table className="w-full min-w-[1040px] table-fixed text-left text-[10px]">
           <thead className="sticky top-0 z-10 bg-blue-100 uppercase tracking-wide text-slate-700">
             <tr>
-              <th className="px-2 py-2">#</th>
+              <th className="w-8 px-1.5 py-2">#</th>
               {COLUMNS.map((column) => (
                 <th
                   key={column.key}
-                  className={`px-2 py-2 ${column.align === "right" ? "text-right" : ""}`}
+                  className={`px-1.5 py-2 ${column.key === "clientName" ? "w-40" : column.key === "loanNumber" ? "w-24" : column.key === "product" ? "w-24" : ""} ${column.align === "right" ? "text-right" : ""}`}
                   aria-sort={sort.key === column.key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
                 >
                   <button
@@ -181,7 +181,7 @@ export function NewLoansTable({ rows, officers, locations, rowOffset = 0 }: { ro
                   </button>
                 </th>
               ))}
-              <th className="min-w-[280px] px-2 py-2 print:hidden">Assignment details</th>
+              <th className="w-28 px-1.5 py-2 print:hidden">Assignment details</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
