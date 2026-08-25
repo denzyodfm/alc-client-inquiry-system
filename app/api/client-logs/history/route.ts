@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
-import { requireApiFunction } from "@/lib/api";
+import { requireApiUser } from "@/lib/api";
+import { canAccessAnyFunction } from "@/lib/access-control";
 import { getClientLogBranchIds } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 // Every log recorded for one client, newest first. Used by the client log popup on
 // Client Inquiry and on the dashboard log list.
 export async function GET(request: NextRequest) {
-  const { user, response } = await requireApiFunction("CLIENT_LOGS");
+  const { user, response } = await requireApiUser();
   if (response) return response;
+  if (!(await canAccessAnyFunction(user!, ["CLIENT_INQUIRY", "CLIENT_LOGS"]))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const clientId = Number(request.nextUrl.searchParams.get("clientId"));
   if (!Number.isInteger(clientId) || clientId <= 0) {
@@ -19,7 +21,6 @@ export async function GET(request: NextRequest) {
   const scope: Prisma.ClientLogWhereInput = {
     clientId,
     ...(branchIds === null ? {} : branchIds.length ? { branchId: { in: branchIds } } : { branchId: -1 }),
-    ...(user!.role === "ACCOUNT_OFFICER" ? { encodedById: user!.id } : {})
   };
 
   const [client, logs] = await Promise.all([

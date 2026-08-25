@@ -1,0 +1,37 @@
+"use client";
+
+import "leaflet/dist/leaflet.css";
+import { Crosshair, LoaderCircle, MapPin, Save, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import type { Map as LeafletMap, Marker } from "leaflet";
+
+export type ClientAddressPin = { latitude: number | null; longitude: number | null; accuracy: number | null; source?: string | null; capturedAt?: string | null; capturedBy?: string | null };
+
+export function ClientAddressPinEditor({ clientId, clientName, address, initialPin, compact = false, onSaved }: { clientId: number; clientName: string; address: string | null; initialPin: ClientAddressPin; compact?: boolean; onSaved?: (pin: ClientAddressPin) => void }) {
+  const [open, setOpen] = useState(false); const [latitude, setLatitude] = useState(""); const [longitude, setLongitude] = useState("");
+  const [accuracy, setAccuracy] = useState<number | null>(initialPin.accuracy); const [source, setSource] = useState(initialPin.source ?? "MANUAL");
+  const [locating, setLocating] = useState(false); const [saving, setSaving] = useState(false); const [error, setError] = useState<string | null>(null);
+  const mapElement = useRef<HTMLDivElement>(null); const mapRef = useRef<LeafletMap | null>(null); const markerRef = useRef<Marker | null>(null);
+  function begin() { setLatitude(initialPin.latitude?.toFixed(7) ?? ""); setLongitude(initialPin.longitude?.toFixed(7) ?? ""); setAccuracy(initialPin.accuracy); setSource(initialPin.source ?? "MANUAL"); setError(null); setOpen(true); }
+  useEffect(() => {
+    if (!open || !mapElement.current || mapRef.current) return; let disposed = false;
+    void import("leaflet").then((L) => { if (disposed || !mapElement.current) return; const lat = initialPin.latitude; const lng = initialPin.longitude; const valid = lat !== null && lng !== null; const map = L.map(mapElement.current).setView(valid ? [lat, lng] : [8.93, 125.54], valid ? 16 : 9); L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(map); if (valid) markerRef.current = L.marker([lat, lng]).addTo(map); map.on("click", (event) => { setLatitude(event.latlng.lat.toFixed(7)); setLongitude(event.latlng.lng.toFixed(7)); setAccuracy(null); setSource("MAP"); markerRef.current?.remove(); markerRef.current = L.marker(event.latlng).addTo(map); }); mapRef.current = map; });
+    return () => { disposed = true; mapRef.current?.remove(); mapRef.current = null; markerRef.current = null; };
+  }, [initialPin.latitude, initialPin.longitude, open]);
+  function currentLocation() {
+    if (!navigator.geolocation) { setError("This device does not support location capture."); return; }
+    setLocating(true); setError(null);
+    navigator.geolocation.getCurrentPosition((position) => { const lat = position.coords.latitude; const lng = position.coords.longitude; setLatitude(lat.toFixed(7)); setLongitude(lng.toFixed(7)); setAccuracy(position.coords.accuracy); setSource("DEVICE_GPS"); void import("leaflet").then((L) => { if (!mapRef.current) return; markerRef.current?.remove(); markerRef.current = L.marker([lat, lng]).addTo(mapRef.current); mapRef.current.setView([lat, lng], 18); }); setLocating(false); }, (locationError) => { setError(locationError.code === 1 ? "Location permission was denied. Allow location access in the browser and try again." : locationError.code === 3 ? "Location capture timed out. Move to an open area and try again." : "Your current location could not be determined."); setLocating(false); }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+  }
+  async function save() {
+    const lat = Number(latitude); const lng = Number(longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) { setError("Capture your location or enter valid coordinates."); return; }
+    if (!window.confirm(`Save this address pin for ${clientName}?\nLatitude: ${lat}\nLongitude: ${lng}${accuracy === null ? "" : `\nAccuracy: ±${Math.round(accuracy)} meters`}`)) return;
+    setSaving(true); setError(null);
+    try { const response = await fetch(`/api/clients/${clientId}/address-pin`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ latitude: lat, longitude: lng, accuracy, source }) }); const data = await response.json(); if (!response.ok) throw new Error(data?.error ?? "Unable to save the address pin."); onSaved?.(data.pin); setOpen(false); }
+    catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Unable to save the address pin."); }
+    finally { setSaving(false); }
+  }
+  return <>{<button type="button" className={compact ? "inline-flex h-7 items-center gap-1 rounded border border-amber-300 bg-white px-2 text-[10px] font-bold uppercase text-amber-700 hover:bg-amber-50" : "btn-secondary h-8 px-3 text-xs"} onClick={begin}><MapPin className="h-3.5 w-3.5" />{initialPin.latitude === null ? "Add Pin" : "Edit Pin"}</button>}{open ? createPortal(<div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/60 p-4" onMouseDown={() => setOpen(false)}><section role="dialog" aria-modal="true" aria-label={`Address pin for ${clientName}`} className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}><header className="flex items-start justify-between border-b border-slate-200 p-4"><div><p className="text-xs font-bold uppercase text-brand-green">Client Address Pin</p><h3 className="font-bold text-slate-950">{clientName}</h3><p className="mt-1 text-xs text-slate-500">{address ?? "No address recorded"}</p></div><button type="button" className="p-1 text-slate-500" onClick={() => setOpen(false)} aria-label="Close"><X className="h-5 w-5" /></button></header><div ref={mapElement} className="h-72 shrink-0" /><div className="space-y-3 p-4"><button type="button" className="btn-secondary h-9 px-3 text-xs" onClick={currentLocation} disabled={locating}>{locating ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />}{locating ? "Getting location..." : "Use My Current Location"}</button><div className="grid grid-cols-2 gap-2"><label className="text-xs font-semibold text-slate-600">Latitude<input className="field mt-1" inputMode="decimal" value={latitude} onChange={(event) => { setLatitude(event.target.value); setAccuracy(null); setSource("MANUAL"); }} /></label><label className="text-xs font-semibold text-slate-600">Longitude<input className="field mt-1" inputMode="decimal" value={longitude} onChange={(event) => { setLongitude(event.target.value); setAccuracy(null); setSource("MANUAL"); }} /></label></div>{accuracy !== null ? <p className="rounded bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">Device accuracy: approximately ±{Math.round(accuracy)} meters. Confirm the map position before saving.</p> : null}{error ? <p role="alert" className="rounded bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p> : null}<div className="flex justify-end"><button type="button" className="btn-primary h-9 px-3 text-xs" onClick={() => void save()} disabled={saving}>{saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? "Saving..." : "Confirm & Save Pin"}</button></div></div></section></div>, document.body) : null}</>;
+}

@@ -46,10 +46,14 @@ export function newLoansRange(period: NewLoansPeriod, customFrom?: string, custo
 
 export type NewLoanRow = {
   id: number;
+  clientRecordId: number;
   clientName: string;
   clientNumber: string | null;
   contactNumber: string | null;
   address: string | null;
+  addressLatitude: number | null;
+  addressLongitude: number | null;
+  addressAccuracy: number | null;
   loanNumber: string;
   product: string | null;
   branch: string;
@@ -119,7 +123,7 @@ export async function newLoanRows({
       sourceStatusName: true,
       branchId: true,
       branch: { select: { branchName: true, branchCode: true, branchTeamLeader: { select: { name: true } } } },
-      client: { select: { fullName: true, clientId: true, contactNumber: true, address: true, permanentAddress: true, permanentProvince: true, permanentMunicipality: true, permanentBarangay: true } },
+      client: { select: { id: true, fullName: true, clientId: true, contactNumber: true, address: true, addressLatitude: true, addressLongitude: true, addressAccuracy: true, permanentAddress: true, permanentProvince: true, permanentMunicipality: true, permanentBarangay: true } },
       locationMasterlist: { select: { id: true, province: true, municipality: true, barangay: true } },
       remedialAssignment: { select: { assignedToId: true, assignedTo: { select: { name: true } } } }
     }
@@ -142,10 +146,14 @@ export async function newLoanRows({
     const location = structured ?? loan.locationMasterlist ?? locationSuggestionFromAddress(address, locations);
     return ({
     id: loan.id,
+    clientRecordId: loan.client.id,
     clientName: loan.client.fullName,
     clientNumber: loan.client.clientId,
     contactNumber: loan.client.contactNumber,
     address,
+    addressLatitude: loan.client.addressLatitude === null ? null : Number(loan.client.addressLatitude),
+    addressLongitude: loan.client.addressLongitude === null ? null : Number(loan.client.addressLongitude),
+    addressAccuracy: loan.client.addressAccuracy === null ? null : Number(loan.client.addressAccuracy),
     loanNumber: loan.loanNumber ?? loan.remoteId,
     product: loan.loanProduct,
     branch: `${loan.branch.branchCode} - ${loan.branch.branchName}`,

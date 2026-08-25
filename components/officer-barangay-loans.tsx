@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { money } from "@/lib/format";
+import { ClientAddressPinEditor, type ClientAddressPin } from "@/components/client-address-pin-editor";
 
 type LoanRow = {
   id: number;
@@ -29,6 +30,9 @@ type LoanRow = {
   accountOfficer: string;
   assignedOfficerId: number | null;
   address: string | null;
+  addressLatitude: number | null;
+  addressLongitude: number | null;
+  addressAccuracy: number | null;
 };
 
 type OfficerOption = { id: number; name: string; allBranches: boolean; branchIds: number[] };
@@ -125,6 +129,7 @@ export function BarangayLoanReport({
   const [reload, setReload] = useState(0);
   const [selectedOfficers, setSelectedOfficers] = useState<Record<number, string>>({});
   const [savingLoanId, setSavingLoanId] = useState<number | null>(null);
+  const [savedPins, setSavedPins] = useState<Record<number, ClientAddressPin>>({});
   const baseUrl = useMemo(() => {
     const params = new URLSearchParams({ category, context: locationName, sort: sort.key, dir: sort.dir });
     if (locationId) params.set("locationId", String(locationId));
@@ -297,7 +302,7 @@ export function BarangayLoanReport({
                         ) : (
                           <MoneyCell value={row.remoteBalance} tone={row.remoteBalance === 0 && row.totalBalance > 0 ? "flag" : "default"} />
                         )}
-                        <td className="max-w-sm whitespace-normal px-3 py-3">{row.address || "-"}</td>
+                        <td className="max-w-sm whitespace-normal px-3 py-3"><div className="flex items-start gap-2"><span className="min-w-0 flex-1">{row.address || "-"}</span><ClientAddressPinEditor compact clientId={row.clientId} clientName={row.clientName} address={row.address} initialPin={savedPins[row.clientId] ?? { latitude: row.addressLatitude, longitude: row.addressLongitude, accuracy: row.addressAccuracy }} onSaved={(pin) => setSavedPins((current) => ({ ...current, [row.clientId]: pin }))} /></div></td>
                         <td className="px-3 py-3">
                           {result.canAssignOfficer ? (
                             <div className="flex min-w-[250px] items-center gap-2">

@@ -96,7 +96,7 @@ export function ClientLogHistory({
         }}
         title={`Client logs for ${clientName}`}
       >
-        {variant === "button" ? <><FileClock className="h-3.5 w-3.5" />Client Log</> : children ?? clientName}
+        {variant === "button" ? <><FileClock className="h-3.5 w-3.5" />Client Logs</> : children ?? clientName}
       </button>
       {open
         ? createPortal(

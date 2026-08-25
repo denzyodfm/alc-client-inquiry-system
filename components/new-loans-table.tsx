@@ -3,13 +3,18 @@
 import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Fragment, useMemo, useState } from "react";
+import { ClientAddressPinEditor, type ClientAddressPin } from "@/components/client-address-pin-editor";
 
 export type NewLoanTableRow = {
   id: number;
+  clientRecordId: number;
   clientName: string;
   clientNumber: string | null;
   contactNumber: string | null;
   address: string | null;
+  addressLatitude: number | null;
+  addressLongitude: number | null;
+  addressAccuracy: number | null;
   loanNumber: string;
   product: string | null;
   branch: string;
@@ -78,6 +83,7 @@ export function NewLoansTable({ rows, officers, locations, rowOffset = 0 }: { ro
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Record<number, string>>({});
   const [drafts, setDrafts] = useState<Record<number, AssignmentDraft>>({});
+  const [savedPins, setSavedPins] = useState<Record<number, ClientAddressPin>>({});
 
   function draftFor(row: NewLoanTableRow) {
     return drafts[row.id] ?? { province: row.province, municipality: row.municipality, barangay: row.barangay };
@@ -224,7 +230,7 @@ export function NewLoansTable({ rows, officers, locations, rowOffset = 0 }: { ro
                   <td colSpan={13} className="px-3 py-3">
                     <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-brand-blue">Assignment for #{rowOffset + index + 1} — {row.clientName} — {row.loanNumber}</p>
                     <div className="grid gap-2 xl:grid-cols-4 xl:items-end">
-                      <div className="xl:col-start-1 xl:row-start-1"><span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Address</span><p className="min-h-8 rounded-md border border-blue-100 bg-white px-2 py-1.5 text-xs text-slate-700">{row.address || "No address"}</p></div>
+                      <div className="xl:col-start-1 xl:row-start-1"><span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Address <span className="font-medium normal-case text-slate-400">(pin optional)</span></span><div className="flex min-h-8 items-center gap-2 rounded-md border border-blue-100 bg-white px-2 py-1"><p className="min-w-0 flex-1 text-xs text-slate-700">{row.address || "No address"}</p><ClientAddressPinEditor compact clientId={row.clientRecordId} clientName={row.clientName} address={row.address} initialPin={savedPins[row.clientRecordId] ?? { latitude: row.addressLatitude, longitude: row.addressLongitude, accuracy: row.addressAccuracy }} onSaved={(pin) => setSavedPins((current) => ({ ...current, [row.clientRecordId]: pin }))} /></div></div>
                       <div className="xl:col-start-1 xl:row-start-2"><span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Area TL / Branch TL</span><p className="min-h-8 rounded-md border border-blue-100 bg-white px-2 py-1.5 font-semibold text-slate-700">{teamLeader}</p></div>
                       <div className="contents">
                         <div className="grid grid-cols-3 gap-2 xl:col-span-3 xl:col-start-2 xl:row-start-1">

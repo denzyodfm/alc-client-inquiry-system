@@ -167,7 +167,7 @@ export async function GET(request: NextRequest) {
       balance: true,
       remoteBalance: true,
       branch: { select: { id: true, branchCode: true, branchName: true } },
-      client: { select: { clientId: true, fullName: true, address: true, contactNumber: true } },
+      client: { select: { clientId: true, fullName: true, address: true, addressLatitude: true, addressLongitude: true, addressAccuracy: true, contactNumber: true } },
       locationMasterlist: { select: { province: true, municipality: true, barangay: true } },
       remedialAssignment: { select: { assignedToId: true, assignedTo: { select: { name: true } } } },
       amortizationSchedules: {
@@ -221,6 +221,9 @@ export async function GET(request: NextRequest) {
     accountOfficer: (loan.remedialAssignment?.assignedTo?.name ?? "UNASSIGNED").toLocaleUpperCase("en"),
     assignedOfficerId: loan.remedialAssignment?.assignedToId ?? null,
     address: loan.client.address,
+    addressLatitude: loan.client.addressLatitude === null ? null : Number(loan.client.addressLatitude),
+    addressLongitude: loan.client.addressLongitude === null ? null : Number(loan.client.addressLongitude),
+    addressAccuracy: loan.client.addressAccuracy === null ? null : Number(loan.client.addressAccuracy),
     province: loan.locationMasterlist?.province ?? "-",
     municipality: loan.locationMasterlist?.municipality ?? "-",
     barangay: loan.locationMasterlist?.barangay ?? "-"

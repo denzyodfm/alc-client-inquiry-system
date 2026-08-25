@@ -8,6 +8,7 @@ import { LoanDetailWindow } from "@/components/loan-detail-window";
 import { PaymentBehaviorReport } from "@/components/payment-behavior-report";
 import { ClientLoanAnalysisReport } from "@/components/client-loan-analysis-report";
 import { ClientLogHistory } from "@/components/client-log-history";
+import { ClientAddressPinEditor, type ClientAddressPin } from "@/components/client-address-pin-editor";
 
 type Schedule = {
   id: number;
@@ -52,6 +53,9 @@ type ClientResult = {
   clientId: string | null;
   validIdNumber: string | null;
   address: string | null;
+  addressLatitude: string | number | null;
+  addressLongitude: string | number | null;
+  addressAccuracy: string | number | null;
   permanentAddress: string | null;
   permanentProvince: string | null;
   permanentMunicipality: string | null;
@@ -329,6 +333,7 @@ const ClientResultCard = memo(function ClientResultCard({
   locationOptions: LocationOption[];
 }) {
   const primaryClient = group.clients[0];
+  const [savedPin, setSavedPin] = useState<ClientAddressPin | null>(null);
   const branches = Array.from(new Set(group.clients.map((client) => `${client.branch.branchName} - ${client.branch.branchCode}`)));
 
   return (
@@ -372,7 +377,7 @@ const ClientResultCard = memo(function ClientResultCard({
         <div><dt className="font-semibold text-slate-500">Birthdate</dt><dd>{dateOnly(primaryClient.birthdate)}</dd></div>
         <div><dt className="font-semibold text-slate-500">Contact</dt><dd><Highlight value={primaryClient.contactNumber} tokens={activeSearchTokens} /></dd></div>
         <div><dt className="font-semibold text-slate-500">Valid ID</dt><dd><Highlight value={primaryClient.validIdNumber} tokens={activeSearchTokens} /></dd></div>
-        <div><dt className="font-semibold text-slate-500">Address</dt><dd><Highlight value={primaryClient.address} tokens={activeSearchTokens} /></dd></div>
+        <div><dt className="font-semibold text-slate-500">Address</dt><dd className="flex items-start gap-2"><span className="min-w-0 flex-1"><Highlight value={primaryClient.address} tokens={activeSearchTokens} /></span><ClientAddressPinEditor compact clientId={primaryClient.id} clientName={primaryClient.fullName} address={primaryClient.address} initialPin={savedPin ?? { latitude: primaryClient.addressLatitude === null ? null : Number(primaryClient.addressLatitude), longitude: primaryClient.addressLongitude === null ? null : Number(primaryClient.addressLongitude), accuracy: primaryClient.addressAccuracy === null ? null : Number(primaryClient.addressAccuracy) }} onSaved={setSavedPin} /></dd></div>
       </dl>
       <PermanentAddressEditor client={primaryClient} locationOptions={locationOptions} />
       {isExpanded ? (
