@@ -437,7 +437,7 @@ export default async function AccountTaggingPage({
     ]
   };
 
-  const [totalLoans, portfolioLoans, branches, officers, areaTeamLeaders, productOptions, statusOptions, branchAoOptions, savedConditionOptions, configuredConditionOptions] = await Promise.all([
+  const [totalLoans, portfolioLoans, branches, officers, areaTeamLeaders, productOptions, statusOptions, branchAoOptions, savedConditionOptions, configuredConditionOptions, masterlistLocations] = await Promise.all([
     hasFilters ? prisma.loan.count({ where }) : Promise.resolve(0),
     hasFilters
       ? prisma.loan.findMany({
@@ -540,6 +540,10 @@ export default async function AccountTaggingPage({
     prisma.clientConditionOption.findMany({
       select: { name: true },
       orderBy: { name: "asc" }
+    }),
+    prisma.locationMasterlist.findMany({
+      orderBy: [{ province: "asc" }, { municipality: "asc" }, { barangay: "asc" }],
+      select: { id: true, province: true, municipality: true, barangay: true }
     })
   ]);
 
@@ -934,7 +938,7 @@ export default async function AccountTaggingPage({
                                 <span className="text-right font-bold text-red-700">{money(barangay.principalBalance)}</span>
                               </summary>
                               <div className="border-t border-slate-200 bg-slate-50">
-                                <LocationReportLoanList loans={barangay.loans} canEdit={canAssignRemedial(user.role)} />
+                                <LocationReportLoanList loans={barangay.loans} canEdit={canAssignRemedial(user.role)} locations={masterlistLocations} />
                               </div>
                             </details>
                           ))}
@@ -1010,6 +1014,7 @@ export default async function AccountTaggingPage({
         branches={branches}
         officers={officers}
         areaTeamLeaders={areaTeamLeaders}
+        locations={masterlistLocations}
         products={productOptions.map((option) => option.loanProduct).filter((product): product is string => typeof product === "string" && Boolean(product.trim()))}
         statuses={statusOptions.map((option) => option.sourceStatusName).filter((status): status is string => typeof status === "string" && Boolean(status.trim()))}
         branchAos={branchAoOptions.map((option) => option.branchAo).filter((branchAo): branchAo is string => typeof branchAo === "string" && Boolean(branchAo.trim()))}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { barangayOptions, municipalityOptions, provinceOptions, withCurrentValue } from "@/lib/location-options";
 
 export type VerifyAddressRow = {
   loanId: number;
@@ -46,46 +47,24 @@ export function VerifyAddressWorkspace({
   const [savingLoanId, setSavingLoanId] = useState<number | null>(null);
   const [errors, setErrors] = useState<Record<number, string>>({});
 
-  const provinces = useMemo(() => Array.from(new Set(locationOptions.map((option) => option.province))).sort(), [locationOptions]);
-
-  function municipalityOptionsFor(province: string) {
-    const normalizedProvince = province.trim().toLowerCase();
-    if (!normalizedProvince) return [];
-    return Array.from(
-      new Set(
-        locationOptions
-          .filter((option) => option.province.trim().toLowerCase() === normalizedProvince)
-          .map((option) => option.municipality)
-      )
-    ).sort();
-  }
-
-  function barangayOptionsFor(province: string, municipality: string) {
-    const normalizedProvince = province.trim().toLowerCase();
-    const normalizedMunicipality = municipality.trim().toLowerCase();
-    if (!normalizedProvince || !normalizedMunicipality) return [];
-    return Array.from(
-      new Set(
-        locationOptions
-          .filter(
-            (option) =>
-              option.province.trim().toLowerCase() === normalizedProvince &&
-              option.municipality.trim().toLowerCase() === normalizedMunicipality
-          )
-          .map((option) => option.barangay)
-      )
-    ).sort();
-  }
+  const provinces = useMemo(() => provinceOptions(locationOptions), [locationOptions]);
 
   function draftFor(row: VerifyAddressRow) {
     return draft[row.loanId] ?? { province: row.province, municipality: row.municipality, barangay: row.barangay };
   }
 
+  // Changing a level clears the ones it scoped, so a correction cannot be saved with a
+  // barangay left over from the province it was picked under.
   function updateDraft(loanId: number, field: "province" | "municipality" | "barangay", value: string, row: VerifyAddressRow) {
-    setDraft((current) => ({
-      ...current,
-      [loanId]: { ...(current[loanId] ?? { province: row.province, municipality: row.municipality, barangay: row.barangay }), [field]: value }
-    }));
+    setDraft((current) => {
+      const existing = current[loanId] ?? { province: row.province, municipality: row.municipality, barangay: row.barangay };
+      const next = field === "province"
+        ? { province: value, municipality: "", barangay: "" }
+        : field === "municipality"
+          ? { ...existing, municipality: value, barangay: "" }
+          : { ...existing, barangay: value };
+      return { ...current, [loanId]: next };
+    });
   }
 
   async function save(row: VerifyAddressRow) {
@@ -139,10 +118,8 @@ export function VerifyAddressWorkspace({
             {rows.map((row) => {
               const value = draftFor(row);
               const isFixed = fixed.has(row.loanId);
-              const municipalityListId = `verify-address-municipalities-${row.loanId}`;
-              const barangayListId = `verify-address-barangays-${row.loanId}`;
-              const municipalityOptions = municipalityOptionsFor(value.province);
-              const barangayOptions = barangayOptionsFor(value.province, value.municipality);
+              const municipalityChoices = municipalityOptions(locationOptions, value.province);
+              const barangayChoices = barangayOptions(locationOptions, value.province, value.municipality);
               return (
                 <tr key={row.loanId} className={isFixed ? "bg-emerald-50" : undefined}>
                   <td className="px-3 py-3">
@@ -156,39 +133,40 @@ export function VerifyAddressWorkspace({
                     {row.barangay}, {row.municipality}, {row.province}
                   </td>
                   <td className="px-2 py-2">
-                    <input
+                    <select
                       className="field h-9 min-w-[150px] bg-white text-xs"
-                      list="verify-address-provinces"
+                      aria-label={`Correct province for ${row.clientName}`}
                       value={value.province}
                       disabled={isFixed}
                       onChange={(event) => updateDraft(row.loanId, "province", event.target.value, row)}
-                    />
+                    >
+                      <option value="">Select province</option>
+                      {withCurrentValue(provinces, value.province).map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
                   </td>
                   <td className="px-2 py-2">
-                    <input
+                    <select
                       className="field h-9 min-w-[150px] bg-white text-xs"
-                      list={municipalityListId}
+                      aria-label={`Correct city or municipality for ${row.clientName}`}
                       value={value.municipality}
-                      disabled={isFixed}
-                      placeholder={municipalityOptions.length ? "Select or type" : "Type city/municipality"}
+                      disabled={isFixed || !value.province}
                       onChange={(event) => updateDraft(row.loanId, "municipality", event.target.value, row)}
-                    />
-                    <datalist id={municipalityListId}>
-                      {municipalityOptions.map((option) => <option key={option} value={option} />)}
-                    </datalist>
+                    >
+                      <option value="">{value.province ? "Select city/municipality" : "Select province first"}</option>
+                      {withCurrentValue(municipalityChoices, value.municipality).map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
                   </td>
                   <td className="px-2 py-2">
-                    <input
+                    <select
                       className="field h-9 min-w-[160px] bg-white text-xs"
-                      list={barangayListId}
+                      aria-label={`Correct barangay for ${row.clientName}`}
                       value={value.barangay}
-                      disabled={isFixed}
-                      placeholder={barangayOptions.length ? "Select or type" : "Type barangay"}
+                      disabled={isFixed || !value.municipality}
                       onChange={(event) => updateDraft(row.loanId, "barangay", event.target.value, row)}
-                    />
-                    <datalist id={barangayListId}>
-                      {barangayOptions.map((option) => <option key={option} value={option} />)}
-                    </datalist>
+                    >
+                      <option value="">{value.municipality ? "Select barangay" : "Select city/municipality first"}</option>
+                      {withCurrentValue(barangayChoices, value.barangay).map((option) => <option key={option} value={option}>{option}</option>)}
+                    </select>
                   </td>
                   <td className="px-2 py-2">
                     {isFixed ? (
@@ -218,9 +196,6 @@ export function VerifyAddressWorkspace({
           </tbody>
         </table>
       </div>
-      <datalist id="verify-address-provinces">
-        {provinces.map((option) => <option key={option} value={option} />)}
-      </datalist>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-4">
         <Link className={`btn-secondary h-9 px-3 ${safePage <= 1 ? "pointer-events-none opacity-50" : ""}`} href={previousHref}>
           Previous

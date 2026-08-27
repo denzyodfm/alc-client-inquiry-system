@@ -5,18 +5,23 @@ import { useRouter } from "next/navigation";
 import type { AccountTaggingLoanRow } from "@/components/account-tagging-workspace";
 import { LoanDetailLink } from "@/components/loan-detail-link";
 import { dateOnly, money } from "@/lib/format";
+import { barangayOptions, municipalityOptions, provinceOptions, withCurrentValue, type LocationOption } from "@/lib/location-options";
 
 export function LocationReportLoanList({
   loans,
-  canEdit
+  canEdit,
+  locations
 }: {
   loans: AccountTaggingLoanRow[];
   canEdit: boolean;
+  locations: LocationOption[];
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [isBulkPending, startBulkTransition] = useTransition();
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+  // Blank still means "keep current", so clearing a level clears everything it scoped.
+  const [bulkLocation, setBulkLocation] = useState({ province: "", municipality: "", barangay: "" });
   const filteredLoans = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("en");
     if (!term) return loans;
@@ -99,15 +104,41 @@ export function LocationReportLoanList({
           <form className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end" onSubmit={updateFilteredLocations}>
             <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">
               Province
-              <input className="field mt-1 h-9 bg-white text-xs" name="province" placeholder="Keep current if blank" />
+              <select
+                className="field mt-1 h-9 bg-white text-xs"
+                name="province"
+                value={bulkLocation.province}
+                onChange={(event) => setBulkLocation({ province: event.target.value, municipality: "", barangay: "" })}
+              >
+                <option value="">Keep current if blank</option>
+                {provinceOptions(locations).map((province) => <option key={province} value={province}>{province}</option>)}
+              </select>
             </label>
             <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">
               City/Municipality
-              <input className="field mt-1 h-9 bg-white text-xs" name="municipality" placeholder="Keep current if blank" />
+              <select
+                className="field mt-1 h-9 bg-white text-xs"
+                name="municipality"
+                value={bulkLocation.municipality}
+                disabled={!bulkLocation.province}
+                onChange={(event) => setBulkLocation((current) => ({ ...current, municipality: event.target.value, barangay: "" }))}
+              >
+                <option value="">{bulkLocation.province ? "Keep current if blank" : "Select province first"}</option>
+                {municipalityOptions(locations, bulkLocation.province).map((municipality) => <option key={municipality} value={municipality}>{municipality}</option>)}
+              </select>
             </label>
             <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">
               Barangay
-              <input className="field mt-1 h-9 bg-white text-xs" name="barangay" placeholder="Keep current if blank" />
+              <select
+                className="field mt-1 h-9 bg-white text-xs"
+                name="barangay"
+                value={bulkLocation.barangay}
+                disabled={!bulkLocation.municipality}
+                onChange={(event) => setBulkLocation((current) => ({ ...current, barangay: event.target.value }))}
+              >
+                <option value="">{bulkLocation.municipality ? "Keep current if blank" : "Select city/municipality first"}</option>
+                {barangayOptions(locations, bulkLocation.province, bulkLocation.municipality).map((barangay) => <option key={barangay} value={barangay}>{barangay}</option>)}
+              </select>
             </label>
             <button className="btn-primary h-9 px-4 text-xs" type="submit" disabled={isBulkPending || !filteredLoans.length}>
               {isBulkPending ? "Updating..." : `Update ${filteredLoans.length.toLocaleString("en-US")} filtered`}
@@ -137,7 +168,7 @@ export function LocationReportLoanList({
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 bg-white">
-          {filteredLoans.map((loan) => <LocationReportLoanRow key={loan.id} loan={loan} canEdit={canEdit} />)}
+          {filteredLoans.map((loan) => <LocationReportLoanRow key={loan.id} loan={loan} canEdit={canEdit} locations={locations} />)}
           {!filteredLoans.length ? (
             <tr>
               <td className="px-3 py-8 text-center font-semibold text-slate-500" colSpan={12}>
@@ -154,14 +185,23 @@ export function LocationReportLoanList({
 
 export function LocationReportLoanRow({
   loan,
-  canEdit
+  canEdit,
+  locations
 }: {
   loan: AccountTaggingLoanRow;
   canEdit: boolean;
+  locations: LocationOption[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  // Seeded from the tag already on the loan. A value the masterlist does not carry is kept
+  // as an option by withCurrentValue, so editing one field cannot silently wipe the others.
+  const [draft, setDraft] = useState({
+    province: loan.province ?? "",
+    municipality: loan.municipality ?? "",
+    barangay: loan.barangay ?? ""
+  });
 
   function updateLocation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -219,13 +259,42 @@ export function LocationReportLoanRow({
       {canEdit ? (
         <>
           <td className="px-2 py-2">
-            <input className="field h-8 min-w-[150px] text-xs" form={formId} name="province" defaultValue={loan.province ?? ""} placeholder="Province" />
+            <select
+              className="field h-8 min-w-[150px] text-xs"
+              form={formId}
+              name="province"
+              value={draft.province}
+              onChange={(event) => setDraft({ province: event.target.value, municipality: "", barangay: "" })}
+            >
+              <option value="">Province</option>
+              {withCurrentValue(provinceOptions(locations), draft.province).map((province) => <option key={province} value={province}>{province}</option>)}
+            </select>
           </td>
           <td className="px-2 py-2">
-            <input className="field h-8 min-w-[170px] text-xs" form={formId} name="municipality" defaultValue={loan.municipality ?? ""} placeholder="City/Municipality" />
+            <select
+              className="field h-8 min-w-[170px] text-xs"
+              form={formId}
+              name="municipality"
+              value={draft.municipality}
+              disabled={!draft.province}
+              onChange={(event) => setDraft((current) => ({ ...current, municipality: event.target.value, barangay: "" }))}
+            >
+              <option value="">City/Municipality</option>
+              {withCurrentValue(municipalityOptions(locations, draft.province), draft.municipality).map((municipality) => <option key={municipality} value={municipality}>{municipality}</option>)}
+            </select>
           </td>
           <td className="px-2 py-2">
-            <input className="field h-8 min-w-[150px] text-xs" form={formId} name="barangay" defaultValue={loan.barangay ?? ""} placeholder="Barangay" />
+            <select
+              className="field h-8 min-w-[150px] text-xs"
+              form={formId}
+              name="barangay"
+              value={draft.barangay}
+              disabled={!draft.municipality}
+              onChange={(event) => setDraft((current) => ({ ...current, barangay: event.target.value }))}
+            >
+              <option value="">Barangay</option>
+              {withCurrentValue(barangayOptions(locations, draft.province, draft.municipality), draft.barangay).map((barangay) => <option key={barangay} value={barangay}>{barangay}</option>)}
+            </select>
           </td>
           <td className="px-2 py-2">
             <form id={formId} onSubmit={updateLocation}>

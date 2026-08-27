@@ -8,6 +8,7 @@ import { LoanDetailLink } from "@/components/loan-detail-link";
 import type { LoanDetailLoan } from "@/components/loan-detail-window";
 import { PrintReportButton } from "@/components/print-report-button";
 import { money, dateOnly } from "@/lib/format";
+import { barangayOptions, municipalityOptions, provinceOptions, type LocationOption } from "@/lib/location-options";
 
 type BranchOption = {
   id: number;
@@ -72,6 +73,7 @@ type AccountTaggingWorkspaceProps = {
   branches: BranchOption[];
   officers: OfficerOption[];
   areaTeamLeaders: OfficerOption[];
+  locations: LocationOption[];
   products: string[];
   statuses: string[];
   branchAos: string[];
@@ -124,6 +126,7 @@ export function AccountTaggingWorkspace({
   branches,
   officers,
   areaTeamLeaders,
+  locations,
   products,
   statuses,
   branchAos,
@@ -167,6 +170,9 @@ export function AccountTaggingWorkspace({
   const [customerQuery, setCustomerQuery] = useState(customerName);
   const [resultSearchQuery, setResultSearchQuery] = useState(resultSearch);
   const [conditionEntry, setConditionEntry] = useState("");
+  // Bulk assignment narrows Province -> City/Municipality -> Barangay. Blank still means
+  // "keep the current value", so clearing the province clears what it scoped below it.
+  const [bulkLocation, setBulkLocation] = useState({ province: "", municipality: "", barangay: "" });
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -555,15 +561,42 @@ export function AccountTaggingWorkspace({
           </label>
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-slate-700">Province</span>
-            <input name="province" className="field" placeholder="Enter province" disabled={isPending || !totalLoans || !hasFilters} />
+            <select
+              name="province"
+              className="field"
+              value={bulkLocation.province}
+              disabled={isPending || !totalLoans || !hasFilters}
+              onChange={(event) => setBulkLocation({ province: event.target.value, municipality: "", barangay: "" })}
+            >
+              <option value="">Keep current province</option>
+              {provinceOptions(locations).map((province) => <option key={province} value={province}>{province}</option>)}
+            </select>
           </label>
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-slate-700">City/Municipality</span>
-            <input name="municipality" className="field" placeholder="Enter city/municipality" disabled={isPending || !totalLoans || !hasFilters} />
+            <select
+              name="municipality"
+              className="field"
+              value={bulkLocation.municipality}
+              disabled={isPending || !totalLoans || !hasFilters || !bulkLocation.province}
+              onChange={(event) => setBulkLocation((current) => ({ ...current, municipality: event.target.value, barangay: "" }))}
+            >
+              <option value="">{bulkLocation.province ? "Keep current city/municipality" : "Select province first"}</option>
+              {municipalityOptions(locations, bulkLocation.province).map((municipality) => <option key={municipality} value={municipality}>{municipality}</option>)}
+            </select>
           </label>
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-slate-700">Barangay</span>
-            <input name="barangay" className="field" placeholder="Enter barangay" disabled={isPending || !totalLoans || !hasFilters} />
+            <select
+              name="barangay"
+              className="field"
+              value={bulkLocation.barangay}
+              disabled={isPending || !totalLoans || !hasFilters || !bulkLocation.municipality}
+              onChange={(event) => setBulkLocation((current) => ({ ...current, barangay: event.target.value }))}
+            >
+              <option value="">{bulkLocation.municipality ? "Keep current barangay" : "Select city/municipality first"}</option>
+              {barangayOptions(locations, bulkLocation.province, bulkLocation.municipality).map((barangay) => <option key={barangay} value={barangay}>{barangay}</option>)}
+            </select>
           </label>
           <label className="block xl:col-span-2">
             <span className="mb-2 block text-sm font-semibold text-slate-700">Customer Condition</span>
