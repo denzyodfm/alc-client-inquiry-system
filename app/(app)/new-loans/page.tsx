@@ -33,7 +33,7 @@ export default async function NewLoansPage({
       orderBy: { branchName: "asc" },
       select: { id: true, branchName: true, branchCode: true }
     }),
-    assignableOfficers(),
+    assignableOfficers(user.id),
     prisma.locationMasterlist.findMany({
       orderBy: [{ province: "asc" }, { municipality: "asc" }, { barangay: "asc" }],
       select: { id: true, province: true, municipality: true, barangay: true }

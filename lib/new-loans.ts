@@ -192,12 +192,44 @@ export async function newLoanRows({
 
 // The officers a new loan can be handed to: the people holding the Loan Officer or Remedial
 // Officer privilege.
-export async function assignableOfficers() {
+export type NewLoanAssignerScope = "BRANCH_TL" | "AREA_TL" | "ALL";
+
+export async function newLoanAssignerScope(userId: number): Promise<NewLoanAssignerScope> {
+  const assigner = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { privilegeTemplate: { select: { name: true } }, position: true }
+  });
+  const privilege = (assigner?.privilegeTemplate?.name ?? assigner?.position ?? "").trim().toLowerCase();
+
+  if (privilege === "branch tl" || privilege === "branch team leader") return "BRANCH_TL";
+  if (privilege === "area tl" || privilege === "area team leader") return "AREA_TL";
+  return "ALL";
+}
+
+export async function assignableOfficerWhere(assignerId: number): Promise<Prisma.UserWhereInput> {
+  const scope = await newLoanAssignerScope(assignerId);
+  const leaderScope: Prisma.UserWhereInput = scope === "BRANCH_TL"
+    ? {
+        privilegeTemplate: { is: { name: "Loan Officer" } },
+        branchTeamLeaderId: assignerId
+      }
+    : scope === "AREA_TL"
+      ? {
+          privilegeTemplate: { is: { name: "Remedial Officer" } },
+          OR: [
+            { areaTeamLeaderId: assignerId },
+            { area: { is: { areaTeamLeaderId: assignerId } } }
+          ]
+        }
+      : { privilegeTemplate: { is: { name: { in: ["Loan Officer", "Remedial Officer"] } } } };
+
+  return { isActive: true, ...leaderScope };
+}
+
+export async function assignableOfficers(assignerId: number) {
+  const where = await assignableOfficerWhere(assignerId);
   const officers = await prisma.user.findMany({
-    where: {
-      isActive: true,
-      privilegeTemplate: { is: { name: { in: ["Loan Officer", "Remedial Officer"] } } }
-    },
+    where,
     orderBy: { name: "asc" },
     select: {
       id: true,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiFunction } from "@/lib/api";
 import { auditAction } from "@/lib/audit";
 import { canAccessBranch } from "@/lib/auth";
+import { assignableOfficerWhere } from "@/lib/new-loans";
 import { prisma } from "@/lib/prisma";
 
 // Hands a new loan to a Loan or Remedial Officer. The remedial assignment is the record that
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Select a complete masterlist location." }, { status: 400 });
   }
 
+  const officerWhere = await assignableOfficerWhere(user!.id);
   const [loan, officer, location] = await Promise.all([
     prisma.loan.findUnique({
       where: { id: loanId },
@@ -29,8 +31,7 @@ export async function POST(request: NextRequest) {
     prisma.user.findFirst({
       where: {
         id: assignedToId,
-        isActive: true,
-        privilegeTemplate: { is: { name: { in: ["Loan Officer", "Remedial Officer"] } } }
+        ...officerWhere
       },
       select: {
         id: true, name: true, allBranches: true, branchAccess: { select: { branchId: true } },
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "You do not have access to this loan's branch." }, { status: 403 });
   }
   if (!officer) {
-    return NextResponse.json({ error: "Select an active Loan Officer or Remedial Officer." }, { status: 400 });
+    return NextResponse.json({ error: "Select an officer assigned to your team." }, { status: 400 });
   }
   if (!location) return NextResponse.json({ error: "The selected masterlist location no longer exists." }, { status: 400 });
   if (!officer.allBranches && !officer.branchAccess.some((access) => access.branchId === loan.branchId)) {
