@@ -913,7 +913,7 @@ export default async function LocationMasterlistPage() {
                     <details key={officer.id} className="group/ao">
                       <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/ao:bg-blue-100`}>
                         <span className="flex items-start font-semibold text-slate-800 before:mr-2 before:mt-1 before:inline-block before:content-['▶'] group-open/ao:before:rotate-90">
-                          <span className="min-w-0"><span className="block">{officer.name}<OfficerLocationSummary officerId={officer.id} officerName={officer.name} /></span><span className="mt-0.5 block text-[10px] font-bold uppercase tracking-wide text-brand-blue">{officer.privilege}</span></span>
+                          <span className="min-w-0"><span className="block">{officer.name}<OfficerLocationSummary officerId={officer.id} officerName={officer.name} /><OfficerBranchSummary officerId={officer.id} officerName={officer.name} /></span><span className="mt-0.5 block text-[10px] font-bold uppercase tracking-wide text-brand-blue">{officer.privilege}</span></span>
                         </span>
                         <MetricCells
                           metrics={officer.metrics}
