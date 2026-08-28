@@ -118,7 +118,7 @@ The app includes a backup script that creates:
 Run manually on the VPS:
 
 ```bash
-cd /home/agusanlending/ALC-client-inquiry-system
+cd /home/agusanlending/alc-client-inquiry-system
 bash scripts/backup.sh
 ```
 
@@ -131,10 +131,10 @@ crontab -e
 Paste this line, adjusting the path if needed:
 
 ```bash
-30 1 * * * cd /home/agusanlending/ALC-client-inquiry-system && mkdir -p backups && APP_DIR=/home/agusanlending/ALC-client-inquiry-system RETENTION_DAYS=14 bash scripts/backup.sh >> backups/backup.log 2>&1
+30 1 * * * cd /home/agusanlending/alc-client-inquiry-system && mkdir -p backups && APP_DIR=/home/agusanlending/alc-client-inquiry-system RETENTION_DAYS=30 bash scripts/backup.sh >> backups/backup.log 2>&1
 ```
 
-Backups are stored in `backups/YYYYMMDD-HHMMSS/`. The default retention is 14 days.
+Backups are stored in `backups/YYYYMMDD-HHMMSS/`. The script keeps 14 days unless `RETENTION_DAYS` overrides it; the installed cron above sets 30.
 
 ## Expected Remote Branch Tables
 
