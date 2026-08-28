@@ -124,7 +124,8 @@ export function BarangayLoanReport({
   zone,
   district,
   assignedOnly = false,
-  category = "all"
+  category = "all",
+  tone = "blue"
 }: {
   officerId?: number;
   officerIds?: number[];
@@ -140,6 +141,8 @@ export function BarangayLoanReport({
   district?: string;
   assignedOnly?: boolean;
   category?: LocationReportCategory;
+  // The With Account Officer column is green, so its link matches the column it sits in.
+  tone?: "blue" | "green";
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -271,7 +274,7 @@ export function BarangayLoanReport({
     <>
       <button
         type="button"
-        className="font-bold text-brand-blue underline decoration-dotted underline-offset-2 hover:text-blue-800"
+        className={`font-bold underline decoration-dotted underline-offset-2 ${tone === "green" ? "text-brand-green hover:text-emerald-800" : "text-brand-blue hover:text-blue-800"}`}
         title="View complete loan details"
         data-report-open={open ? "true" : "false"}
         aria-expanded={open}

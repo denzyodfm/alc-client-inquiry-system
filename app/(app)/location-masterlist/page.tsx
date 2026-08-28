@@ -1097,7 +1097,22 @@ function MetricCells({
           ) : count(metrics.numberOfClients)}
         </span>
       ) : null}
-      {showWithAccountOfficer ? <span className="text-right font-bold text-emerald-700">{count(metrics.withAccountOfficer)}</span> : null}
+      {showWithAccountOfficer ? (
+        <span className="text-right font-bold text-emerald-700">
+          {reportScope ? (
+            // Same slice, narrowed to loans that already carry an officer. The details window
+            // brings the officer dropdown and the invalid-address tick with it.
+            <BarangayLoanReport
+              {...reportScope}
+              assignedOnly
+              tone="green"
+              category="all"
+              clientCount={metrics.withAccountOfficer ?? 0}
+              locationName={`${reportScope.locationName} — with Account Officer`}
+            />
+          ) : count(metrics.withAccountOfficer)}
+        </span>
+      ) : null}
       <span className="text-right font-bold text-red-700">{money(metrics.portfolio)}</span>
       <StatusMetric countValue={metrics.current} balance={metrics.currentBalance} category="current" reportScope={reportScope} />
       <StatusMetric countValue={metrics.delayed} balance={metrics.delayedBalance} category="delayed" reportScope={reportScope} />
