@@ -30,6 +30,8 @@ const REQUESTS: Record<string, string> = {
   a8be4b2: "for all loan with no location scope, transfer it to invalid_address submenu and tag it as invalid_address (plus fixing the province scope this exposed)",
   "3dcbed2": "show in every loan details the province, city/municipality and barangay. because when i try bulk assignment for that fields it seems it is not working, that's why i want to verify or maybe assign individually, it should be a drop down like all other layouts.",
   "39d3113": "when tagging as invalid address, ask for confirmation and it should be remove from this list as it will transfer to invalid address layout.",
+  "b964ba4": "make all the province, city/municipality and barangay ALL CAPS in all layouts",
+  "3709a78": "the with account officer number, color font green - when click should show the loan details plus the option to assign loan/remedial officer and invalid address checkbox, same for loans with loan/remedial officer.",
   "12f4c30": "because there will be new loans added, the total might increase - separate the monitoring of those added loans, just include the start date it is added, so there will be two monitoring: as of today, and new loans added."
 };
 

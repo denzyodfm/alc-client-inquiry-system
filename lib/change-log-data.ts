@@ -1171,5 +1171,19 @@ export const CHANGE_LOG: ChangeLogEntry[] = [
     "date": "2026-08-28",
     "commit": "f0e7805",
     "title": "Open the With Account Officer count into its loan details"
+  },
+  {
+    "number": 193,
+    "date": "2026-08-28",
+    "commit": "3709a78",
+    "title": "Record the tagging and verification changes in the change log",
+    "request": "the with account officer number, color font green - when click should show the loan details plus the option to assign loan/remedial officer and invalid address checkbox, same for loans with loan/remedial officer."
+  },
+  {
+    "number": 194,
+    "date": "2026-08-28",
+    "commit": "b964ba4",
+    "title": "Show province, city/municipality and barangay in capitals everywhere",
+    "request": "make all the province, city/municipality and barangay ALL CAPS in all layouts"
   }
 ];
