@@ -42,7 +42,7 @@ const BALANCE_OF: Partial<Record<SortKey, keyof SummaryMetrics>> = {
   litigated: "litigatedBalance"
 };
 
-const ROW_GRID = "grid min-w-[1350px] grid-cols-[minmax(300px,1fr)_100px_160px_repeat(4,150px)] items-center";
+const ROW_GRID = "grid grid-cols-[minmax(150px,1.7fr)_repeat(6,minmax(0,1fr))] items-center gap-x-2";
 
 function count(value: number | null) {
   return value ? value.toLocaleString("en-US") : "-";
@@ -104,7 +104,7 @@ export function AssignmentSummaryTable({
           {" "}The grand total counts each client only once.
         </p>
       </div>
-      <div className="overflow-x-auto text-sm">
+      <div className="text-sm">
         <div className={`${ROW_GRID} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 shadow-sm`}>
           <SortHeader label={childLabel ? `${label} / ${childLabel}` : label} sortKey="name" sort={sort} onSort={toggleSort} />
           <SortHeader label="No. of Clients" sortKey="numberOfClients" sort={sort} onSort={toggleSort} align="right" />
@@ -114,7 +114,7 @@ export function AssignmentSummaryTable({
           <SortHeader label="Past Due" sortKey="pastDue" sort={sort} onSort={toggleSort} align="right" caption />
           <SortHeader label="Litigated" sortKey="litigated" sort={sort} onSort={toggleSort} align="right" caption />
         </div>
-        <div className="min-w-[1350px] divide-y divide-slate-100">
+        <div className="divide-y divide-slate-100">
           <Reorderable storageKey={storageKey} ids={sortedRows.map((row) => row.key)} label={`${label.toLocaleLowerCase("en")} order`}>
           {sortedRows.map((row) => (row.children?.length ? (
             <details key={row.key} className="group/summary">
