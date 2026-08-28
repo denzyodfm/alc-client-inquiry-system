@@ -1131,5 +1131,45 @@ export const CHANGE_LOG: ChangeLogEntry[] = [
     "date": "2026-08-28",
     "commit": "9db9938",
     "title": "Record the verification workflow changes in the change log"
+  },
+  {
+    "number": 187,
+    "date": "2026-08-28",
+    "commit": "10b3550",
+    "title": "Fix the missing comma that broke the change log generator"
+  },
+  {
+    "number": 188,
+    "date": "2026-08-28",
+    "commit": "a8be4b2",
+    "title": "Accept a province scope, and send location-less loans to Invalid Address",
+    "request": "for all loan with no location scope, transfer it to invalid_address submenu and tag it as invalid_address (plus fixing the province scope this exposed)"
+  },
+  {
+    "number": 189,
+    "date": "2026-08-28",
+    "commit": "3dcbed2",
+    "title": "Show and edit province, city and barangay on each tagged loan",
+    "request": "show in every loan details the province, city/municipality and barangay. because when i try bulk assignment for that fields it seems it is not working, that's why i want to verify or maybe assign individually, it should be a drop down like all other layouts."
+  },
+  {
+    "number": 190,
+    "date": "2026-08-28",
+    "commit": "39d3113",
+    "title": "Confirm an invalid-address flag, and drop the row once it moves",
+    "request": "when tagging as invalid address, ask for confirmation and it should be remove from this list as it will transfer to invalid address layout."
+  },
+  {
+    "number": 191,
+    "date": "2026-08-28",
+    "commit": "12f4c30",
+    "title": "Track the verification backlog apart from newly arrived loans",
+    "request": "because there will be new loans added, the total might increase - separate the monitoring of those added loans, just include the start date it is added, so there will be two monitoring: as of today, and new loans added."
+  },
+  {
+    "number": 192,
+    "date": "2026-08-28",
+    "commit": "f0e7805",
+    "title": "Open the With Account Officer count into its loan details"
   }
 ];

@@ -26,7 +26,11 @@ const REQUESTS: Record<string, string> = {
   feec0f7: "create a submenu put it under Taggings call it Verify Loans, summary by branch no. of loans and principal balance in a card [...] Make a menu call it Verfied Loans [...] The account to do this will have a privilege of Bookkeeper. / put nos. on the clients and the column labels make it toggle sort asc desc, pagination first,prev,next,last. / can we add a field not_valid_address to all loans with balance [...] call it Invalid address [...] Area TL, Branch TL and Bookkeeper has access to this.",
   "5470c90": "the not_valid_address put it in the location master list loan details not here.",
   "0a04737": "make a checkbox so that i can unverify it and go back. - make a log for return verified loans. / also in the verify loans, add a confirmation to proceed. / make a progress recording for verified loans, can put inside the card",
-  "51f7d9d": "(follow-up to the recurring deploy failures) yes just continue - fix the build hang properly"
+  "51f7d9d": "(follow-up to the recurring deploy failures) yes just continue - fix the build hang properly",
+  a8be4b2: "for all loan with no location scope, transfer it to invalid_address submenu and tag it as invalid_address (plus fixing the province scope this exposed)",
+  "3dcbed2": "show in every loan details the province, city/municipality and barangay. because when i try bulk assignment for that fields it seems it is not working, that's why i want to verify or maybe assign individually, it should be a drop down like all other layouts.",
+  "39d3113": "when tagging as invalid address, ask for confirmation and it should be remove from this list as it will transfer to invalid address layout.",
+  "12f4c30": "because there will be new loans added, the total might increase - separate the monitoring of those added loans, just include the start date it is added, so there will be two monitoring: as of today, and new loans added."
 };
 
 function gitLog() {
