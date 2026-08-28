@@ -49,7 +49,8 @@ export function ReorderableRows({
   ids: string[];
   storageKey: string;
   defaultOrderLabel?: string;
-  variant?: "full" | "compact";
+  // "nav" drops the table chrome: no header bar, no row borders, for the sidebar menu.
+  variant?: "full" | "compact" | "nav";
   children: ReactNode;
 }) {
   const nodes = useMemo(() => Children.toArray(children), [children]);
@@ -111,6 +112,18 @@ export function ReorderableRows({
 
   return (
     <>
+      {variant === "nav" ? (
+        custom ? (
+          <button
+            type="button"
+            className="mb-1 flex w-full items-center gap-1 px-3 text-[10px] font-semibold text-slate-400 hover:text-brand-blue"
+            onClick={reset}
+            disabled={saving}
+          >
+            <RotateCcw className="h-3 w-3" />Reset {defaultOrderLabel}
+          </button>
+        ) : null
+      ) : (
       <div className={`flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/60 px-4 text-slate-500 ${
         variant === "full" ? "py-1.5 text-xs" : "py-1 text-[10px]"
       }`}>
@@ -126,6 +139,7 @@ export function ReorderableRows({
           </button>
         ) : variant === "full" ? <span>Currently in {defaultOrderLabel}.</span> : null}
       </div>
+      )}
       {order.map((id) => (
         <div
           key={id}
@@ -138,7 +152,7 @@ export function ReorderableRows({
           onDragOver={(event) => { event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = "move"; if (dropTarget !== id) setDropTarget(id); }}
           onDragLeave={(event) => { event.stopPropagation(); if (dropTarget === id) setDropTarget(null); }}
           onDrop={(event) => { event.preventDefault(); event.stopPropagation(); if (dragging) move(dragging, id); setDragging(null); setDropTarget(null); }}
-          className={`relative border-b border-slate-200 last:border-b-0 ${dragging === id ? "opacity-50" : ""} ${
+          className={`relative ${variant === "nav" ? "rounded-md" : "border-b border-slate-200 last:border-b-0"} ${dragging === id ? "opacity-50" : ""} ${
             dropTarget === id && dragging !== id ? "outline outline-2 -outline-offset-2 outline-brand-blue" : ""
           }`}
         >

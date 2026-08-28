@@ -31,6 +31,7 @@ import {
   X
 } from "lucide-react";
 import { LogoutButton } from "@/components/logout-button";
+import { ReorderableRows } from "@/components/reorderable-rows";
 import type { FooterBrandingValues } from "@/lib/footer-branding";
 
 type NavItem = {
@@ -116,6 +117,12 @@ export function AppShell({
           </button>
         </div>
         <nav data-primary-nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4">
+          <ReorderableRows
+            ids={nav.map((item) => item.href ?? item.label)}
+            storageKey="nav-order:main"
+            defaultOrderLabel="menu order"
+            variant="nav"
+          >
           {nav.map((item) => {
             const Icon = icons[item.icon];
             const groupActive = item.children?.some((child) => child.href && (pathname === child.href.split("?")[0] || pathname.startsWith(`${child.href.split("?")[0]}/`))) ?? false;
@@ -124,12 +131,21 @@ export function AppShell({
               <button type="button" onClick={() => toggleGroup(item.label)} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold transition ${groupActive ? "bg-blue-50 text-brand-blue ring-1 ring-blue-100" : "text-slate-600 hover:bg-blue-50 hover:text-brand-blue"}`}>
                 <span className="flex h-7 w-7 items-center justify-center rounded-md bg-yellow-100 text-brand-blue"><Icon className="h-[18px] w-[18px]" /></span><span className="flex-1 text-left">{item.label}</span><ChevronDown className={`h-4 w-4 text-brand-blue transition-transform ${open ? "rotate-180" : ""}`} />
               </button>
-              {open ? <div className="ml-5 mt-1 space-y-1 border-l-2 border-blue-100 pl-2">{item.children.map((child) => {
+              {open ? <div className="ml-5 mt-1 space-y-1 border-l-2 border-blue-100 pl-2">
+                <ReorderableRows
+                  ids={item.children.map((child) => child.href ?? child.label)}
+                  storageKey={`nav-order:${item.label}`}
+                  defaultOrderLabel="submenu order"
+                  variant="nav"
+                >
+                {item.children.map((child) => {
                 const ChildIcon = icons[child.icon];
                 const childPath = child.href!.split("?")[0];
                 const active = pathname === childPath || pathname.startsWith(`${childPath}/`);
-                return <Link key={child.href} href={child.href!} onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition ${active ? "bg-blue-50 text-brand-blue" : "text-slate-500 hover:bg-blue-50 hover:text-brand-blue"}`}><span className="flex h-6 w-6 items-center justify-center rounded bg-yellow-50 text-brand-blue"><ChildIcon className="h-4 w-4" /></span>{child.label}</Link>;
-              })}</div> : null}
+                return <Link key={child.href} href={child.href!} draggable={false} onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition ${active ? "bg-blue-50 text-brand-blue" : "text-slate-500 hover:bg-blue-50 hover:text-brand-blue"}`}><span className="flex h-6 w-6 items-center justify-center rounded bg-yellow-50 text-brand-blue"><ChildIcon className="h-4 w-4" /></span>{child.label}</Link>;
+                })}
+                </ReorderableRows>
+              </div> : null}
             </div>;
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
 
@@ -137,6 +153,7 @@ export function AppShell({
               <Link
                 key={item.href}
                 href={item.href!}
+                draggable={false}
                 onClick={() => setMobileMenuOpen(false)}
                 className={`flex items-center gap-3 rounded-md px-3 ${item.label === "Settings" ? "py-2 text-xs" : "py-2.5 text-sm"} font-semibold transition ${
                   active ? "bg-blue-50 text-brand-blue ring-1 ring-blue-100" : "text-slate-600 hover:bg-blue-50 hover:text-brand-blue"
@@ -147,6 +164,7 @@ export function AppShell({
               </Link>
             );
           })}
+          </ReorderableRows>
         </nav>
       </aside>
 
