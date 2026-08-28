@@ -621,6 +621,17 @@ model LocationLinkRun {
   @@map("location_link_runs")
 }
 
+// The line that splits the verification queue in two: loans that were already here on this
+// date are the backlog being worked down, and anything that synced in after it is new work.
+// One row for the whole organisation, so every bookkeeper measures against the same date.
+model VerificationBaseline {
+  id        Int      @id @default(1)
+  startDate DateTime @map("start_date") @db.Date
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("verification_baseline")
+}
+
 model FooterBranding {
   id             Int      @id @default(1)
   poweredByLabel String   @default("Powered by") @map("powered_by_label") @db.VarChar(80)

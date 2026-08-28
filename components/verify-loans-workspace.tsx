@@ -3,7 +3,30 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, Building2, CheckCircle2, LoaderCircle, Search, TriangleAlert } from "lucide-react";
-import type { VerificationBranchProgress, VerificationLoanRow, VerificationSortKey } from "@/lib/loan-verification";
+import type { VerificationBranchProgress, VerificationCohort as Cohort, VerificationLoanRow, VerificationSortKey } from "@/lib/loan-verification";
+
+const shortDay = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+
+// Two bars per card: the backlog that stood on the baseline date, and everything added since.
+function CohortBar({ label, cohort, tone }: { label: string; cohort: Cohort; tone: "baseline" | "added" }) {
+  if (!cohort.workflowTotal) return null;
+  return (
+    <span className="mt-2 block">
+      <span className="flex items-baseline justify-between gap-2">
+        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</span>
+        <span className={`text-[10px] font-extrabold tabular-nums ${tone === "baseline" ? "text-brand-green" : "text-brand-blue"}`}>
+          {cohort.verified.toLocaleString("en-US")} / {cohort.workflowTotal.toLocaleString("en-US")} · {cohort.percent}%
+        </span>
+      </span>
+      <span className="mt-1 block h-2 overflow-hidden rounded-full bg-slate-100">
+        <span
+          className={`block h-full rounded-full transition-[width] duration-500 ${tone === "baseline" ? "bg-gradient-to-r from-emerald-500 to-brand-green" : "bg-gradient-to-r from-sky-400 to-brand-blue"}`}
+          style={{ width: `${cohort.percent}%` }}
+        />
+      </span>
+    </span>
+  );
+}
 
 const COLUMNS: Array<{ key: VerificationSortKey; label: string; align?: "right" }> = [
   { key: "clientName", label: "Client" },
@@ -22,6 +45,7 @@ const shortDate = (value: string | null) => value ? new Date(value).toLocaleDate
 export function VerifyLoansWorkspace({
   branches,
   totals,
+  baselineDate,
   rows,
   selectedBranchId,
   search,
@@ -33,7 +57,8 @@ export function VerifyLoansWorkspace({
   dir
 }: {
   branches: VerificationBranchProgress[];
-  totals: { loans: number; principalBalance: number; verified: number; flagged: number; workflowTotal: number; percent: number };
+  totals: { loans: number; principalBalance: number; verified: number; flagged: number; workflowTotal: number; percent: number; baseline: Cohort; added: Cohort };
+  baselineDate: string;
   rows: VerificationLoanRow[];
   selectedBranchId: number | null;
   search: string;
@@ -126,21 +151,11 @@ export function VerifyLoansWorkspace({
               <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">loan(s) to verify</span>
               <span className="mt-2 block text-sm font-bold text-red-700">{peso(branch.principalBalance)}</span>
               <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">principal balance</span>
-              <span className="mt-3 block">
-                <span className="flex items-baseline justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Verified</span>
-                  <span className="text-[11px] font-extrabold tabular-nums text-brand-green">
-                    {branch.verified.toLocaleString("en-US")} / {branch.workflowTotal.toLocaleString("en-US")} · {branch.percent}%
-                  </span>
-                </span>
-                <span className="mt-1 block h-2 overflow-hidden rounded-full bg-slate-100">
-                  <span
-                    className="block h-full rounded-full bg-gradient-to-r from-emerald-500 to-brand-green transition-[width] duration-500"
-                    style={{ width: `${branch.percent}%` }}
-                  />
-                </span>
+              <span className="mt-3 block border-t border-slate-100 pt-2">
+                <CohortBar label={`As of ${shortDay(baselineDate)}`} cohort={branch.baseline} tone="baseline" />
+                <CohortBar label="Added since" cohort={branch.added} tone="added" />
                 {branch.flagged ? (
-                  <span className="mt-1 block text-[10px] font-semibold text-amber-700">
+                  <span className="mt-2 block text-[10px] font-semibold text-amber-700">
                     {branch.flagged.toLocaleString("en-US")} awaiting address correction
                   </span>
                 ) : null}
@@ -157,7 +172,9 @@ export function VerifyLoansWorkspace({
 
       {branches.length ? (
         <p className="text-sm font-semibold text-slate-600">
-          {totals.verified.toLocaleString("en-US")} of {totals.workflowTotal.toLocaleString("en-US")} verified ({totals.percent}%) · {totals.loans.toLocaleString("en-US")} awaiting · {peso(totals.principalBalance)} principal balance{totals.flagged ? ` · ${totals.flagged.toLocaleString("en-US")} flagged address` : ""}
+          As of {shortDay(baselineDate)}: {totals.baseline.verified.toLocaleString("en-US")} of {totals.baseline.workflowTotal.toLocaleString("en-US")} verified ({totals.baseline.percent}%)
+          {totals.added.workflowTotal ? ` · added since: ${totals.added.verified.toLocaleString("en-US")} of ${totals.added.workflowTotal.toLocaleString("en-US")} (${totals.added.percent}%)` : ""}
+          {" "}· {peso(totals.principalBalance)} principal balance{totals.flagged ? ` · ${totals.flagged.toLocaleString("en-US")} flagged address` : ""}
           {selectedBranch ? ` · showing ${selectedBranch.branchCode} - ${selectedBranch.branchName}` : " · select a branch card to list its loans"}
         </p>
       ) : null}

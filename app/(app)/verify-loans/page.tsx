@@ -45,6 +45,7 @@ export default async function VerifyLoansPage({
       <VerifyLoansWorkspace
         branches={summary.branches}
         totals={summary.totals}
+        baselineDate={summary.baselineDate}
         rows={list.rows}
         selectedBranchId={selectedBranchId}
         search={search}

@@ -104,19 +104,51 @@ export async function verificationBranchSummary(user: SessionUser, verified: boo
 // Loans flagged with a bad address sit in neither figure - they are in the Invalid Address
 // queue and cannot be verified until re-tagged - so they are reported separately rather than
 // quietly holding a branch below 100%.
+export type VerificationCohort = {
+  loans: number;
+  verified: number;
+  workflowTotal: number;
+  percent: number;
+  principalBalance: number;
+};
+
 export type VerificationBranchProgress = VerificationBranchSummary & {
   verified: number;
   verifiedPrincipal: number;
   workflowTotal: number;
   percent: number;
   flagged: number;
+  // The backlog that already existed on the baseline date, and everything that has synced in
+  // since. Kept apart so a growing queue cannot stop the backlog from ever reaching 100%.
+  baseline: VerificationCohort;
+  added: VerificationCohort;
 };
+
+// The organisation-wide date that splits the two. Falls back to today if the row is missing,
+// which keeps the page working rather than failing on a fresh install.
+export async function verificationBaselineDate() {
+  const row = await prisma.verificationBaseline.findUnique({ where: { id: 1 }, select: { startDate: true } });
+  return row?.startDate ?? new Date();
+}
+
+function emptyCohort(): VerificationCohort {
+  return { loans: 0, verified: 0, workflowTotal: 0, percent: 0, principalBalance: 0 };
+}
+
+function withPercent(cohort: VerificationCohort): VerificationCohort {
+  const workflowTotal = cohort.verified + cohort.loans;
+  return { ...cohort, workflowTotal, percent: workflowTotal ? Math.round((cohort.verified / workflowTotal) * 100) : 0 };
+}
 
 export async function verificationBranchProgress(user: SessionUser) {
   const scope = await verificationBranchScope(user);
+  const baselineDate = await verificationBaselineDate();
+  // Anything created up to the end of the baseline day is backlog; later arrivals are new.
+  const baselineCutoff = new Date(baselineDate);
+  baselineCutoff.setHours(23, 59, 59, 999);
   const loans = await prisma.loan.findMany({
     where: { AND: [visibleSyncedLoanWhere(), { balance: { gt: 0 } }, scope] },
-    select: { ...LOAN_SELECT, loanVerified: true, notValidAddress: true }
+    select: { ...LOAN_SELECT, loanVerified: true, notValidAddress: true, createdAt: true }
   });
 
   const byBranch = new Map<number, VerificationBranchProgress>();
@@ -131,17 +163,26 @@ export async function verificationBranchProgress(user: SessionUser) {
       verifiedPrincipal: 0,
       workflowTotal: 0,
       percent: 0,
-      flagged: 0
+      flagged: 0,
+      baseline: emptyCohort(),
+      added: emptyCohort()
     };
     const principal = loanPrincipalBalance(loan);
     if (loan.notValidAddress) {
       existing.flagged += 1;
-    } else if (loan.loanVerified) {
+      byBranch.set(loan.branchId, existing);
+      continue;
+    }
+    const cohort = loan.createdAt <= baselineCutoff ? existing.baseline : existing.added;
+    if (loan.loanVerified) {
       existing.verified += 1;
       existing.verifiedPrincipal += principal;
+      cohort.verified += 1;
     } else {
       existing.loans += 1;
       existing.principalBalance += principal;
+      cohort.loans += 1;
+      cohort.principalBalance += principal;
     }
     byBranch.set(loan.branchId, existing);
   }
@@ -151,13 +192,28 @@ export async function verificationBranchProgress(user: SessionUser) {
     return {
       ...branch,
       workflowTotal,
-      percent: workflowTotal ? Math.round((branch.verified / workflowTotal) * 100) : 0
+      percent: workflowTotal ? Math.round((branch.verified / workflowTotal) * 100) : 0,
+      baseline: withPercent(branch.baseline),
+      added: withPercent(branch.added)
     };
   });
 
   const verified = branches.reduce((sum, branch) => sum + branch.verified, 0);
   const awaiting = branches.reduce((sum, branch) => sum + branch.loans, 0);
+  const sumCohort = (pick: (branch: typeof branches[number]) => VerificationCohort) =>
+    withPercent(branches.reduce((total, branch) => {
+      const cohort = pick(branch);
+      return {
+        loans: total.loans + cohort.loans,
+        verified: total.verified + cohort.verified,
+        workflowTotal: 0,
+        percent: 0,
+        principalBalance: total.principalBalance + cohort.principalBalance
+      };
+    }, emptyCohort()));
+
   return {
+    baselineDate: baselineDate.toISOString().slice(0, 10),
     branches: branches.sort((a, b) => b.principalBalance - a.principalBalance),
     totals: {
       loans: awaiting,
@@ -165,7 +221,9 @@ export async function verificationBranchProgress(user: SessionUser) {
       verified,
       flagged: branches.reduce((sum, branch) => sum + branch.flagged, 0),
       workflowTotal: verified + awaiting,
-      percent: verified + awaiting ? Math.round((verified / (verified + awaiting)) * 100) : 0
+      percent: verified + awaiting ? Math.round((verified / (verified + awaiting)) * 100) : 0,
+      baseline: sumCohort((branch) => branch.baseline),
+      added: sumCohort((branch) => branch.added)
     }
   };
 }
