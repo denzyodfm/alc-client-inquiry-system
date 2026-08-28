@@ -13,6 +13,8 @@ import { UserManager } from "@/components/user-manager";
 import { SyncLogsTable } from "@/components/sync-logs-table";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { AuditLogViewer } from "@/components/audit-log-viewer";
+import { ChangeLogViewer } from "@/components/change-log-viewer";
+import { CHANGE_LOG } from "@/lib/change-log";
 import { FooterBrandingForm } from "@/components/footer-branding-form";
 import { getFooterBranding } from "@/lib/footer-branding";
 import { listAreaTeamLeaders } from "@/lib/area-team-leaders";
@@ -21,7 +23,7 @@ import { listBranchTeamLeaders } from "@/lib/branch-team-leaders";
 
 export const dynamic = "force-dynamic";
 
-type Tab = "general" | "branches" | "areas" | "privileges" | "matrix" | "users" | "admin-users" | "sync-logs" | "system-logs" | "change-password";
+type Tab = "general" | "branches" | "areas" | "privileges" | "matrix" | "users" | "admin-users" | "sync-logs" | "system-logs" | "change-log" | "change-password";
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const currentUser = await requireUser();
@@ -42,6 +44,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     { key: "admin-users", label: "Admin Users", allowed: currentUser.role === "ADMIN" },
     { key: "sync-logs", label: "Sync Logs", allowed: canSyncLogs },
     { key: "system-logs", label: "Audit Logs", allowed: currentUser.role === "ADMIN" },
+    { key: "change-log", label: "Change Log", allowed: currentUser.role === "ADMIN" },
     { key: "change-password", label: "Change Password", allowed: true }
   ];
   const allowedTabs = tabs.filter((tab) => tab.allowed);
@@ -113,6 +116,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     </div> : null}
     {activeTab === "sync-logs" ? <div className="space-y-4"><div><h3 className="text-xl font-bold text-slate-950">Sync Logs</h3><p className="mt-1 text-sm text-slate-600">Recent branch synchronization activity.</p></div><SyncLogsTable logs={syncLogs} /></div> : null}
     {activeTab === "system-logs" ? <div className="space-y-3"><div><h3 className="text-xl font-bold text-slate-950">Audit Logs</h3><p className="mt-1 text-sm text-slate-600">Administrator-only record of user sign-ins, sign-outs, and activities across the app.</p></div><AuditLogViewer rows={auditLogs.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }))} /></div> : null}
+    {activeTab === "change-log" ? <div className="space-y-3"><div><h3 className="text-xl font-bold text-slate-950">Change Log</h3><p className="mt-1 text-sm text-slate-600">Every change made to this system, numbered oldest to newest and dated. Where the request that prompted a change was recorded during a working session, it is shown with it.</p></div><ChangeLogViewer entries={CHANGE_LOG} /></div> : null}
     {activeTab === "change-password" ? <div className="mx-auto max-w-xl space-y-4"><div><h3 className="text-xl font-bold text-slate-950">Change Password</h3><p className="mt-1 text-sm text-slate-600">Update your own password after confirming your current password.</p></div><ChangePasswordForm /></div> : null}
     </div>
   </div>;

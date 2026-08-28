@@ -16,7 +16,8 @@
     "sync:branches": "tsx scripts/sync-branches.ts",
     "locations:populate": "tsx scripts/populate-assignment-locations.ts",
     "locations:masterlist:import": "tsx scripts/import-location-masterlist.ts",
-    "locations:link": "tsx scripts/link-locations.ts"
+    "locations:link": "tsx scripts/link-locations.ts",
+    "changelog:generate": "tsx scripts/generate-change-log.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
