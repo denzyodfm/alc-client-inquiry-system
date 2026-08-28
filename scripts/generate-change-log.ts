@@ -24,6 +24,9 @@ const REQUESTS: Record<string, string> = {
   a0f7f63: "can you do that latest instruction to layout of these images. [Location Pivot and Zone Summary]",
   "97f5786": "can you recall all of my prompts and summary of your actions and put it in this app, number it and date so that i can view it - only for admin account you can put it inside the setting menu item.",
   feec0f7: "create a submenu put it under Taggings call it Verify Loans, summary by branch no. of loans and principal balance in a card [...] Make a menu call it Verfied Loans [...] The account to do this will have a privilege of Bookkeeper. / put nos. on the clients and the column labels make it toggle sort asc desc, pagination first,prev,next,last. / can we add a field not_valid_address to all loans with balance [...] call it Invalid address [...] Area TL, Branch TL and Bookkeeper has access to this."
+  "5470c90": "the not_valid_address put it in the location master list loan details not here.",
+  "0a04737": "make a checkbox so that i can unverify it and go back. - make a log for return verified loans. / also in the verify loans, add a confirmation to proceed. / make a progress recording for verified loans, can put inside the card",
+  "51f7d9d": "(follow-up to the recurring deploy failures) yes just continue - fix the build hang properly"
 };
 
 function gitLog() {
