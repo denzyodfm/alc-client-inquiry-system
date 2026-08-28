@@ -1,6 +1,6 @@
 import { ClipboardCheck } from "lucide-react";
 import { requireFunction } from "@/lib/auth";
-import { isVerificationSortKey, verificationBranchSummary, verificationLoanRows } from "@/lib/loan-verification";
+import { isVerificationSortKey, verificationBranchProgress, verificationLoanRows } from "@/lib/loan-verification";
 import { VerifyLoansWorkspace } from "@/components/verify-loans-workspace";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export default async function VerifyLoansPage({
   const sort = params?.sort && isVerificationSortKey(params.sort) ? params.sort : "clientName";
   const dir = params?.dir === "desc" ? "desc" : "asc";
 
-  const summary = await verificationBranchSummary(user, false);
+  const summary = await verificationBranchProgress(user);
   // Only offer a branch the reader can actually see, so a hand-edited URL cannot list
   // another branch's loans.
   const selectedBranchId = summary.branches.some((branch) => branch.branchId === requestedBranchId)

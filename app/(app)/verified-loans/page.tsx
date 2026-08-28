@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { ArrowDown, ArrowUp, ArrowUpDown, BadgeCheck, Search } from "lucide-react";
 import { requireFunction } from "@/lib/auth";
+import { canAccessFunction } from "@/lib/access-control";
+import { prisma } from "@/lib/prisma";
+import { UnverifyCheckbox } from "@/components/unverify-checkbox";
 import { dateTime, money } from "@/lib/format";
 import {
   isVerificationSortKey,
@@ -50,9 +53,29 @@ export default async function VerifiedLoansPage({
   const sort = params?.sort && isVerificationSortKey(params.sort) ? params.sort : "verifiedAt";
   const dir = params?.dir === "asc" ? "asc" : "desc";
 
-  const [summary, report] = await Promise.all([
+  const [summary, report, canUnverify, returns] = await Promise.all([
     verificationBranchSummary(user, true),
-    verificationReport(user)
+    verificationReport(user),
+    canAccessFunction(user, "VERIFY_LOANS"),
+    prisma.loanVerificationReturn.findMany({
+      orderBy: { returnedAt: "desc" },
+      take: 100,
+      select: {
+        id: true,
+        returnedAt: true,
+        previouslyVerifiedAt: true,
+        returnedBy: { select: { name: true } },
+        previouslyVerifiedBy: { select: { name: true } },
+        loan: {
+          select: {
+            loanNumber: true,
+            remoteId: true,
+            client: { select: { fullName: true } },
+            branch: { select: { branchCode: true, branchName: true } }
+          }
+        }
+      }
+    })
   ]);
   const selectedBranchId = summary.branches.some((branch) => branch.branchId === requestedBranchId)
     ? requestedBranchId
@@ -186,6 +209,7 @@ export default async function VerifiedLoansPage({
                     </th>
                   );
                 })}
+                <th className="px-3 py-3 text-center">Verified</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -203,10 +227,13 @@ export default async function VerifiedLoansPage({
                   <td className="whitespace-nowrap px-3 py-3 text-right font-bold text-red-700">{money(row.principalBalance)}</td>
                   <td className="px-3 py-3 font-semibold text-slate-700">{row.verifiedBy ?? "-"}</td>
                   <td className="whitespace-nowrap px-3 py-3">{dateTime(row.verifiedAt)}</td>
+                  <td className="px-3 py-3 text-center">
+                    <UnverifyCheckbox loanId={row.id} loanNumber={row.loanNumber} clientName={row.clientName} canUnverify={canUnverify} />
+                  </td>
                 </tr>
               ))}
               {!list.rows.length ? (
-                <tr><td className="px-3 py-10 text-center font-semibold text-slate-500" colSpan={9}>No verified loans match this search.</td></tr>
+                <tr><td className="px-3 py-10 text-center font-semibold text-slate-500" colSpan={10}>No verified loans match this search.</td></tr>
               ) : null}
             </tbody>
           </table>
@@ -231,6 +258,49 @@ export default async function VerifiedLoansPage({
             <span className="text-xs font-semibold text-slate-500">Page {list.page} of {list.totalPages}</span>
           </div>
         ) : null}
+      </section>
+
+      <section className="panel overflow-hidden">
+        <div className="border-b border-slate-200 px-5 py-4">
+          <h3 className="font-bold text-slate-950">Returned Verifications</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Loans sent back to Verify Loans. Returning one clears the check from the loan, so the verification it
+            carried is kept here instead. Most recent 100.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1000px] text-left text-xs">
+            <thead className="bg-slate-50 uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-4 py-3 text-right">#</th>
+                <th className="px-4 py-3">Client</th>
+                <th className="px-4 py-3">Loan</th>
+                <th className="px-4 py-3">Branch</th>
+                <th className="px-4 py-3">Originally verified by</th>
+                <th className="px-4 py-3">Originally verified at</th>
+                <th className="px-4 py-3">Returned by</th>
+                <th className="px-4 py-3">Returned at</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {returns.map((entry, index) => (
+                <tr key={entry.id} className="hover:bg-blue-50/50">
+                  <td className="px-4 py-3 text-right tabular-nums text-slate-400">{index + 1}</td>
+                  <td className="px-4 py-3 font-bold text-slate-950">{entry.loan.client.fullName}</td>
+                  <td className="px-4 py-3 font-bold text-brand-blue">{entry.loan.loanNumber ?? entry.loan.remoteId}</td>
+                  <td className="px-4 py-3">{entry.loan.branch.branchCode} - {entry.loan.branch.branchName}</td>
+                  <td className="px-4 py-3">{entry.previouslyVerifiedBy?.name ?? "-"}</td>
+                  <td className="whitespace-nowrap px-4 py-3">{dateTime(entry.previouslyVerifiedAt)}</td>
+                  <td className="px-4 py-3 font-semibold text-slate-700">{entry.returnedBy?.name ?? "-"}</td>
+                  <td className="whitespace-nowrap px-4 py-3">{dateTime(entry.returnedAt)}</td>
+                </tr>
+              ))}
+              {!returns.length ? (
+                <tr><td className="px-4 py-10 text-center font-semibold text-slate-500" colSpan={8}>No verified loans have been returned.</td></tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );

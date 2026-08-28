@@ -75,6 +75,8 @@ model User {
   localPaymentPostings LocalPaymentPosting[] @relation("LocalPaymentPostedBy")
   locationLinkRuns LocationLinkRun[] @relation("LocationLinkRunStartedBy")
   verifiedLoans Loan[] @relation("LoanVerifiedBy")
+  verificationReturns LoanVerificationReturn[] @relation("VerificationReturnedBy")
+  verificationsUndone LoanVerificationReturn[] @relation("VerificationReturnOriginalVerifier")
   auditLogs    AuditLog[]
   preferences  UserPreference[]
   baseBranch   Branch?  @relation("UserBaseBranch", fields: [baseBranchId], references: [id], onDelete: SetNull)
@@ -302,6 +304,7 @@ model Loan {
   verifiedAt      DateTime?  @map("verified_at")
   verifiedById    Int?       @map("verified_by_id")
   verifiedBy      User?      @relation("LoanVerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
+  verificationReturns LoanVerificationReturn[]
   locationMasterlistId Int? @map("location_masterlist_id")
   locationLinked Boolean @default(false) @map("location_linked")
   locationLinkedAt DateTime? @map("location_linked_at")
@@ -525,6 +528,25 @@ model LocalPaymentPosting {
   @@index([postedById])
   @@index([paymentDate])
   @@map("local_payment_postings")
+}
+
+// Unverifying a loan clears who checked it and when, so that history would otherwise be lost.
+// Each return is recorded here, keeping the original verification alongside who sent it back.
+model LoanVerificationReturn {
+  id                     Int       @id @default(autoincrement())
+  loanId                 Int       @map("loan_id")
+  returnedById           Int?      @map("returned_by_id")
+  returnedAt             DateTime  @default(now()) @map("returned_at")
+  previouslyVerifiedById Int?      @map("previously_verified_by_id")
+  previouslyVerifiedAt   DateTime? @map("previously_verified_at")
+  loan                   Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  returnedBy             User?     @relation("VerificationReturnedBy", fields: [returnedById], references: [id], onDelete: SetNull)
+  previouslyVerifiedBy   User?     @relation("VerificationReturnOriginalVerifier", fields: [previouslyVerifiedById], references: [id], onDelete: SetNull)
+
+  @@index([loanId])
+  @@index([returnedById])
+  @@index([returnedAt])
+  @@map("loan_verification_returns")
 }
 
 model SyncLog {

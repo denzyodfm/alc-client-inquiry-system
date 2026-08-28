@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, Building2, CheckCircle2, LoaderCircle, Search, TriangleAlert } from "lucide-react";
-import type { VerificationBranchSummary, VerificationLoanRow, VerificationSortKey } from "@/lib/loan-verification";
+import type { VerificationBranchProgress, VerificationLoanRow, VerificationSortKey } from "@/lib/loan-verification";
 
 const COLUMNS: Array<{ key: VerificationSortKey; label: string; align?: "right" }> = [
   { key: "clientName", label: "Client" },
@@ -32,8 +32,8 @@ export function VerifyLoansWorkspace({
   sort,
   dir
 }: {
-  branches: VerificationBranchSummary[];
-  totals: { loans: number; principalBalance: number };
+  branches: VerificationBranchProgress[];
+  totals: { loans: number; principalBalance: number; verified: number; flagged: number; workflowTotal: number; percent: number };
   rows: VerificationLoanRow[];
   selectedBranchId: number | null;
   search: string;
@@ -50,6 +50,8 @@ export function VerifyLoansWorkspace({
   // A ticked loan leaves this list, so it is hidden as soon as the server confirms rather
   // than waiting for the page to reload underneath the operator.
   const [removed, setRemoved] = useState<Set<number>>(new Set());
+  // Verifying is a recorded act, so the tick asks before it is written.
+  const [pending, setPending] = useState<VerificationLoanRow | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function go(next: { branchId?: number | null; q?: string; page?: number; sort?: VerificationSortKey; dir?: "asc" | "desc" }) {
@@ -70,8 +72,6 @@ export function VerifyLoansWorkspace({
     go({ sort: key, dir: sort === key && dir === "asc" ? "desc" : "asc", page: 1 });
   }
 
-  // Both ticks take the loan off this list: verified moves it to Verified Loans, a wrong
-  // address moves it to Invalid Address for a team leader to re-tag.
   async function mark(row: VerificationLoanRow, body: Record<string, unknown>, failureMessage: string) {
     setSavingId(row.id);
     setError(null);
@@ -84,6 +84,7 @@ export function VerifyLoansWorkspace({
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.error ?? failureMessage);
       setRemoved((current) => new Set(current).add(row.id));
+      setPending(null);
       router.refresh();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : failureMessage);
@@ -125,6 +126,25 @@ export function VerifyLoansWorkspace({
               <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">loan(s) to verify</span>
               <span className="mt-2 block text-sm font-bold text-red-700">{peso(branch.principalBalance)}</span>
               <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">principal balance</span>
+              <span className="mt-3 block">
+                <span className="flex items-baseline justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Verified</span>
+                  <span className="text-[11px] font-extrabold tabular-nums text-brand-green">
+                    {branch.verified.toLocaleString("en-US")} / {branch.workflowTotal.toLocaleString("en-US")} · {branch.percent}%
+                  </span>
+                </span>
+                <span className="mt-1 block h-2 overflow-hidden rounded-full bg-slate-100">
+                  <span
+                    className="block h-full rounded-full bg-gradient-to-r from-emerald-500 to-brand-green transition-[width] duration-500"
+                    style={{ width: `${branch.percent}%` }}
+                  />
+                </span>
+                {branch.flagged ? (
+                  <span className="mt-1 block text-[10px] font-semibold text-amber-700">
+                    {branch.flagged.toLocaleString("en-US")} awaiting address correction
+                  </span>
+                ) : null}
+              </span>
             </button>
           );
         })}
@@ -137,9 +157,38 @@ export function VerifyLoansWorkspace({
 
       {branches.length ? (
         <p className="text-sm font-semibold text-slate-600">
-          {totals.loans.toLocaleString("en-US")} loan(s) awaiting verification · {peso(totals.principalBalance)} principal balance
+          {totals.verified.toLocaleString("en-US")} of {totals.workflowTotal.toLocaleString("en-US")} verified ({totals.percent}%) · {totals.loans.toLocaleString("en-US")} awaiting · {peso(totals.principalBalance)} principal balance{totals.flagged ? ` · ${totals.flagged.toLocaleString("en-US")} flagged address` : ""}
           {selectedBranch ? ` · showing ${selectedBranch.branchCode} - ${selectedBranch.branchName}` : " · select a branch card to list its loans"}
         </p>
+      ) : null}
+
+      {pending ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm verifying this loan"
+          onMouseDown={(event) => { if (event.target === event.currentTarget && savingId === null) setPending(null); }}
+        >
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl">
+            <h3 className="text-lg font-bold text-slate-950">Verify this loan?</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              <b>{pending.clientName}</b> — loan <b>{pending.loanNumber}</b>, principal balance {peso(pending.principalBalance)}.
+              Verifying records your account and the time against it, and moves it to Verified Loans.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" className="btn-secondary h-9 px-3 text-xs" disabled={savingId !== null} onClick={() => setPending(null)}>Cancel</button>
+              <button
+                type="button"
+                className="btn-primary h-9 px-3 text-xs"
+                disabled={savingId !== null}
+                onClick={() => void mark(pending, { verified: true }, "Unable to verify this loan.")}
+              >
+                {savingId !== null ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}Confirm &amp; verify
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {selectedBranchId ? (
@@ -188,7 +237,6 @@ export function VerifyLoansWorkspace({
                     </th>
                   ))}
                   <th className="px-3 py-3 text-center">Loan Verified</th>
-                  <th className="px-3 py-3 text-center">Not Valid Address</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -214,28 +262,16 @@ export function VerifyLoansWorkspace({
                           className="h-4 w-4 cursor-pointer accent-brand-blue"
                           checked={false}
                           disabled={savingId === row.id}
-                          onChange={() => void mark(row, { verified: true }, "Unable to verify this loan.")}
+                          onChange={() => setPending(row)}
                         />
                         {savingId === row.id ? <LoaderCircle className="h-4 w-4 animate-spin text-brand-blue" /> : null}
-                      </label>
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      <label className="inline-flex cursor-pointer items-center gap-2" title="Send this loan to Invalid Address for re-tagging">
-                        <span className="sr-only">Flag {row.loanNumber} as having an invalid address</span>
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 cursor-pointer accent-amber-600"
-                          checked={false}
-                          disabled={savingId === row.id}
-                          onChange={() => void mark(row, { notValidAddress: true }, "Unable to flag this address.")}
-                        />
                       </label>
                     </td>
                   </tr>
                 ))}
                 {!visibleRows.length ? (
                   <tr>
-                    <td className="px-3 py-10 text-center font-semibold text-slate-500" colSpan={11}>
+                    <td className="px-3 py-10 text-center font-semibold text-slate-500" colSpan={10}>
                       {rows.length ? (
                         <span className="inline-flex items-center gap-2 text-brand-green">
                           <CheckCircle2 className="h-4 w-4" />Every loan on this page has been verified.

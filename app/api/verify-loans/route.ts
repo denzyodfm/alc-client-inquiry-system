@@ -13,9 +13,6 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null);
   const loanId = Number(body?.loanId);
-  // Two independent ticks share this route: Loan Verified, and Not Valid Address. A loan is
-  // only ever one or the other, so flagging a bad address clears any verification with it.
-  const flagInvalidAddress = body?.notValidAddress === true;
   const verified = body?.verified !== false;
   if (!Number.isInteger(loanId) || loanId <= 0) {
     return NextResponse.json({ error: "A valid loan is required." }, { status: 400 });
@@ -30,7 +27,8 @@ export async function POST(request: Request) {
       remoteId: true,
       balance: true,
       loanVerified: true,
-      notValidAddress: true,
+      verifiedAt: true,
+      verifiedById: true,
       client: { select: { fullName: true } },
       branch: { select: { branchName: true, branchCode: true } }
     }
@@ -42,32 +40,30 @@ export async function POST(request: Request) {
   if (Number(loan.balance) <= 0) {
     return NextResponse.json({ error: "Only outstanding loans can be verified." }, { status: 400 });
   }
-  if (flagInvalidAddress) {
-    await prisma.loan.update({
-      where: { id: loanId },
-      data: { notValidAddress: true, loanVerified: false, verifiedAt: null, verifiedById: null }
-    });
-    await auditAction(
-      request,
-      user!,
-      "LOAN_ADDRESS_FLAGGED",
-      "Verify Loans",
-      `Flagged a wrong address on loan ${loan.loanNumber ?? loan.remoteId} for ${loan.client.fullName} at ${loan.branch.branchCode} - ${loan.branch.branchName}`,
-      { includeAdmin: true }
-    );
-    return NextResponse.json({ loan: { id: loan.id, notValidAddress: true, loanVerified: false } });
-  }
-
   if (loan.loanVerified === verified) {
     return NextResponse.json({ error: verified ? "That loan is already verified." : "That loan is not verified." }, { status: 409 });
   }
 
-  const updated = await prisma.loan.update({
-    where: { id: loanId },
-    data: verified
-      ? { loanVerified: true, verifiedAt: new Date(), verifiedById: user!.id }
-      : { loanVerified: false, verifiedAt: null, verifiedById: null },
-    select: { id: true, loanVerified: true, verifiedAt: true, verifiedBy: { select: { name: true } } }
+  // Returning a loan wipes the account and timestamp from the loan, so the check that stood
+  // is written to the returns log first - otherwise that history disappears with it.
+  const updated = await prisma.$transaction(async (tx) => {
+    if (!verified) {
+      await tx.loanVerificationReturn.create({
+        data: {
+          loanId,
+          returnedById: user!.id,
+          previouslyVerifiedById: loan.verifiedById,
+          previouslyVerifiedAt: loan.verifiedAt
+        }
+      });
+    }
+    return tx.loan.update({
+      where: { id: loanId },
+      data: verified
+        ? { loanVerified: true, verifiedAt: new Date(), verifiedById: user!.id }
+        : { loanVerified: false, verifiedAt: null, verifiedById: null },
+      select: { id: true, loanVerified: true, verifiedAt: true, verifiedBy: { select: { name: true } } }
+    });
   });
 
   await auditAction(

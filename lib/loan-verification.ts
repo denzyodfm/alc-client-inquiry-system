@@ -100,6 +100,76 @@ export async function verificationBranchSummary(user: SessionUser, verified: boo
   };
 }
 
+// How far each branch has got: verified against the loans that are actually verifiable.
+// Loans flagged with a bad address sit in neither figure - they are in the Invalid Address
+// queue and cannot be verified until re-tagged - so they are reported separately rather than
+// quietly holding a branch below 100%.
+export type VerificationBranchProgress = VerificationBranchSummary & {
+  verified: number;
+  verifiedPrincipal: number;
+  workflowTotal: number;
+  percent: number;
+  flagged: number;
+};
+
+export async function verificationBranchProgress(user: SessionUser) {
+  const scope = await verificationBranchScope(user);
+  const loans = await prisma.loan.findMany({
+    where: { AND: [visibleSyncedLoanWhere(), { balance: { gt: 0 } }, scope] },
+    select: { ...LOAN_SELECT, loanVerified: true, notValidAddress: true }
+  });
+
+  const byBranch = new Map<number, VerificationBranchProgress>();
+  for (const loan of loans) {
+    const existing = byBranch.get(loan.branchId) ?? {
+      branchId: loan.branchId,
+      branchName: loan.branch.branchName,
+      branchCode: loan.branch.branchCode,
+      loans: 0,
+      principalBalance: 0,
+      verified: 0,
+      verifiedPrincipal: 0,
+      workflowTotal: 0,
+      percent: 0,
+      flagged: 0
+    };
+    const principal = loanPrincipalBalance(loan);
+    if (loan.notValidAddress) {
+      existing.flagged += 1;
+    } else if (loan.loanVerified) {
+      existing.verified += 1;
+      existing.verifiedPrincipal += principal;
+    } else {
+      existing.loans += 1;
+      existing.principalBalance += principal;
+    }
+    byBranch.set(loan.branchId, existing);
+  }
+
+  const branches = Array.from(byBranch.values()).map((branch) => {
+    const workflowTotal = branch.verified + branch.loans;
+    return {
+      ...branch,
+      workflowTotal,
+      percent: workflowTotal ? Math.round((branch.verified / workflowTotal) * 100) : 0
+    };
+  });
+
+  const verified = branches.reduce((sum, branch) => sum + branch.verified, 0);
+  const awaiting = branches.reduce((sum, branch) => sum + branch.loans, 0);
+  return {
+    branches: branches.sort((a, b) => b.principalBalance - a.principalBalance),
+    totals: {
+      loans: awaiting,
+      principalBalance: branches.reduce((sum, branch) => sum + branch.principalBalance, 0),
+      verified,
+      flagged: branches.reduce((sum, branch) => sum + branch.flagged, 0),
+      workflowTotal: verified + awaiting,
+      percent: verified + awaiting ? Math.round((verified / (verified + awaiting)) * 100) : 0
+    }
+  };
+}
+
 export type VerificationLoanRow = {
   id: number;
   loanNumber: string;
