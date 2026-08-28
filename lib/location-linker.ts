@@ -1,6 +1,7 @@
 import { mkdir, appendFile } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
+import { visibleSyncedLoanWhere } from "@/lib/loan-filters";
 
 type LinkTrigger = "MANUAL" | "SCHEDULED" | "CLI";
 
@@ -277,12 +278,27 @@ export async function linkUnlinkedLoans({
       );
     }
 
+    // An outstanding loan the linker still cannot place has no location at all, which is the
+    // same problem Invalid Address exists to fix - so it is tagged and sent there rather than
+    // sitting unreachable. Loans that already carry a location are left alone: a flag on one
+    // of those was raised by hand against a wrong address, and this run must not clear it.
+    const flagged = await prisma.loan.updateMany({
+      where: {
+        AND: [
+          visibleSyncedLoanWhere(),
+          { balance: { gt: 0 }, locationMasterlistId: null, notValidAddress: false }
+        ]
+      },
+      data: { notValidAddress: true }
+    });
+
     const result = {
       runId: run.id,
       trigger,
       scanned: loans.length,
       linked: linked.length,
-      unmatched: loans.length - linked.length
+      unmatched: loans.length - linked.length,
+      flaggedWithoutLocation: flagged.count
     };
     await prisma.locationLinkRun.update({
       where: { id: run.id },
@@ -292,7 +308,10 @@ export async function linkUnlinkedLoans({
         loansScanned: result.scanned,
         loansLinked: result.linked,
         loansUnmatched: result.unmatched,
-        message: result.unmatched ? `${result.unmatched} loan(s) remain unlinked.` : "All scanned loans were linked."
+        message: [
+          result.unmatched ? `${result.unmatched} loan(s) remain unlinked.` : "All scanned loans were linked.",
+          flagged.count ? `${flagged.count} outstanding loan(s) with no location tagged for Invalid Address.` : ""
+        ].filter(Boolean).join(" ")
       }
     });
     await writeLinkLog({ event: "location-link-run", status: "SUCCESS", ...result, unmatchedSamples });

@@ -127,7 +127,9 @@ export async function GET(request: NextRequest) {
       && (!Number.isInteger(areaTeamLeaderId) || Number(areaTeamLeaderId) <= 0))
     || (locationId !== null && (!Number.isInteger(locationId) || locationId <= 0))
     || (branchId !== null && (!Number.isInteger(branchId) || branchId <= 0))
-    || (!locationId && !officerId && !officerIds.length && !assignedOnly && !zone && !district)
+    // A province narrows the report on its own, with municipality narrowing it further. The
+    // Location Pivot's province and city rows scope this way and were rejected without it.
+    || (!locationId && !officerId && !officerIds.length && !assignedOnly && !zone && !district && !province)
   ) {
     return NextResponse.json({ error: "A valid Account Officer or location report scope is required." }, { status: 400 });
   }
