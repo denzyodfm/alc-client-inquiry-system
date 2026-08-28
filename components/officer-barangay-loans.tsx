@@ -154,6 +154,10 @@ export function BarangayLoanReport({
   const [savedPins, setSavedPins] = useState<Record<number, ClientAddressPin>>({});
   const [addressFlags, setAddressFlags] = useState<Record<number, boolean>>({});
   const [flaggingId, setFlaggingId] = useState<number | null>(null);
+  // Flagged rows leave this list - they belong to Invalid Address now - and the tick asks
+  // first, since it moves the loan out from under whoever is reading the report.
+  const [flagPending, setFlagPending] = useState<LoanRow | null>(null);
+  const [movedToInvalid, setMovedToInvalid] = useState<Set<number>>(new Set());
   // Column filter: which column to search, and what to look for in it. The typed value is
   // debounced into filterValue so the report is not refetched on every keystroke.
   const [filterKey, setFilterKey] = useState<SortKey>("clientName");
@@ -250,12 +254,16 @@ export function BarangayLoanReport({
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.error ?? "Unable to update the address flag.");
       setAddressFlags((current) => ({ ...current, [row.id]: next }));
+      if (next) setMovedToInvalid((current) => new Set(current).add(row.id));
+      setFlagPending(null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to update the address flag.");
     } finally {
       setFlaggingId(null);
     }
   }
+
+  const visibleReportRows = (result?.rows ?? []).filter((row) => !movedToInvalid.has(row.id));
 
   if (clientCount === 0) return <span>-</span>;
 
@@ -276,6 +284,34 @@ export function BarangayLoanReport({
       >
         {clientCount.toLocaleString("en-US")}
       </button>
+      {flagPending ? (
+        <div
+          className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm flagging this address"
+          onMouseDown={(event) => { if (event.target === event.currentTarget && flaggingId === null) setFlagPending(null); }}
+        >
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl">
+            <h3 className="text-lg font-bold text-slate-950">Flag this address as invalid?</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              <b>{flagPending.clientName}</b> — loan <b>{flagPending.loanNumber}</b>.
+              {flagPending.address ? <> Address on file: <i>{flagPending.address}</i>.</> : null} It moves to
+              Taggings &gt; Invalid Address for a team leader to re-tag, and leaves this list.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" className="btn-secondary h-9 px-3 text-xs" disabled={flaggingId !== null} onClick={() => setFlagPending(null)}>Cancel</button>
+              <button
+                type="button"
+                className="btn-primary h-9 px-3 text-xs"
+                disabled={flaggingId !== null}
+                onClick={() => void toggleAddressFlag(flagPending, true)}
+              >Confirm &amp; move</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {open ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4"
@@ -361,10 +397,10 @@ export function BarangayLoanReport({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {result.rows.map((row, rowIndex) => {
-                      const firstOfClient = rowIndex === 0 || result.rows[rowIndex - 1].clientId !== row.clientId;
+                    {visibleReportRows.map((row, rowIndex) => {
+                      const firstOfClient = rowIndex === 0 || visibleReportRows[rowIndex - 1].clientId !== row.clientId;
                       const clientNumber = result.clientStartIndex
-                        + new Set(result.rows.slice(0, rowIndex + 1).map((item) => item.clientId)).size;
+                        + new Set(visibleReportRows.slice(0, rowIndex + 1).map((item) => item.clientId)).size;
                       return (
                       <tr key={row.id} className={firstOfClient ? "border-t border-slate-200" : ""}>
                         <td className="px-3 py-3">
@@ -400,7 +436,10 @@ export function BarangayLoanReport({
                               className="h-4 w-4 cursor-pointer accent-amber-600 disabled:cursor-not-allowed"
                               checked={addressFlags[row.id] ?? row.notValidAddress}
                               disabled={!result.canFlagAddress || flaggingId === row.id}
-                              onChange={(event) => void toggleAddressFlag(row, event.target.checked)}
+                              onChange={(event) => {
+                                if (event.target.checked) setFlagPending(row);
+                                else void toggleAddressFlag(row, false);
+                              }}
                             />
                           </label>
                         </td>
