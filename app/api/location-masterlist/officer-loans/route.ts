@@ -53,6 +53,15 @@ const SORT_KEYS = [
 ] as const;
 type SortKey = (typeof SORT_KEYS)[number];
 
+// The report's column filter: pick a column, type a value. Matching is a case-insensitive
+// substring of the value as the table displays it, so one rule covers text, numbers and the
+// ISO dates alike - "past due" finds a status, "0011" a loan number, "2026-08" a maturity.
+function rowMatchesFilter(row: Record<SortKey, unknown>, key: SortKey, needle: string) {
+  const raw = row[key];
+  if (raw === null || raw === undefined) return false;
+  return String(raw).toLocaleLowerCase("en").includes(needle.toLocaleLowerCase("en"));
+}
+
 function compareRows(left: Record<SortKey, unknown>, right: Record<SortKey, unknown>, key: SortKey) {
   const a = left[key];
   const b = right[key];
@@ -101,22 +110,43 @@ export async function GET(request: NextRequest) {
   const sortKey: SortKey = (SORT_KEYS as readonly string[]).includes(requestedSort) ? requestedSort as SortKey : "clientName";
   const sortDir = request.nextUrl.searchParams.get("dir") === "desc" ? "desc" : "asc";
   const format = request.nextUrl.searchParams.get("format");
+  // A team-leader row aggregates several officers, so it scopes by the whole set rather than
+  // by one officer. Each id is still expanded through its account family, so an officer
+  // holding duplicate logins is counted once.
+  const officerIds = (request.nextUrl.searchParams.get("officerIds") ?? "")
+    .split(",")
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isInteger(value) && value > 0);
+  const filterKeyParam = request.nextUrl.searchParams.get("filterKey") ?? "";
+  const filterKey = (SORT_KEYS as readonly string[]).includes(filterKeyParam) ? filterKeyParam as SortKey : null;
+  const filterValue = request.nextUrl.searchParams.get("filterValue")?.trim() ?? "";
   if (
     (officerId !== null && (!Number.isInteger(officerId) || officerId <= 0))
     || (areaTeamLeaderParam && areaTeamLeaderParam !== "unassigned"
       && (!Number.isInteger(areaTeamLeaderId) || Number(areaTeamLeaderId) <= 0))
     || (locationId !== null && (!Number.isInteger(locationId) || locationId <= 0))
     || (branchId !== null && (!Number.isInteger(branchId) || branchId <= 0))
-    || (!locationId && !officerId && !assignedOnly && !zone && !district)
+    || (!locationId && !officerId && !officerIds.length && !assignedOnly && !zone && !district)
   ) {
     return NextResponse.json({ error: "A valid Account Officer or location report scope is required." }, { status: 400 });
   }
   if (user.role === "ACCOUNT_OFFICER" && officerId !== null && officerId !== user.id) {
     return NextResponse.json({ error: "You can view only your assigned loans." }, { status: 403 });
   }
+  // An Account Officer only ever sees their own loans, so a multi-officer scope collapses to
+  // themselves rather than widening what the row would otherwise show them.
+  if (user.role === "ACCOUNT_OFFICER" && officerIds.some((id) => id !== user.id)) {
+    return NextResponse.json({ error: "You can view only your assigned loans." }, { status: 403 });
+  }
   const effectiveOfficerId = officerId ?? (user.role === "ACCOUNT_OFFICER" ? user.id : null);
   const officerFamily = effectiveOfficerId ? await officerAccountFamily(effectiveOfficerId) : null;
   if (effectiveOfficerId && !officerFamily) {
+    return NextResponse.json({ error: "Account Officer not found." }, { status: 404 });
+  }
+  const officerGroupIds = officerFamily || !officerIds.length
+    ? []
+    : Array.from(new Set((await Promise.all(officerIds.map(officerAccountFamily))).flatMap((family) => family?.accountIds ?? [])));
+  if (officerIds.length && !officerFamily && !officerGroupIds.length) {
     return NextResponse.json({ error: "Account Officer not found." }, { status: 404 });
   }
   const locationWhere: Prisma.LoanWhereInput = locationId
@@ -126,7 +156,11 @@ export async function GET(request: NextRequest) {
       : {};
   const assignmentWhere: Prisma.RemedialAssignmentWhereInput = {
     status: "ACTIVE",
-    ...(officerFamily ? { assignedToId: { in: officerFamily.accountIds } } : assignedOnly ? { assignedToId: { not: null } } : {}),
+    ...(officerFamily
+      ? { assignedToId: { in: officerFamily.accountIds } }
+      : officerGroupIds.length
+        ? { assignedToId: { in: officerGroupIds } }
+        : assignedOnly ? { assignedToId: { not: null } } : {}),
     ...(areaTeamLeaderParam
       ? { areaTeamLeaderId: areaTeamLeaderParam === "unassigned" ? null : areaTeamLeaderId }
       : {}),
@@ -194,10 +228,8 @@ export async function GET(request: NextRequest) {
   const matchingLoans = category === "all"
     ? loans
     : loans.filter((loan) => categoryByClient.get(loan.clientId) === category);
-  const total = matchingLoans.length;
-  const clientTotal = new Set(matchingLoans.map((loan) => loan.clientId)).size;
   const allRows = format === "excel" || format === "print";
-  const everyRow = matchingLoans.map((loan) => ({
+  const builtRows = matchingLoans.map((loan) => ({
     id: loan.id,
     clientId: loan.clientId,
     clientName: loan.client.fullName,
@@ -228,6 +260,13 @@ export async function GET(request: NextRequest) {
     municipality: loan.locationMasterlist?.municipality ?? "-",
     barangay: loan.locationMasterlist?.barangay ?? "-"
   }));
+  // Filter before counting and paging, so the totals and page count describe what the filter
+  // actually matched across the whole report rather than the 25 clients currently on screen.
+  const everyRow = filterKey && filterValue
+    ? builtRows.filter((row) => rowMatchesFilter(row, filterKey, filterValue))
+    : builtRows;
+  const total = everyRow.length;
+  const clientTotal = new Set(everyRow.map((row) => row.clientId)).size;
   everyRow.sort((left, right) => (sortDir === "asc" ? 1 : -1) * compareRows(left, right, sortKey));
 
   // The summaries count clients, so this list is paged and numbered by client: a borrower with

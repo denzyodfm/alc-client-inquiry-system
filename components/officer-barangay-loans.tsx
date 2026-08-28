@@ -92,6 +92,7 @@ function date(value: string | null) {
 
 export function BarangayLoanReport({
   officerId,
+  officerIds,
   areaTeamLeaderId,
   locationId,
   branchId,
@@ -106,6 +107,7 @@ export function BarangayLoanReport({
   category = "all"
 }: {
   officerId?: number;
+  officerIds?: number[];
   areaTeamLeaderId?: number | "unassigned";
   locationId?: number;
   branchId?: number;
@@ -130,11 +132,30 @@ export function BarangayLoanReport({
   const [selectedOfficers, setSelectedOfficers] = useState<Record<number, string>>({});
   const [savingLoanId, setSavingLoanId] = useState<number | null>(null);
   const [savedPins, setSavedPins] = useState<Record<number, ClientAddressPin>>({});
+  // Column filter: which column to search, and what to look for in it. The typed value is
+  // debounced into filterValue so the report is not refetched on every keystroke.
+  const [filterKey, setFilterKey] = useState<SortKey>("clientName");
+  const [filterDraft, setFilterDraft] = useState("");
+  const [filterValue, setFilterValue] = useState("");
+  const officerIdsKey = officerIds?.length ? officerIds.join(",") : "";
+
+  useEffect(() => {
+    const timer = setTimeout(() => setFilterValue(filterDraft.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [filterDraft]);
+
+  useEffect(() => { setPage(1); }, [filterKey, filterValue]);
+
   const baseUrl = useMemo(() => {
     const params = new URLSearchParams({ category, context: locationName, sort: sort.key, dir: sort.dir });
     if (locationId) params.set("locationId", String(locationId));
     if (officerId) params.set("officerId", String(officerId));
+    if (officerIdsKey) params.set("officerIds", officerIdsKey);
     if (branchId) params.set("branchId", String(branchId));
+    if (filterValue) {
+      params.set("filterKey", filterKey);
+      params.set("filterValue", filterValue);
+    }
     if (areaTeamLeaderId !== undefined) params.set("areaTeamLeaderId", String(areaTeamLeaderId));
     if (province) params.set("province", province);
     if (municipality) params.set("municipality", municipality);
@@ -142,7 +163,7 @@ export function BarangayLoanReport({
     if (district) params.set("district", district);
     if (assignedOnly) params.set("assignedOnly", "1");
     return `/api/location-masterlist/officer-loans?${params.toString()}`;
-  }, [areaTeamLeaderId, assignedOnly, branchId, category, district, locationId, locationName, municipality, officerId, province, sort, zone]);
+  }, [areaTeamLeaderId, assignedOnly, branchId, category, district, filterKey, filterValue, locationId, locationName, municipality, officerId, officerIdsKey, province, sort, zone]);
 
   function toggleSort(key: SortKey) {
     setPage(1);
@@ -236,9 +257,33 @@ export function BarangayLoanReport({
                 <button className="btn-secondary" type="button" onClick={() => setOpen(false)}>Close</button>
               </div>
             </div>
+            <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-5 py-3">
+              <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                <span className="mb-1 block">Search column</span>
+                <select
+                  className="field h-9 min-w-[180px] text-xs"
+                  value={filterKey}
+                  onChange={(event) => setFilterKey(event.target.value as SortKey)}
+                >
+                  {SORT_COLUMNS.map((column) => <option key={column.key} value={column.key}>{column.label}</option>)}
+                </select>
+              </label>
+              <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                <span className="mb-1 block">Value to find</span>
+                <input
+                  className="field h-9 min-w-[240px] text-xs"
+                  value={filterDraft}
+                  onChange={(event) => setFilterDraft(event.target.value)}
+                  placeholder={`Search within ${SORT_COLUMNS.find((column) => column.key === filterKey)?.label ?? "column"}`}
+                />
+              </label>
+              {filterDraft ? (
+                <button type="button" className="btn-secondary mt-4 h-9 px-3 text-xs" onClick={() => setFilterDraft("")}>Clear</button>
+              ) : null}
+            </div>
             <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3 text-sm font-semibold text-slate-600">
               <span>{result
-                ? `${result.clientTotal.toLocaleString("en-US")} client(s) holding ${result.total.toLocaleString("en-US")} loan(s) | showing client ${(result.clientStartIndex + 1).toLocaleString("en-US")}–${(result.clientStartIndex + result.clientsOnPage).toLocaleString("en-US")}`
+                ? `${result.clientTotal.toLocaleString("en-US")} client(s) holding ${result.total.toLocaleString("en-US")} loan(s)${filterValue ? " matching the filter" : ""} | showing client ${(result.clientStartIndex + 1).toLocaleString("en-US")}–${(result.clientStartIndex + result.clientsOnPage).toLocaleString("en-US")}`
                 : "Loading loan details..."}</span>
               <span>{result ? `Page ${result.page.toLocaleString("en-US")} of ${result.totalPages.toLocaleString("en-US")}` : null}</span>
             </div>

@@ -900,7 +900,13 @@ export default async function LocationMasterlistPage() {
                     </span>
                     {leader.name}
                   </span>
-                  <MetricCells metrics={leader.metrics} />
+                  <MetricCells
+                    metrics={leader.metrics}
+                    reportScope={leader.officers.length ? {
+                      officerIds: leader.officers.map((officer) => officer.id),
+                      locationName: `${leader.name} — All Officers`
+                    } : undefined}
+                  />
                 </summary>
                 <div className="border-t border-slate-100 pl-6">
                   <ReorderableRows
@@ -1030,6 +1036,7 @@ export default async function LocationMasterlistPage() {
 
 type ClientReportScope = {
   officerId?: number;
+  officerIds?: number[];
   branchId?: number;
   areaTeamLeaderId?: number | "unassigned";
   officerName?: string;
