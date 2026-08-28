@@ -1071,5 +1071,19 @@ export const CHANGE_LOG: ChangeLogEntry[] = [
     "commit": "320e314",
     "title": "Open loan details from team-leader rows and filter them by column",
     "request": "clicking the quantities should show the loan details just like in the totals, and when inside the loan details add a search filter. the first search is the column label and the second is the value of the column label i want to search. do this to all loan details list in this pivot."
+  },
+  {
+    "number": 178,
+    "date": "2026-08-28",
+    "commit": "a0f7f63",
+    "title": "Open loan details from every Location Pivot and Zone Summary row",
+    "request": "can you do that latest instruction to layout of these images. [Location Pivot and Zone Summary]"
+  },
+  {
+    "number": 179,
+    "date": "2026-08-28",
+    "commit": "97f5786",
+    "title": "Add an administrator change log under Settings",
+    "request": "can you recall all of my prompts and summary of your actions and put it in this app, number it and date so that i can view it - only for admin account you can put it inside the setting menu item."
   }
 ];
