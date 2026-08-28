@@ -1098,5 +1098,38 @@ export const CHANGE_LOG: ChangeLogEntry[] = [
     "commit": "feec0f7",
     "title": "Add loan verification and invalid-address re-tagging",
     "request": "create a submenu put it under Taggings call it Verify Loans, summary by branch no. of loans and principal balance in a card [...] Make a menu call it Verfied Loans [...] The account to do this will have a privilege of Bookkeeper. / put nos. on the clients and the column labels make it toggle sort asc desc, pagination first,prev,next,last. / can we add a field not_valid_address to all loans with balance [...] call it Invalid address [...] Area TL, Branch TL and Bookkeeper has access to this."
+  },
+  {
+    "number": 182,
+    "date": "2026-08-28",
+    "commit": "3b03f63",
+    "title": "Record the loan verification work in the change log"
+  },
+  {
+    "number": 183,
+    "date": "2026-08-28",
+    "commit": "5470c90",
+    "title": "Flag an invalid address from the Location Masterlist loan details",
+    "request": "the not_valid_address put it in the location master list loan details not here."
+  },
+  {
+    "number": 184,
+    "date": "2026-08-28",
+    "commit": "0a04737",
+    "title": "Confirm verifications, allow returning them, and show branch progress",
+    "request": "make a checkbox so that i can unverify it and go back. - make a log for return verified loans. / also in the verify loans, add a confirmation to proceed. / make a progress recording for verified loans, can put inside the card"
+  },
+  {
+    "number": 185,
+    "date": "2026-08-28",
+    "commit": "51f7d9d",
+    "title": "Retry past the host's build hang instead of hand-nursing each deploy",
+    "request": "(follow-up to the recurring deploy failures) yes just continue - fix the build hang properly"
+  },
+  {
+    "number": 186,
+    "date": "2026-08-28",
+    "commit": "9db9938",
+    "title": "Record the verification workflow changes in the change log"
   }
 ];
