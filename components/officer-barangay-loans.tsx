@@ -33,6 +33,7 @@ type LoanRow = {
   addressLatitude: number | null;
   addressLongitude: number | null;
   addressAccuracy: number | null;
+  notValidAddress: boolean;
 };
 
 type OfficerOption = { id: number; name: string; allBranches: boolean; branchIds: number[] };
@@ -43,6 +44,7 @@ type Result = {
   clientsOnPage: number;
   officers: OfficerOption[];
   canAssignOfficer: boolean;
+  canFlagAddress: boolean;
   page: number;
   pageSize: number;
   total: number;
@@ -150,6 +152,8 @@ export function BarangayLoanReport({
   const [selectedOfficers, setSelectedOfficers] = useState<Record<number, string>>({});
   const [savingLoanId, setSavingLoanId] = useState<number | null>(null);
   const [savedPins, setSavedPins] = useState<Record<number, ClientAddressPin>>({});
+  const [addressFlags, setAddressFlags] = useState<Record<number, boolean>>({});
+  const [flaggingId, setFlaggingId] = useState<number | null>(null);
   // Column filter: which column to search, and what to look for in it. The typed value is
   // debounced into filterValue so the report is not refetched on every keystroke.
   const [filterKey, setFilterKey] = useState<SortKey>("clientName");
@@ -229,6 +233,27 @@ export function BarangayLoanReport({
       setError(requestError instanceof Error ? requestError.message : "Unable to assign the Account Officer.");
     } finally {
       setSavingLoanId(null);
+    }
+  }
+
+  // Raising the flag sends the loan to Taggings -> Invalid Address for re-tagging; the row
+  // stays here so the reader keeps their place in the report.
+  async function toggleAddressFlag(row: LoanRow, next: boolean) {
+    setFlaggingId(row.id);
+    setError(null);
+    try {
+      const response = await fetch("/api/invalid-address", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ loanId: row.id, notValidAddress: next })
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error ?? "Unable to update the address flag.");
+      setAddressFlags((current) => ({ ...current, [row.id]: next }));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Unable to update the address flag.");
+    } finally {
+      setFlaggingId(null);
     }
   }
 
@@ -331,6 +356,7 @@ export function BarangayLoanReport({
                           </button>
                         </th>
                       ))}
+                      <th className="px-3 py-3 text-center">Not Valid Address</th>
                       <th className="min-w-[260px] px-3 py-3">Account Officer / Action</th>
                     </tr>
                   </thead>
@@ -366,6 +392,18 @@ export function BarangayLoanReport({
                           <MoneyCell value={row.remoteBalance} tone={row.remoteBalance === 0 && row.totalBalance > 0 ? "flag" : "default"} />
                         )}
                         <td className="max-w-sm whitespace-normal px-3 py-3"><div className="flex items-start gap-2"><span className="min-w-0 flex-1">{row.address || "-"}</span><ClientAddressPinEditor compact clientId={row.clientId} clientName={row.clientName} address={row.address} initialPin={savedPins[row.clientId] ?? { latitude: row.addressLatitude, longitude: row.addressLongitude, accuracy: row.addressAccuracy }} onSaved={(pin) => setSavedPins((current) => ({ ...current, [row.clientId]: pin }))} /></div></td>
+                        <td className="px-3 py-3 text-center">
+                          <label className="inline-flex cursor-pointer items-center justify-center gap-2" title="Send this loan to Taggings > Invalid Address for re-tagging">
+                            <span className="sr-only">Flag {row.loanNumber} as having an invalid address</span>
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 cursor-pointer accent-amber-600 disabled:cursor-not-allowed"
+                              checked={addressFlags[row.id] ?? row.notValidAddress}
+                              disabled={!result.canFlagAddress || flaggingId === row.id}
+                              onChange={(event) => void toggleAddressFlag(row, event.target.checked)}
+                            />
+                          </label>
+                        </td>
                         <td className="px-3 py-3">
                           {result.canAssignOfficer ? (
                             <div className="flex min-w-[250px] items-center gap-2">
@@ -393,7 +431,7 @@ export function BarangayLoanReport({
                       </tr>
                       );
                     })}
-                    {!result.rows.length ? <tr><td className="px-3 py-10 text-center font-semibold text-slate-500" colSpan={18}>No matching loans found.</td></tr> : null}
+                    {!result.rows.length ? <tr><td className="px-3 py-10 text-center font-semibold text-slate-500" colSpan={19}>No matching loans found.</td></tr> : null}
                   </tbody>
                 </table>
               ) : null}

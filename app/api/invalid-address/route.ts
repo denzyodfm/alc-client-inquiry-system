@@ -16,6 +16,9 @@ export async function POST(request: Request) {
   const municipality = String(body?.municipality ?? "").trim();
   const barangay = String(body?.barangay ?? "").trim();
   const clearOnly = body?.clearOnly === true;
+  // Raising or withdrawing the flag from the Location Masterlist loan details, where the
+  // address and its tagged location are both on screen.
+  const setFlag = typeof body?.notValidAddress === "boolean" ? body.notValidAddress as boolean : null;
 
   if (!Number.isInteger(loanId) || loanId <= 0) {
     return NextResponse.json({ error: "A valid loan is required." }, { status: 400 });
@@ -37,6 +40,22 @@ export async function POST(request: Request) {
   if (!(await canAccessBranch(user!, loan.branchId))) {
     return NextResponse.json({ error: "This loan is outside your assigned branches." }, { status: 403 });
   }
+  if (setFlag !== null) {
+    if (loan.notValidAddress === setFlag) {
+      return NextResponse.json({ loan: { id: loan.id, notValidAddress: setFlag } });
+    }
+    await prisma.loan.update({ where: { id: loanId }, data: { notValidAddress: setFlag } });
+    await auditAction(
+      request,
+      user!,
+      setFlag ? "LOAN_ADDRESS_FLAGGED" : "LOAN_ADDRESS_FLAG_CLEARED",
+      "Invalid Address",
+      `${setFlag ? "Flagged a wrong address on" : "Withdrew the invalid-address flag from"} loan ${loan.loanNumber ?? loan.remoteId} for ${loan.client.fullName} at ${loan.branch.branchCode} - ${loan.branch.branchName}`,
+      { includeAdmin: true }
+    );
+    return NextResponse.json({ loan: { id: loan.id, notValidAddress: setFlag } });
+  }
+
   if (!loan.notValidAddress) {
     return NextResponse.json({ error: "That loan is not flagged as having an invalid address." }, { status: 409 });
   }

@@ -2,6 +2,7 @@ import type { Prisma, UserRole } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { requireApiFunction } from "@/lib/api";
+import { canAccessFunction } from "@/lib/access-control";
 import { canAccessBranch, getAccessibleBranchIds } from "@/lib/auth";
 import { officerAccountFamily } from "@/lib/officer-account";
 import {
@@ -200,6 +201,7 @@ export async function GET(request: NextRequest) {
       paidAmount: true,
       balance: true,
       remoteBalance: true,
+      notValidAddress: true,
       branch: { select: { id: true, branchCode: true, branchName: true } },
       client: { select: { clientId: true, fullName: true, address: true, addressLatitude: true, addressLongitude: true, addressAccuracy: true, contactNumber: true } },
       locationMasterlist: { select: { province: true, municipality: true, barangay: true } },
@@ -242,6 +244,7 @@ export async function GET(request: NextRequest) {
     releasedAt: loan.releasedAt?.toISOString() ?? null,
     maturityAt: loan.maturityAt?.toISOString() ?? null,
     status: loan.sourceStatusName,
+    notValidAddress: loan.notValidAddress,
     originalPrincipal: Number(loan.principalAmount),
     principalBalance: principalBalance(loan),
     interest: Number(loan.interestAmount),
@@ -349,6 +352,8 @@ export async function GET(request: NextRequest) {
       branchIds: officer.branchAccess.map((access) => access.branchId)
     })),
     canAssignOfficer: user.role === "ADMIN" || user.role === "AREA_TEAM_LEADER",
+    // Only the people who work the Invalid Address list may raise or withdraw the flag.
+    canFlagAddress: await canAccessFunction(user, "INVALID_ADDRESS"),
     page: clientPage,
     pageSize: PAGE_SIZE,
     total,
