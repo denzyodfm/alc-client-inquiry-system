@@ -359,6 +359,10 @@ export async function GET(request: NextRequest) {
       branchIds: officer.branchAccess.map((access) => access.branchId)
     })),
     canAssignOfficer: user.role === "ADMIN" || user.role === "AREA_TEAM_LEADER",
+    locations: await prisma.locationMasterlist.findMany({
+      orderBy: [{ province: "asc" }, { municipality: "asc" }, { barangay: "asc" }],
+      select: { id: true, province: true, municipality: true, barangay: true }
+    }),
     // Only the people who work the Invalid Address list may raise or withdraw the flag.
     canFlagAddress: await canAccessFunction(user, "INVALID_ADDRESS"),
     page: clientPage,
@@ -378,8 +382,20 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   const loanId = Number(body?.loanId);
   const assignedToId = Number(body?.assignedToId);
-  if (!Number.isInteger(loanId) || loanId <= 0 || !Number.isInteger(assignedToId) || assignedToId <= 0) {
-    return NextResponse.json({ error: "Select a valid loan and Account Officer." }, { status: 400 });
+  // Location is optional here: a row may be re-tagged, re-assigned, or both at once.
+  const province = String(body?.province ?? "").trim();
+  const municipality = String(body?.municipality ?? "").trim();
+  const barangay = String(body?.barangay ?? "").trim();
+  const wantsLocation = Boolean(province || municipality || barangay);
+  const wantsOfficer = Number.isInteger(assignedToId) && assignedToId > 0;
+  if (!Number.isInteger(loanId) || loanId <= 0 || (!wantsOfficer && !wantsLocation)) {
+    return NextResponse.json({ error: "Select an Account Officer or a location to assign." }, { status: 400 });
+  }
+  if (wantsLocation && !(province && municipality && barangay)) {
+    return NextResponse.json({ error: "Select a province, city/municipality and barangay." }, { status: 400 });
+  }
+  if (wantsLocation && !(await canAccessFunction(user, "INVALID_ADDRESS"))) {
+    return NextResponse.json({ error: "You do not have permission to re-tag a loan's location." }, { status: 403 });
   }
 
   const [loan, officer] = await Promise.all([
@@ -401,13 +417,30 @@ export async function POST(request: NextRequest) {
   if (!(await canAccessBranch(user, loan.branchId))) {
     return NextResponse.json({ error: "You do not have access to this loan branch." }, { status: 403 });
   }
-  if (!officer || (!officer.allBranches && !officer.branchAccess.some((access) => access.branchId === loan.branchId))) {
+  if (wantsOfficer && (!officer || (!officer.allBranches && !officer.branchAccess.some((access) => access.branchId === loan.branchId)))) {
     return NextResponse.json({ error: "The selected Account Officer has no access to this loan branch." }, { status: 400 });
+  }
+
+  const location = wantsLocation
+    ? await prisma.locationMasterlist.findFirst({ where: { province, municipality, barangay }, select: { id: true } })
+    : null;
+  if (wantsLocation && !location) {
+    return NextResponse.json({ error: `No masterlist entry matches "${barangay}, ${municipality}, ${province}".` }, { status: 404 });
   }
 
   // One officer collects from one borrower, so the whole client moves rather than leaving
   // their other outstanding loans with somebody else.
   const loanIds = await clientOutstandingLoanIds(loan.clientId, loanId);
+  if (location) {
+    // Re-tagging clears the invalid-address flag, the same as the Invalid Address screen does.
+    await prisma.loan.updateMany({
+      where: { id: { in: loanIds } },
+      data: { locationMasterlistId: location.id, locationLinked: true, locationLinkedAt: new Date(), notValidAddress: false }
+    });
+  }
+  if (!wantsOfficer) {
+    return NextResponse.json({ ok: true, loanId, clientId: loan.clientId, count: loanIds.length, locationId: location?.id ?? null });
+  }
   await prisma.$transaction(
     loanIds.map((id) =>
       prisma.remedialAssignment.upsert({
@@ -429,5 +462,5 @@ export async function POST(request: NextRequest) {
     )
   );
 
-  return NextResponse.json({ ok: true, loanId, assignedToId, officerName: officer.name, clientId: loan.clientId, count: loanIds.length });
+  return NextResponse.json({ ok: true, loanId, assignedToId, officerName: officer!.name, clientId: loan.clientId, count: loanIds.length, locationId: location?.id ?? null });
 }

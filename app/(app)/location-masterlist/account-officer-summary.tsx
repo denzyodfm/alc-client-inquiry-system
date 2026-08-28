@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, FileSpreadsheet, Printer, X } from "lu
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { money } from "@/lib/format";
+import { BarangayLoanReport, type LoanReportScope } from "@/components/officer-barangay-loans";
 
 export type AccountOfficerSummaryRow = {
   key: string;
@@ -100,13 +101,24 @@ const reportStyles = `
 
 export function AccountOfficerSummary({
   locationName,
-  rows
+  rows,
+  scope
 }: {
   locationName: string;
   rows: AccountOfficerSummaryRow[];
+  // Where this summary was opened from, so a row can narrow the report to one officer within
+  // that same place. Without it the quantities stay plain text.
+  scope?: Pick<LoanReportScope, "province" | "municipality" | "locationId">;
 }) {
   const [open, setOpen] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
+
+  function rowScope(row: AccountOfficerSummaryRow): LoanReportScope {
+    const base = { ...scope, locationName: `${locationName} — ${row.name}` };
+    return row.key === "unassigned"
+      ? { ...base, unassignedOnly: true }
+      : { ...base, officerId: Number(row.key), officerName: row.name };
+  }
   const sortedRows = useMemo(
     () => [...rows].sort((a, b) => (sort.dir === "asc" ? 1 : -1) * compareRows(a, b, sort.key)),
     [rows, sort]
@@ -213,12 +225,14 @@ export function AccountOfficerSummary({
               {sortedRows.map((row) => (
                 <div key={row.key} className={`${GRID_COLUMNS} border-b border-slate-100 px-4 py-3 last:border-b-0`}>
                   <span className="font-semibold text-slate-800">{row.name.toLocaleUpperCase("en")}</span>
-                  <span className="text-right font-bold text-brand-blue">{countValue(row.numberOfClients)}</span>
+                  <span className="text-right font-bold text-brand-blue">
+                    {scope ? <BarangayLoanReport {...rowScope(row)} category="all" clientCount={row.numberOfClients} /> : countValue(row.numberOfClients)}
+                  </span>
                   <span className="text-right font-bold text-red-700">{money(row.portfolio)}</span>
-                  <SummaryMetric count={row.current} balance={row.currentBalance} />
-                  <SummaryMetric count={row.delayed} balance={row.delayedBalance} />
-                  <SummaryMetric count={row.pastDue} balance={row.pastDueBalance} />
-                  <SummaryMetric count={row.litigated} balance={row.litigatedBalance} />
+                  <SummaryMetric count={row.current} balance={row.currentBalance} category="current" scope={scope ? rowScope(row) : undefined} />
+                  <SummaryMetric count={row.delayed} balance={row.delayedBalance} category="delayed" scope={scope ? rowScope(row) : undefined} />
+                  <SummaryMetric count={row.pastDue} balance={row.pastDueBalance} category="pastDue" scope={scope ? rowScope(row) : undefined} />
+                  <SummaryMetric count={row.litigated} balance={row.litigatedBalance} category="litigated" scope={scope ? rowScope(row) : undefined} />
                 </div>
               ))}
               {!rows.length ? <p className="px-4 py-10 text-center font-semibold text-slate-500">No linked outstanding loans.</p> : null}
@@ -265,10 +279,22 @@ function SummaryHeader({
   );
 }
 
-function SummaryMetric({ count, balance }: { count: number; balance: number }) {
+function SummaryMetric({
+  count,
+  balance,
+  category,
+  scope
+}: {
+  count: number;
+  balance: number;
+  category: "current" | "delayed" | "pastDue" | "litigated";
+  scope?: LoanReportScope;
+}) {
   return (
     <span className="text-right">
-      <span className="block font-bold text-slate-900">{countValue(count)}</span>
+      <span className="block font-bold text-slate-900">
+        {scope ? <BarangayLoanReport {...scope} category={category} clientCount={count} /> : countValue(count)}
+      </span>
       <span className="mt-0.5 block text-[10px] font-bold text-red-700">{money(balance)}</span>
     </span>
   );

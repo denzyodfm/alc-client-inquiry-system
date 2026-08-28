@@ -782,7 +782,7 @@ export default async function LocationMasterlistPage() {
                 <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open:bg-blue-100`}>
                   <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open:before:rotate-90">
                     <span className="loc-caps">{province.name}</span>
-                    <AccountOfficerSummary locationName={province.name} rows={accountOfficerRows(province.officers)} />
+                    <AccountOfficerSummary locationName={province.name} rows={accountOfficerRows(province.officers)} scope={{ province: province.name }} />
                   </span>
                   <span className="text-right font-bold text-brand-blue">
                     <BarangayLoanReport
@@ -813,6 +813,7 @@ export default async function LocationMasterlistPage() {
                           <AccountOfficerSummary
                             locationName={`${municipality.name}, ${province.name}`}
                             rows={accountOfficerRows(municipality.officers)}
+                            scope={{ province: province.name, municipality: municipality.name }}
                           />
                         </span>
                         <span className="text-right font-bold text-brand-blue">

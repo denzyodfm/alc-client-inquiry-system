@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { money } from "@/lib/format";
 import { ClientAddressPinEditor, type ClientAddressPin } from "@/components/client-address-pin-editor";
+import { barangayOptions, municipalityOptions, provinceOptions, withCurrentValue, type LocationOption } from "@/lib/location-options";
 
 type LoanRow = {
   id: number;
@@ -45,6 +46,7 @@ type Result = {
   officers: OfficerOption[];
   canAssignOfficer: boolean;
   canFlagAddress: boolean;
+  locations: LocationOption[];
   page: number;
   pageSize: number;
   total: number;
@@ -160,6 +162,9 @@ export function BarangayLoanReport({
   const [savedPins, setSavedPins] = useState<Record<number, ClientAddressPin>>({});
   const [addressFlags, setAddressFlags] = useState<Record<number, boolean>>({});
   const [flaggingId, setFlaggingId] = useState<number | null>(null);
+  // Location picked per row, seeded blank: the report shows loans from many places at once,
+  // so there is no single current value to start from.
+  const [rowLocation, setRowLocation] = useState<Record<number, { province: string; municipality: string; barangay: string }>>({});
   // Flagged rows leave this list - they belong to Invalid Address now - and the tick asks
   // first, since it moves the loan out from under whoever is reading the report.
   const [flagPending, setFlagPending] = useState<LoanRow | null>(null);
@@ -222,10 +227,28 @@ export function BarangayLoanReport({
     return () => controller.abort();
   }, [baseUrl, open, page, reload]);
 
+  function locationFor(row: LoanRow) {
+    return rowLocation[row.id] ?? { province: "", municipality: "", barangay: "" };
+  }
+
+  function updateLocation(row: LoanRow, field: "province" | "municipality" | "barangay", value: string) {
+    setRowLocation((current) => {
+      const existing = current[row.id] ?? { province: "", municipality: "", barangay: "" };
+      const next = field === "province"
+        ? { province: value, municipality: "", barangay: "" }
+        : field === "municipality"
+          ? { ...existing, municipality: value, barangay: "" }
+          : { ...existing, barangay: value };
+      return { ...current, [row.id]: next };
+    });
+  }
+
   async function assignOfficer(row: LoanRow) {
     const assignedToId = Number(selectedOfficers[row.id] ?? row.assignedOfficerId);
-    if (!Number.isInteger(assignedToId) || assignedToId <= 0) {
-      setError("Select an Account Officer.");
+    const place = locationFor(row);
+    const hasLocation = Boolean(place.province && place.municipality && place.barangay);
+    if ((!Number.isInteger(assignedToId) || assignedToId <= 0) && !hasLocation) {
+      setError("Select an Account Officer or a complete location.");
       return;
     }
     setSavingLoanId(row.id);
@@ -234,7 +257,7 @@ export function BarangayLoanReport({
       const response = await fetch("/api/location-masterlist/officer-loans", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ loanId: row.id, assignedToId })
+        body: JSON.stringify({ loanId: row.id, assignedToId: assignedToId > 0 ? assignedToId : 0, ...(hasLocation ? place : {}) })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error ?? "Unable to assign the Account Officer.");
@@ -406,6 +429,7 @@ export function BarangayLoanReport({
                         </th>
                       ))}
                       <th className="px-3 py-3 text-center">Not Valid Address</th>
+                      <th className="min-w-[420px] px-3 py-3">Assign Location</th>
                       <th className="min-w-[260px] px-3 py-3">Account Officer / Action</th>
                     </tr>
                   </thead>
@@ -457,6 +481,41 @@ export function BarangayLoanReport({
                           </label>
                         </td>
                         <td className="px-3 py-3">
+                          {result.canFlagAddress ? (
+                            <div className="flex min-w-[400px] gap-1">
+                              <select
+                                className="loc-caps field h-9 min-w-0 flex-1 py-1 text-xs"
+                                aria-label={`Province for ${row.clientName}`}
+                                value={locationFor(row).province}
+                                onChange={(event) => updateLocation(row, "province", event.target.value)}
+                              >
+                                <option value="">Province</option>
+                                {withCurrentValue(provinceOptions(result.locations), locationFor(row).province).map((option) => <option key={option} value={option}>{option}</option>)}
+                              </select>
+                              <select
+                                className="loc-caps field h-9 min-w-0 flex-1 py-1 text-xs"
+                                aria-label={`City or municipality for ${row.clientName}`}
+                                value={locationFor(row).municipality}
+                                disabled={!locationFor(row).province}
+                                onChange={(event) => updateLocation(row, "municipality", event.target.value)}
+                              >
+                                <option value="">City/Municipality</option>
+                                {municipalityOptions(result.locations, locationFor(row).province).map((option) => <option key={option} value={option}>{option}</option>)}
+                              </select>
+                              <select
+                                className="loc-caps field h-9 min-w-0 flex-1 py-1 text-xs"
+                                aria-label={`Barangay for ${row.clientName}`}
+                                value={locationFor(row).barangay}
+                                disabled={!locationFor(row).municipality}
+                                onChange={(event) => updateLocation(row, "barangay", event.target.value)}
+                              >
+                                <option value="">Barangay</option>
+                                {barangayOptions(result.locations, locationFor(row).province, locationFor(row).municipality).map((option) => <option key={option} value={option}>{option}</option>)}
+                              </select>
+                            </div>
+                          ) : <span className="text-slate-400">-</span>}
+                        </td>
+                        <td className="px-3 py-3">
                           {result.canAssignOfficer ? (
                             <div className="flex min-w-[250px] items-center gap-2">
                               <select
@@ -483,7 +542,7 @@ export function BarangayLoanReport({
                       </tr>
                       );
                     })}
-                    {!result.rows.length ? <tr><td className="px-3 py-10 text-center font-semibold text-slate-500" colSpan={19}>No matching loans found.</td></tr> : null}
+                    {!result.rows.length ? <tr><td className="px-3 py-10 text-center font-semibold text-slate-500" colSpan={20}>No matching loans found.</td></tr> : null}
                   </tbody>
                 </table>
               ) : null}
