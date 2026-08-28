@@ -8,7 +8,7 @@ import { LoanDetailLink } from "@/components/loan-detail-link";
 import type { LoanDetailLoan } from "@/components/loan-detail-window";
 import { PrintReportButton } from "@/components/print-report-button";
 import { money, dateOnly } from "@/lib/format";
-import { barangayOptions, municipalityOptions, provinceOptions, type LocationOption } from "@/lib/location-options";
+import { barangayOptions, municipalityOptions, provinceOptions, withCurrentValue, type LocationOption } from "@/lib/location-options";
 
 type BranchOption = {
   id: number;
@@ -173,6 +173,29 @@ export function AccountTaggingWorkspace({
   // Bulk assignment narrows Province -> City/Municipality -> Barangay. Blank still means
   // "keep the current value", so clearing the province clears what it scoped below it.
   const [bulkLocation, setBulkLocation] = useState({ province: "", municipality: "", barangay: "" });
+  // Per-row location edits, seeded from what the loan already carries. Choosing a level clears
+  // the ones it scoped, so a row cannot be saved with a barangay from another province.
+  const [rowLocations, setRowLocations] = useState<Record<number, { province: string; municipality: string; barangay: string }>>({});
+
+  function rowLocation(loan: AccountTaggingLoanRow) {
+    return rowLocations[loan.id] ?? {
+      province: loan.province ?? "",
+      municipality: loan.municipality ?? "",
+      barangay: loan.barangay ?? ""
+    };
+  }
+
+  function updateRowLocation(loan: AccountTaggingLoanRow, field: "province" | "municipality" | "barangay", value: string) {
+    setRowLocations((current) => {
+      const existing = current[loan.id] ?? rowLocation(loan);
+      const next = field === "province"
+        ? { province: value, municipality: "", barangay: "" }
+        : field === "municipality"
+          ? { ...existing, municipality: value, barangay: "" }
+          : { ...existing, barangay: value };
+      return { ...current, [loan.id]: next };
+    });
+  }
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -184,7 +207,7 @@ export function AccountTaggingWorkspace({
   const hasFilters = forceHasFilters || Boolean(selectedBranchId !== "ALL" || selectedProduct !== "ALL" || selectedStatus !== "ALL" || selectedBranchAo !== "ALL" || address.trim() || address2.trim() || customerName.trim() || resultSearch.trim());
   const selectedBranch = branches.find((branch) => String(branch.id) === selectedBranchId);
   const branchLabel = selectedBranch ? `${selectedBranch.branchName} (${selectedBranch.branchCode})` : "All branches";
-  const tableMinWidth = reportOnly ? 2280 : 2000;
+  const tableMinWidth = reportOnly ? 2740 : 2460;
 
   useEffect(() => {
     const container = tableScrollRef.current;
@@ -770,6 +793,9 @@ export function AccountTaggingWorkspace({
                 <th className="px-2 py-2 text-right">Waived</th>
                 <th className="px-2 py-2 text-right" title="Sum of the amortization schedule's total due minus principal and interest paid so far. May differ from the branch's live remote balance.">Balance</th>
                 <th className="px-2 py-2">Status</th>
+                <th className="px-2 py-2">Province</th>
+                <th className="px-2 py-2">City/Municipality</th>
+                <th className="px-2 py-2">Barangay</th>
                 <th className="px-2 py-2">Zone</th>
                 <th className="px-2 py-2">Division</th>
                 <th className="px-2 py-2">Area TL</th>
@@ -811,6 +837,65 @@ export function AccountTaggingWorkspace({
                     <span className="rounded-md bg-slate-100 px-2 py-1 font-bold text-slate-700">
                       {loan.sourceStatusCode ?? "-"} {loan.sourceStatusName ? `- ${loan.sourceStatusName}` : ""}
                     </span>
+                  </td>
+                  <td className="px-2 py-2">
+                    {canAssign ? (
+                      <>
+                        <select
+                          className="field h-9 min-w-[140px] text-xs no-print"
+                          form={`tagging-row-${loan.id}`}
+                          name="province"
+                          value={rowLocation(loan).province}
+                          onChange={(event) => updateRowLocation(loan, "province", event.target.value)}
+                        >
+                          <option value="">Province</option>
+                          {withCurrentValue(provinceOptions(locations), rowLocation(loan).province).map((option) => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                        <span className="print-only font-semibold text-slate-700">{loan.province || "-"}</span>
+                      </>
+                    ) : (
+                      <span className="font-semibold text-slate-700">{loan.province || "-"}</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2">
+                    {canAssign ? (
+                      <>
+                        <select
+                          className="field h-9 min-w-[150px] text-xs no-print"
+                          form={`tagging-row-${loan.id}`}
+                          name="municipality"
+                          value={rowLocation(loan).municipality}
+                          disabled={!rowLocation(loan).province}
+                          onChange={(event) => updateRowLocation(loan, "municipality", event.target.value)}
+                        >
+                          <option value="">{rowLocation(loan).province ? "City/Municipality" : "Province first"}</option>
+                          {withCurrentValue(municipalityOptions(locations, rowLocation(loan).province), rowLocation(loan).municipality).map((option) => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                        <span className="print-only font-semibold text-slate-700">{loan.municipality || "-"}</span>
+                      </>
+                    ) : (
+                      <span className="font-semibold text-slate-700">{loan.municipality || "-"}</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2">
+                    {canAssign ? (
+                      <>
+                        <select
+                          className="field h-9 min-w-[150px] text-xs no-print"
+                          form={`tagging-row-${loan.id}`}
+                          name="barangay"
+                          value={rowLocation(loan).barangay}
+                          disabled={!rowLocation(loan).municipality}
+                          onChange={(event) => updateRowLocation(loan, "barangay", event.target.value)}
+                        >
+                          <option value="">{rowLocation(loan).municipality ? "Barangay" : "City first"}</option>
+                          {withCurrentValue(barangayOptions(locations, rowLocation(loan).province, rowLocation(loan).municipality), rowLocation(loan).barangay).map((option) => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                        <span className="print-only font-semibold text-slate-700">{loan.barangay || "-"}</span>
+                      </>
+                    ) : (
+                      <span className="font-semibold text-slate-700">{loan.barangay || "-"}</span>
+                    )}
                   </td>
                   <td className="px-2 py-2">
                     {canAssign ? (
@@ -936,7 +1021,7 @@ export function AccountTaggingWorkspace({
               ))}
               {!loans.length ? (
                 <tr>
-                  <td className="px-4 py-8 text-sm font-semibold text-slate-500" colSpan={reportOnly ? 21 : 20}>
+                  <td className="px-4 py-8 text-sm font-semibold text-slate-500" colSpan={reportOnly ? 24 : 23}>
                     {hasFilters ? "No matching loans found." : "Use branch, address, or customer filters to load accounts for tagging."}
                   </td>
                 </tr>
@@ -956,7 +1041,7 @@ export function AccountTaggingWorkspace({
                   <TotalAmountCell value={visibleTotals.payments} tone="green" />
                   <TotalAmountCell value={visibleTotals.waived} />
                   <TotalAmountCell value={visibleTotals.balance} tone="red" />
-                  <td className="px-2 py-2" colSpan={reportOnly ? 10 : 9} />
+                  <td className="px-2 py-2" colSpan={reportOnly ? 13 : 12} />
                 </tr>
               </tfoot>
             ) : null}
