@@ -22,7 +22,8 @@ const REQUESTS: Record<string, string> = {
   b0adaa8: "replace this with progress bar don't dim the screen",
   "320e314": "clicking the quantities should show the loan details just like in the totals, and when inside the loan details add a search filter. the first search is the column label and the second is the value of the column label i want to search. do this to all loan details list in this pivot.",
   a0f7f63: "can you do that latest instruction to layout of these images. [Location Pivot and Zone Summary]",
-  "97f5786": "can you recall all of my prompts and summary of your actions and put it in this app, number it and date so that i can view it - only for admin account you can put it inside the setting menu item."
+  "97f5786": "can you recall all of my prompts and summary of your actions and put it in this app, number it and date so that i can view it - only for admin account you can put it inside the setting menu item.",
+  feec0f7: "create a submenu put it under Taggings call it Verify Loans, summary by branch no. of loans and principal balance in a card [...] Make a menu call it Verfied Loans [...] The account to do this will have a privilege of Bookkeeper. / put nos. on the clients and the column labels make it toggle sort asc desc, pagination first,prev,next,last. / can we add a field not_valid_address to all loans with balance [...] call it Invalid address [...] Area TL, Branch TL and Bookkeeper has access to this."
 };
 
 function gitLog() {

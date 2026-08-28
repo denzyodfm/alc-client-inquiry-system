@@ -1085,5 +1085,18 @@ export const CHANGE_LOG: ChangeLogEntry[] = [
     "commit": "97f5786",
     "title": "Add an administrator change log under Settings",
     "request": "can you recall all of my prompts and summary of your actions and put it in this app, number it and date so that i can view it - only for admin account you can put it inside the setting menu item."
+  },
+  {
+    "number": 180,
+    "date": "2026-08-28",
+    "commit": "4f8d865",
+    "title": "Record the latest changes in the change log"
+  },
+  {
+    "number": 181,
+    "date": "2026-08-28",
+    "commit": "feec0f7",
+    "title": "Add loan verification and invalid-address re-tagging",
+    "request": "create a submenu put it under Taggings call it Verify Loans, summary by branch no. of loans and principal balance in a card [...] Make a menu call it Verfied Loans [...] The account to do this will have a privilege of Bookkeeper. / put nos. on the clients and the column labels make it toggle sort asc desc, pagination first,prev,next,last. / can we add a field not_valid_address to all loans with balance [...] call it Invalid address [...] Area TL, Branch TL and Bookkeeper has access to this."
   }
 ];
