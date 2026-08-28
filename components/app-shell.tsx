@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
+  BadgeCheck,
   Building2,
   Banknote,
   BrainCircuit,
@@ -18,6 +19,7 @@ import {
   KeyRound,
   MapPin,
   MapPinned,
+  MapPinOff,
   Menu,
   Percent,
   ReceiptText,
@@ -39,6 +41,7 @@ type NavItem = {
 };
 
 const icons = {
+  BadgeCheck,
   Banknote,
   Building2,
   BrainCircuit,
@@ -51,6 +54,7 @@ const icons = {
   KeyRound,
   MapPin,
   MapPinned,
+  MapPinOff,
   Percent,
   ReceiptText,
   Search,

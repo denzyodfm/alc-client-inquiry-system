@@ -6,7 +6,7 @@ import { AuditTracker } from "@/components/audit-tracker";
 import { canAccessAnyFunction, canAccessFunction, type AppFunctionKey } from "@/lib/access-control";
 import { getFooterBranding } from "@/lib/footer-branding";
 
-type IconName = "Gauge" | "Banknote" | "Search" | "ClipboardCheck" | "ClipboardList" | "FileClock" | "Hourglass" | "Percent" | "ReceiptText" | "UserRoundCheck" | "MapPinned" | "Tag" | "History" | "Users" | "Settings" | "MapPin" | "KeyRound";
+type IconName = "Gauge" | "Banknote" | "Search" | "ClipboardCheck" | "ClipboardList" | "FileClock" | "Hourglass" | "Percent" | "ReceiptText" | "UserRoundCheck" | "MapPinned" | "Tag" | "History" | "Users" | "Settings" | "MapPin" | "KeyRound" | "BadgeCheck" | "MapPinOff";
 type NavConfig = { href?: string; label: string; icon: IconName; functionKey?: AppFunctionKey; functionKeys?: AppFunctionKey[]; adminOnly?: boolean; children?: NavConfig[] };
 
 const nav: NavConfig[] = [
@@ -31,10 +31,13 @@ const nav: NavConfig[] = [
     { href: "/account-tagging", label: "Account Tagging", icon: "Tag", functionKey: "ACCOUNT_TAGGING" },
     { href: "/new-loans", label: "New Loans", icon: "ClipboardCheck", functionKey: "ACCOUNT_TAGGING" },
     { href: "/location-masterlist", label: "Location Masterlist", icon: "MapPinned", functionKey: "LOCATION_MASTERLIST" },
-    { href: "/verify-address", label: "Verify Address", icon: "MapPin", functionKey: "VERIFY_ADDRESS" }
+    { href: "/verify-address", label: "Verify Address", icon: "MapPin", functionKey: "VERIFY_ADDRESS" },
+    { href: "/verify-loans", label: "Verify Loans", icon: "ClipboardCheck", functionKey: "VERIFY_LOANS" },
+    { href: "/invalid-address", label: "Invalid Address", icon: "MapPinOff", functionKey: "INVALID_ADDRESS" }
   ] },
   // Rediscounting is an administrator report, so it is gated on the role rather than on a
   // privilege that could be granted to someone else.
+  { href: "/verified-loans", label: "Verified Loans", icon: "BadgeCheck", functionKey: "VERIFIED_LOANS" },
   { href: "/rediscounting", label: "Rediscounting", icon: "Percent", adminOnly: true },
   { href: "/settings", label: "Settings", icon: "Settings" }
 ];

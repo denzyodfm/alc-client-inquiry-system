@@ -74,6 +74,7 @@ model User {
   clientLogs   ClientLog[] @relation("ClientLogEncodedBy")
   localPaymentPostings LocalPaymentPosting[] @relation("LocalPaymentPostedBy")
   locationLinkRuns LocationLinkRun[] @relation("LocationLinkRunStartedBy")
+  verifiedLoans Loan[] @relation("LoanVerifiedBy")
   auditLogs    AuditLog[]
   preferences  UserPreference[]
   baseBranch   Branch?  @relation("UserBaseBranch", fields: [baseBranchId], references: [id], onDelete: SetNull)
@@ -296,6 +297,11 @@ model Loan {
   amortizationSchedules AmortizationSchedule[]
   coMakers        CoMaker[]
   remedialAssignment RemedialAssignment?
+  loanVerified    Boolean    @default(false) @map("loan_verified")
+  notValidAddress Boolean    @default(false) @map("not_valid_address")
+  verifiedAt      DateTime?  @map("verified_at")
+  verifiedById    Int?       @map("verified_by_id")
+  verifiedBy      User?      @relation("LoanVerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
   locationMasterlistId Int? @map("location_masterlist_id")
   locationLinked Boolean @default(false) @map("location_linked")
   locationLinkedAt DateTime? @map("location_linked_at")
@@ -307,6 +313,9 @@ model Loan {
   @@index([loanProduct])
   @@index([loanSecurityCode])
   @@index([locationLinked])
+  @@index([loanVerified])
+  @@index([notValidAddress])
+  @@index([verifiedById])
   @@index([locationMasterlistId])
   @@map("loans")
 }
