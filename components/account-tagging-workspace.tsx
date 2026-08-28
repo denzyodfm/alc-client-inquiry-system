@@ -452,7 +452,14 @@ export function AccountTaggingWorkspace({
 
   return (
     <div className="space-y-4">
-      {!reportOnly ? <form onSubmit={submitSearch} className="panel grid gap-3 p-4 no-print md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+      {/* Six columns rather than eight: at eight the selects were too narrow to show their
+          own labels ("All branches" clipped to "All branche"). Customer name leads and takes
+          a double column because it is the field operators type into most. */}
+      {!reportOnly ? <form onSubmit={submitSearch} className="panel grid gap-3 p-4 no-print md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+        <label className="block md:col-span-2 xl:col-span-2">
+          <span className="mb-2 block text-sm font-semibold text-slate-700">Customer name</span>
+          <input className="field" value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder="Search by customer name" />
+        </label>
         <label className="block">
           <span className="mb-2 block text-sm font-semibold text-slate-700">Branch</span>
           <select name="branchId" className="field" defaultValue={selectedBranchId}>
@@ -491,17 +498,13 @@ export function AccountTaggingWorkspace({
             ))}
           </select>
         </label>
-        <label className="block">
+        <label className="block xl:col-span-2">
           <span className="mb-2 block text-sm font-semibold text-slate-700">Address area</span>
           <input className="field" value={addressQuery} onChange={(event) => setAddressQuery(event.target.value)} placeholder="Example: San Francisco" />
         </label>
-        <label className="block">
+        <label className="block xl:col-span-2">
           <span className="mb-2 block text-sm font-semibold text-slate-700">Address detail</span>
           <input className="field" value={address2Query} onChange={(event) => setAddress2Query(event.target.value)} placeholder="Example: Brgy 1" />
-        </label>
-        <label className="block">
-          <span className="mb-2 block text-sm font-semibold text-slate-700">Customer name</span>
-          <input className="field" value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder="Search by customer name" />
         </label>
         <button className="btn-primary w-full self-end lg:w-auto" type="submit">
           <Search className="h-4 w-4" />
