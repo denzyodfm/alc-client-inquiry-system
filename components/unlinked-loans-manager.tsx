@@ -175,15 +175,15 @@ export function UnlinkedLoansManager({
                 {search ? <button className="btn-secondary" type="button" onClick={() => { setQuery(""); setSearch(""); setPage(1); }}>Clear</button> : null}
               </form>
               <div className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto]">
-                <select className="field" value={province} onChange={(event) => { setProvince(event.target.value); setMunicipality(""); setLocationId(""); }}>
+                <select className="loc-caps field" value={province} onChange={(event) => { setProvince(event.target.value); setMunicipality(""); setLocationId(""); }}>
                   <option value="">Select Province</option>
                   {provinces.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
-                <select className="field" value={municipality} disabled={!province} onChange={(event) => { setMunicipality(event.target.value); setLocationId(""); }}>
+                <select className="loc-caps field" value={municipality} disabled={!province} onChange={(event) => { setMunicipality(event.target.value); setLocationId(""); }}>
                   <option value="">Select City/Municipality</option>
                   {municipalities.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
-                <select className="field" value={locationId} disabled={!municipality} onChange={(event) => setLocationId(event.target.value)}>
+                <select className="loc-caps field" value={locationId} disabled={!municipality} onChange={(event) => setLocationId(event.target.value)}>
                   <option value="">Select Barangay</option>
                   {barangays.map((item) => <option key={item.id} value={item.id}>{item.barangay}</option>)}
                 </select>

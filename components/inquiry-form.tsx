@@ -253,7 +253,7 @@ function PermanentAddressEditor({ client, locationOptions }: { client: ClientRes
         <label className="text-xs font-bold uppercase tracking-wide text-slate-600">
           Province
           <select
-            className="field mt-1 h-9 text-xs"
+            className="loc-caps field mt-1 h-9 text-xs"
             value={province}
             onChange={(event) => {
               setProvince(event.target.value);
@@ -268,7 +268,7 @@ function PermanentAddressEditor({ client, locationOptions }: { client: ClientRes
         <label className="text-xs font-bold uppercase tracking-wide text-slate-600">
           City/Municipality
           <select
-            className="field mt-1 h-9 text-xs"
+            className="loc-caps field mt-1 h-9 text-xs"
             value={municipality}
             disabled={!province}
             onChange={(event) => {
@@ -283,7 +283,7 @@ function PermanentAddressEditor({ client, locationOptions }: { client: ClientRes
         <label className="text-xs font-bold uppercase tracking-wide text-slate-600 md:col-start-1">
           Barangay
           <select
-            className="field mt-1 h-9 text-xs"
+            className="loc-caps field mt-1 h-9 text-xs"
             value={barangay}
             disabled={!province || !municipality}
             onChange={(event) => setBarangay(event.target.value)}

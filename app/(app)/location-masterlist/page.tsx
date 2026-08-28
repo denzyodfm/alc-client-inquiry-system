@@ -775,7 +775,7 @@ export default async function LocationMasterlistPage() {
               <details key={province.name} className="group">
                 <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open:bg-blue-100`}>
                   <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open:before:rotate-90">
-                    {province.name}
+                    <span className="loc-caps">{province.name}</span>
                     <AccountOfficerSummary locationName={province.name} rows={accountOfficerRows(province.officers)} />
                   </span>
                   <span className="text-right font-bold text-brand-blue">
@@ -803,7 +803,7 @@ export default async function LocationMasterlistPage() {
                     <details key={municipality.name} className="group/city border-b border-slate-100 last:border-b-0">
                       <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/city:bg-blue-100`}>
                         <span className="font-semibold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/city:before:rotate-90">
-                          {municipality.name}
+                          <span className="loc-caps">{municipality.name}</span>
                           <AccountOfficerSummary
                             locationName={`${municipality.name}, ${province.name}`}
                             rows={accountOfficerRows(municipality.officers)}
@@ -835,7 +835,7 @@ export default async function LocationMasterlistPage() {
                           <details key={barangay.id} className="group/barangay border-b border-slate-100 last:border-b-0">
                             <summary className={`${locationRowGrid} selected-report-row cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/barangay:bg-blue-100`}>
                             <span className="before:mr-2 before:inline-block before:text-[10px] before:content-['▶'] group-open/barangay:before:rotate-90">
-                              <span className="text-slate-700">{barangay.name}</span>
+                              <span className="loc-caps text-slate-700">{barangay.name}</span>
                               {(barangay.zone || barangay.region) ? <span className="ml-2 text-xs text-slate-400">{[barangay.zone, barangay.region].filter(Boolean).join(" • ")}</span> : null}
                             </span>
                               <span className="text-right">

@@ -234,15 +234,15 @@ export function NewLoansTable({ rows, officers, locations, rowOffset = 0 }: { ro
                       <div className="xl:col-start-1 xl:row-start-2"><span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-500">Area TL / Branch TL</span><p className="min-h-8 rounded-md border border-blue-100 bg-white px-2 py-1.5 font-semibold text-slate-700">{teamLeader}</p></div>
                       <div className="contents">
                         <div className="grid grid-cols-3 gap-2 xl:col-span-3 xl:col-start-2 xl:row-start-1">
-                        <select className="field h-8 px-2 py-0 text-xs" aria-label={`Province for ${row.clientName}`} value={draft.province} onChange={(event) => updateDraft(row, { province: event.target.value, municipality: "", barangay: "" })}>
+                        <select className="loc-caps field h-8 px-2 py-0 text-xs" aria-label={`Province for ${row.clientName}`} value={draft.province} onChange={(event) => updateDraft(row, { province: event.target.value, municipality: "", barangay: "" })}>
                           <option value="">Province</option>
                           {provinces().map((province) => <option key={province} value={province}>{province}</option>)}
                         </select>
-                        <select className="field h-8 px-2 py-0 text-xs" aria-label={`City or municipality for ${row.clientName}`} value={draft.municipality} disabled={!draft.province} onChange={(event) => updateDraft(row, { municipality: event.target.value, barangay: "" })}>
+                        <select className="loc-caps field h-8 px-2 py-0 text-xs" aria-label={`City or municipality for ${row.clientName}`} value={draft.municipality} disabled={!draft.province} onChange={(event) => updateDraft(row, { municipality: event.target.value, barangay: "" })}>
                           <option value="">City/Municipality</option>
                           {cityOptions.map((municipality) => <option key={municipality} value={municipality}>{municipality}</option>)}
                         </select>
-                        <select className="field h-8 px-2 py-0 text-xs" aria-label={`Barangay for ${row.clientName}`} value={draft.barangay} disabled={!draft.municipality} onChange={(event) => updateDraft(row, { barangay: event.target.value })}>
+                        <select className="loc-caps field h-8 px-2 py-0 text-xs" aria-label={`Barangay for ${row.clientName}`} value={draft.barangay} disabled={!draft.municipality} onChange={(event) => updateDraft(row, { barangay: event.target.value })}>
                           <option value="">Barangay</option>
                           {barangayOptions.map((location) => <option key={location.id} value={location.barangay}>{location.barangay}</option>)}
                         </select>

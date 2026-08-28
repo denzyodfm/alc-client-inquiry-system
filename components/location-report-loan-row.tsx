@@ -105,7 +105,7 @@ export function LocationReportLoanList({
             <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">
               Province
               <select
-                className="field mt-1 h-9 bg-white text-xs"
+                className="loc-caps field mt-1 h-9 bg-white text-xs"
                 name="province"
                 value={bulkLocation.province}
                 onChange={(event) => setBulkLocation({ province: event.target.value, municipality: "", barangay: "" })}
@@ -117,7 +117,7 @@ export function LocationReportLoanList({
             <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">
               City/Municipality
               <select
-                className="field mt-1 h-9 bg-white text-xs"
+                className="loc-caps field mt-1 h-9 bg-white text-xs"
                 name="municipality"
                 value={bulkLocation.municipality}
                 disabled={!bulkLocation.province}
@@ -130,7 +130,7 @@ export function LocationReportLoanList({
             <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">
               Barangay
               <select
-                className="field mt-1 h-9 bg-white text-xs"
+                className="loc-caps field mt-1 h-9 bg-white text-xs"
                 name="barangay"
                 value={bulkLocation.barangay}
                 disabled={!bulkLocation.municipality}
@@ -260,7 +260,7 @@ export function LocationReportLoanRow({
         <>
           <td className="px-2 py-2">
             <select
-              className="field h-8 min-w-[150px] text-xs"
+              className="loc-caps field h-8 min-w-[150px] text-xs"
               form={formId}
               name="province"
               value={draft.province}
@@ -272,7 +272,7 @@ export function LocationReportLoanRow({
           </td>
           <td className="px-2 py-2">
             <select
-              className="field h-8 min-w-[170px] text-xs"
+              className="loc-caps field h-8 min-w-[170px] text-xs"
               form={formId}
               name="municipality"
               value={draft.municipality}
@@ -285,7 +285,7 @@ export function LocationReportLoanRow({
           </td>
           <td className="px-2 py-2">
             <select
-              className="field h-8 min-w-[150px] text-xs"
+              className="loc-caps field h-8 min-w-[150px] text-xs"
               form={formId}
               name="barangay"
               value={draft.barangay}

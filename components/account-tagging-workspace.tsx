@@ -589,7 +589,7 @@ export function AccountTaggingWorkspace({
             <span className="mb-2 block text-sm font-semibold text-slate-700">Province</span>
             <select
               name="province"
-              className="field"
+              className="loc-caps field"
               value={bulkLocation.province}
               disabled={isPending || !totalLoans || !hasFilters}
               onChange={(event) => setBulkLocation({ province: event.target.value, municipality: "", barangay: "" })}
@@ -602,7 +602,7 @@ export function AccountTaggingWorkspace({
             <span className="mb-2 block text-sm font-semibold text-slate-700">City/Municipality</span>
             <select
               name="municipality"
-              className="field"
+              className="loc-caps field"
               value={bulkLocation.municipality}
               disabled={isPending || !totalLoans || !hasFilters || !bulkLocation.province}
               onChange={(event) => setBulkLocation((current) => ({ ...current, municipality: event.target.value, barangay: "" }))}
@@ -615,7 +615,7 @@ export function AccountTaggingWorkspace({
             <span className="mb-2 block text-sm font-semibold text-slate-700">Barangay</span>
             <select
               name="barangay"
-              className="field"
+              className="loc-caps field"
               value={bulkLocation.barangay}
               disabled={isPending || !totalLoans || !hasFilters || !bulkLocation.municipality}
               onChange={(event) => setBulkLocation((current) => ({ ...current, barangay: event.target.value }))}
@@ -842,7 +842,7 @@ export function AccountTaggingWorkspace({
                     {canAssign ? (
                       <>
                         <select
-                          className="field h-9 min-w-[140px] text-xs no-print"
+                          className="loc-caps field h-9 min-w-[140px] text-xs no-print"
                           form={`tagging-row-${loan.id}`}
                           name="province"
                           value={rowLocation(loan).province}
@@ -851,17 +851,17 @@ export function AccountTaggingWorkspace({
                           <option value="">Province</option>
                           {withCurrentValue(provinceOptions(locations), rowLocation(loan).province).map((option) => <option key={option} value={option}>{option}</option>)}
                         </select>
-                        <span className="print-only font-semibold text-slate-700">{loan.province || "-"}</span>
+                        <span className="loc-caps print-only font-semibold text-slate-700">{loan.province || "-"}</span>
                       </>
                     ) : (
-                      <span className="font-semibold text-slate-700">{loan.province || "-"}</span>
+                      <span className="loc-caps font-semibold text-slate-700">{loan.province || "-"}</span>
                     )}
                   </td>
                   <td className="px-2 py-2">
                     {canAssign ? (
                       <>
                         <select
-                          className="field h-9 min-w-[150px] text-xs no-print"
+                          className="loc-caps field h-9 min-w-[150px] text-xs no-print"
                           form={`tagging-row-${loan.id}`}
                           name="municipality"
                           value={rowLocation(loan).municipality}
@@ -871,17 +871,17 @@ export function AccountTaggingWorkspace({
                           <option value="">{rowLocation(loan).province ? "City/Municipality" : "Province first"}</option>
                           {withCurrentValue(municipalityOptions(locations, rowLocation(loan).province), rowLocation(loan).municipality).map((option) => <option key={option} value={option}>{option}</option>)}
                         </select>
-                        <span className="print-only font-semibold text-slate-700">{loan.municipality || "-"}</span>
+                        <span className="loc-caps print-only font-semibold text-slate-700">{loan.municipality || "-"}</span>
                       </>
                     ) : (
-                      <span className="font-semibold text-slate-700">{loan.municipality || "-"}</span>
+                      <span className="loc-caps font-semibold text-slate-700">{loan.municipality || "-"}</span>
                     )}
                   </td>
                   <td className="px-2 py-2">
                     {canAssign ? (
                       <>
                         <select
-                          className="field h-9 min-w-[150px] text-xs no-print"
+                          className="loc-caps field h-9 min-w-[150px] text-xs no-print"
                           form={`tagging-row-${loan.id}`}
                           name="barangay"
                           value={rowLocation(loan).barangay}
@@ -891,10 +891,10 @@ export function AccountTaggingWorkspace({
                           <option value="">{rowLocation(loan).municipality ? "Barangay" : "City first"}</option>
                           {withCurrentValue(barangayOptions(locations, rowLocation(loan).province, rowLocation(loan).municipality), rowLocation(loan).barangay).map((option) => <option key={option} value={option}>{option}</option>)}
                         </select>
-                        <span className="print-only font-semibold text-slate-700">{loan.barangay || "-"}</span>
+                        <span className="loc-caps print-only font-semibold text-slate-700">{loan.barangay || "-"}</span>
                       </>
                     ) : (
-                      <span className="font-semibold text-slate-700">{loan.barangay || "-"}</span>
+                      <span className="loc-caps font-semibold text-slate-700">{loan.barangay || "-"}</span>
                     )}
                   </td>
                   <td className="px-2 py-2">

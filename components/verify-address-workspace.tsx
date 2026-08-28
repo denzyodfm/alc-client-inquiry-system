@@ -129,12 +129,12 @@ export function VerifyAddressWorkspace({
                   <td className="px-3 py-3 font-bold text-brand-blue">{row.loanNumber}</td>
                   <td className="px-3 py-3">{row.branchName}<p className="text-slate-500">{row.branchCode}</p></td>
                   <td className="max-w-[260px] whitespace-normal px-3 py-3 text-slate-700">{row.address ?? "-"}</td>
-                  <td className="max-w-[200px] whitespace-normal px-3 py-3 text-red-700">
+                  <td className="loc-caps max-w-[200px] whitespace-normal px-3 py-3 text-red-700">
                     {row.barangay}, {row.municipality}, {row.province}
                   </td>
                   <td className="px-2 py-2">
                     <select
-                      className="field h-9 min-w-[150px] bg-white text-xs"
+                      className="loc-caps field h-9 min-w-[150px] bg-white text-xs"
                       aria-label={`Correct province for ${row.clientName}`}
                       value={value.province}
                       disabled={isFixed}
@@ -146,7 +146,7 @@ export function VerifyAddressWorkspace({
                   </td>
                   <td className="px-2 py-2">
                     <select
-                      className="field h-9 min-w-[150px] bg-white text-xs"
+                      className="loc-caps field h-9 min-w-[150px] bg-white text-xs"
                       aria-label={`Correct city or municipality for ${row.clientName}`}
                       value={value.municipality}
                       disabled={isFixed || !value.province}
@@ -158,7 +158,7 @@ export function VerifyAddressWorkspace({
                   </td>
                   <td className="px-2 py-2">
                     <select
-                      className="field h-9 min-w-[160px] bg-white text-xs"
+                      className="loc-caps field h-9 min-w-[160px] bg-white text-xs"
                       aria-label={`Correct barangay for ${row.clientName}`}
                       value={value.barangay}
                       disabled={isFixed || !value.municipality}

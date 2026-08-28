@@ -119,13 +119,13 @@ export function InvalidAddressWorkspace({
                   <td className="px-3 py-3 font-bold text-brand-blue">{row.loanNumber}</td>
                   <td className="px-3 py-3">{row.branch}</td>
                   <td className="max-w-[240px] whitespace-normal px-3 py-3 text-slate-700">{row.address ?? "-"}</td>
-                  <td className="max-w-[200px] whitespace-normal px-3 py-3 text-red-700">
+                  <td className="loc-caps max-w-[200px] whitespace-normal px-3 py-3 text-red-700">
                     {row.barangay ? `${row.barangay}, ${row.municipality}, ${row.province}` : "Not tagged"}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3 text-right font-bold text-red-700">{peso(row.principalBalance)}</td>
                   <td className="px-2 py-2">
                     <select
-                      className="field h-9 min-w-[150px] bg-white text-xs"
+                      className="loc-caps field h-9 min-w-[150px] bg-white text-xs"
                       aria-label={`Correct province for ${row.clientName}`}
                       value={value.province}
                       disabled={Boolean(finished)}
@@ -137,7 +137,7 @@ export function InvalidAddressWorkspace({
                   </td>
                   <td className="px-2 py-2">
                     <select
-                      className="field h-9 min-w-[160px] bg-white text-xs"
+                      className="loc-caps field h-9 min-w-[160px] bg-white text-xs"
                       aria-label={`Correct city or municipality for ${row.clientName}`}
                       value={value.municipality}
                       disabled={Boolean(finished) || !value.province}
@@ -149,7 +149,7 @@ export function InvalidAddressWorkspace({
                   </td>
                   <td className="px-2 py-2">
                     <select
-                      className="field h-9 min-w-[160px] bg-white text-xs"
+                      className="loc-caps field h-9 min-w-[160px] bg-white text-xs"
                       aria-label={`Correct barangay for ${row.clientName}`}
                       value={value.barangay}
                       disabled={Boolean(finished) || !value.municipality}

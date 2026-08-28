@@ -217,3 +217,12 @@ button {
     page-break-inside: avoid;
   }
 }
+
+/* Province, city/municipality and barangay read as capitals on every screen. This is display
+   only: the stored spelling is left alone, because the masterlist lookups that re-tag a loan
+   match those three values exactly. Options are covered too, so an open dropdown matches the
+   closed one. */
+.loc-caps,
+.loc-caps option {
+  text-transform: uppercase;
+}
