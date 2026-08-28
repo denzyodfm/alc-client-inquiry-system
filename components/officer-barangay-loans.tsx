@@ -163,7 +163,7 @@ export function BarangayLoanReport({
   // Flagged rows leave this list - they belong to Invalid Address now - and the tick asks
   // first, since it moves the loan out from under whoever is reading the report.
   const [flagPending, setFlagPending] = useState<LoanRow | null>(null);
-  const [movedToInvalid, setMovedToInvalid] = useState<Set<number>>(new Set());
+  const [movedClients, setMovedClients] = useState<Set<number>>(new Set());
   // Column filter: which column to search, and what to look for in it. The typed value is
   // debounced into filterValue so the report is not refetched on every keystroke.
   const [filterKey, setFilterKey] = useState<SortKey>("clientName");
@@ -261,7 +261,7 @@ export function BarangayLoanReport({
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.error ?? "Unable to update the address flag.");
       setAddressFlags((current) => ({ ...current, [row.id]: next }));
-      if (next) setMovedToInvalid((current) => new Set(current).add(row.id));
+      if (next) setMovedClients((current) => new Set(current).add(row.clientId));
       setFlagPending(null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to update the address flag.");
@@ -270,7 +270,12 @@ export function BarangayLoanReport({
     }
   }
 
-  const visibleReportRows = (result?.rows ?? []).filter((row) => !movedToInvalid.has(row.id));
+  // How many of this client's loans are on screen, so the dialog can say what will move.
+  function clientLoanCount(row: LoanRow) {
+    return (result?.rows ?? []).filter((item) => item.clientId === row.clientId).length;
+  }
+
+  const visibleReportRows = (result?.rows ?? []).filter((row) => !movedClients.has(row.clientId));
 
   if (clientCount === 0) return <span>-</span>;
 
@@ -303,8 +308,9 @@ export function BarangayLoanReport({
             <h3 className="text-lg font-bold text-slate-950">Flag this address as invalid?</h3>
             <p className="mt-2 text-sm text-slate-600">
               <b>{flagPending.clientName}</b> — loan <b>{flagPending.loanNumber}</b>.
-              {flagPending.address ? <> Address on file: <i>{flagPending.address}</i>.</> : null} It moves to
-              Taggings &gt; Invalid Address for a team leader to re-tag, and leaves this list.
+              {flagPending.address ? <> Address on file: <i>{flagPending.address}</i>.</> : null} The address belongs
+              to the client, so {clientLoanCount(flagPending)} outstanding loan(s) of theirs move together to
+              Taggings &gt; Invalid Address for a team leader to re-tag, and leave this list.
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" className="btn-secondary h-9 px-3 text-xs" disabled={flaggingId !== null} onClick={() => setFlagPending(null)}>Cancel</button>

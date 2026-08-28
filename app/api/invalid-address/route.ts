@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireApiFunction } from "@/lib/api";
 import { auditAction } from "@/lib/audit";
 import { canAccessBranch } from "@/lib/auth";
+import { clientOutstandingLoanIds } from "@/lib/client-loan-group";
 import { prisma } from "@/lib/prisma";
 
 // Re-tags a loan flagged as having a wrong address. Assigning a masterlist location clears the
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
     select: {
       id: true,
       branchId: true,
+      clientId: true,
       loanNumber: true,
       remoteId: true,
       notValidAddress: true,
@@ -44,16 +46,17 @@ export async function POST(request: Request) {
     if (loan.notValidAddress === setFlag) {
       return NextResponse.json({ loan: { id: loan.id, notValidAddress: setFlag } });
     }
-    await prisma.loan.update({ where: { id: loanId }, data: { notValidAddress: setFlag } });
+    const loanIds = await clientOutstandingLoanIds(loan.clientId, loanId);
+    await prisma.loan.updateMany({ where: { id: { in: loanIds } }, data: { notValidAddress: setFlag } });
     await auditAction(
       request,
       user!,
       setFlag ? "LOAN_ADDRESS_FLAGGED" : "LOAN_ADDRESS_FLAG_CLEARED",
       "Invalid Address",
-      `${setFlag ? "Flagged a wrong address on" : "Withdrew the invalid-address flag from"} loan ${loan.loanNumber ?? loan.remoteId} for ${loan.client.fullName} at ${loan.branch.branchCode} - ${loan.branch.branchName}`,
+      `${setFlag ? "Flagged a wrong address on" : "Withdrew the invalid-address flag from"} ${loanIds.length} outstanding loan(s) of ${loan.client.fullName} at ${loan.branch.branchCode} - ${loan.branch.branchName}`,
       { includeAdmin: true }
     );
-    return NextResponse.json({ loan: { id: loan.id, notValidAddress: setFlag } });
+    return NextResponse.json({ loan: { id: loan.id, notValidAddress: setFlag }, clientId: loan.clientId, count: loanIds.length });
   }
 
   if (!loan.notValidAddress) {
@@ -62,16 +65,17 @@ export async function POST(request: Request) {
 
   // Returning a loan to the queue without re-tagging it, for a flag raised by mistake.
   if (clearOnly) {
-    await prisma.loan.update({ where: { id: loanId }, data: { notValidAddress: false } });
+    const loanIds = await clientOutstandingLoanIds(loan.clientId, loanId);
+    await prisma.loan.updateMany({ where: { id: { in: loanIds } }, data: { notValidAddress: false } });
     await auditAction(
       request,
       user!,
       "LOAN_ADDRESS_FLAG_CLEARED",
       "Invalid Address",
-      `Cleared the invalid-address flag on loan ${loan.loanNumber ?? loan.remoteId} without re-tagging it`,
+      `Cleared the invalid-address flag on ${loanIds.length} outstanding loan(s) of ${loan.client.fullName} without re-tagging`,
       { includeAdmin: true }
     );
-    return NextResponse.json({ ok: true, cleared: true });
+    return NextResponse.json({ ok: true, cleared: true, count: loanIds.length });
   }
 
   if (!province || !municipality || !barangay) {
@@ -88,8 +92,9 @@ export async function POST(request: Request) {
     }, { status: 404 });
   }
 
-  await prisma.loan.update({
-    where: { id: loanId },
+  const loanIds = await clientOutstandingLoanIds(loan.clientId, loanId);
+  await prisma.loan.updateMany({
+    where: { id: { in: loanIds } },
     data: {
       locationMasterlistId: location.id,
       locationLinked: true,
@@ -103,9 +108,9 @@ export async function POST(request: Request) {
     user!,
     "LOAN_ADDRESS_RETAGGED",
     "Invalid Address",
-    `Re-tagged loan ${loan.loanNumber ?? loan.remoteId} for ${loan.client.fullName} to ${barangay}, ${municipality}, ${province}`,
+    `Re-tagged ${loanIds.length} outstanding loan(s) of ${loan.client.fullName} to ${barangay}, ${municipality}, ${province}`,
     { includeAdmin: true }
   );
 
-  return NextResponse.json({ ok: true, locationId: location.id });
+  return NextResponse.json({ ok: true, locationId: location.id, count: loanIds.length });
 }

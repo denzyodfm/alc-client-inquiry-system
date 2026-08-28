@@ -4,6 +4,7 @@ import { accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { requireApiFunction } from "@/lib/api";
 import { canAccessFunction } from "@/lib/access-control";
 import { canAccessBranch, getAccessibleBranchIds } from "@/lib/auth";
+import { clientOutstandingLoanIds } from "@/lib/client-loan-group";
 import { officerAccountFamily } from "@/lib/officer-account";
 import {
   effectiveLocationCategory,
@@ -384,7 +385,7 @@ export async function POST(request: NextRequest) {
   const [loan, officer] = await Promise.all([
     prisma.loan.findUnique({
       where: { id: loanId },
-      select: { id: true, branchId: true, remedialAssignment: { select: { id: true } } }
+      select: { id: true, branchId: true, clientId: true, remedialAssignment: { select: { id: true } } }
     }),
     prisma.user.findFirst({
       where: {
@@ -404,22 +405,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "The selected Account Officer has no access to this loan branch." }, { status: 400 });
   }
 
-  await prisma.remedialAssignment.upsert({
-    where: { loanId },
-    create: {
-      loanId,
-      branchId: loan.branchId,
-      assignedToId,
-      assignedById: user.id,
-      assignmentNotes: "Account Officer changed from Location loan popup."
-    },
-    update: {
-      assignedToId,
-      assignedById: user.id,
-      status: "ACTIVE",
-      assignmentNotes: "Account Officer changed from Location loan popup."
-    }
-  });
+  // One officer collects from one borrower, so the whole client moves rather than leaving
+  // their other outstanding loans with somebody else.
+  const loanIds = await clientOutstandingLoanIds(loan.clientId, loanId);
+  await prisma.$transaction(
+    loanIds.map((id) =>
+      prisma.remedialAssignment.upsert({
+        where: { loanId: id },
+        create: {
+          loanId: id,
+          branchId: loan.branchId,
+          assignedToId,
+          assignedById: user.id,
+          assignmentNotes: "Account Officer changed from Location loan popup."
+        },
+        update: {
+          assignedToId,
+          assignedById: user.id,
+          status: "ACTIVE",
+          assignmentNotes: "Account Officer changed from Location loan popup."
+        }
+      })
+    )
+  );
 
-  return NextResponse.json({ ok: true, loanId, assignedToId, officerName: officer.name });
+  return NextResponse.json({ ok: true, loanId, assignedToId, officerName: officer.name, clientId: loan.clientId, count: loanIds.length });
 }
