@@ -89,6 +89,9 @@ export async function GET(request: NextRequest) {
   const province = request.nextUrl.searchParams.get("province")?.trim() || "";
   const municipality = request.nextUrl.searchParams.get("municipality")?.trim() || "";
   const assignedOnly = request.nextUrl.searchParams.get("assignedOnly") === "1";
+  // The mirror of assignedOnly: loans that carry an assignment row but no officer on it, which
+  // is what the pivot counts as "without Account Officer".
+  const unassignedOnly = request.nextUrl.searchParams.get("unassignedOnly") === "1";
   // Zone and district come from Account Tagging. The "NOT SET" rows stand for assignments
   // that carry no value, so they match null and empty alike.
   const zone = request.nextUrl.searchParams.get("zone")?.trim() || "";
@@ -129,7 +132,7 @@ export async function GET(request: NextRequest) {
     || (branchId !== null && (!Number.isInteger(branchId) || branchId <= 0))
     // A province narrows the report on its own, with municipality narrowing it further. The
     // Location Pivot's province and city rows scope this way and were rejected without it.
-    || (!locationId && !officerId && !officerIds.length && !assignedOnly && !zone && !district && !province)
+    || (!locationId && !officerId && !officerIds.length && !assignedOnly && !unassignedOnly && !zone && !district && !province)
   ) {
     return NextResponse.json({ error: "A valid Account Officer or location report scope is required." }, { status: 400 });
   }
@@ -163,7 +166,8 @@ export async function GET(request: NextRequest) {
       ? { assignedToId: { in: officerFamily.accountIds } }
       : officerGroupIds.length
         ? { assignedToId: { in: officerGroupIds } }
-        : assignedOnly ? { assignedToId: { not: null } } : {}),
+        : assignedOnly ? { assignedToId: { not: null } }
+        : unassignedOnly ? { assignedToId: null } : {}),
     ...(areaTeamLeaderParam
       ? { areaTeamLeaderId: areaTeamLeaderParam === "unassigned" ? null : areaTeamLeaderId }
       : {}),

@@ -25,6 +25,7 @@ export const dynamic = "force-dynamic";
 type Metrics = {
   numberOfClients: number | null;
   withAccountOfficer: number | null;
+  withoutAccountOfficer: number | null;
   portfolio: number | null;
   current: number | null;
   currentBalance: number | null;
@@ -114,6 +115,7 @@ type AssignmentSummaryNode = {
 type MetricAccumulator = {
   clients: Set<number>;
   assignedClients: Set<number>;
+  unassignedClients: Set<number>;
   portfolio: number;
   categoryByClient: Map<number, LocationClientCategory>;
   principalByClient: Map<number, number>;
@@ -160,6 +162,7 @@ function emptyAccumulator(): MetricAccumulator {
   return {
     clients: new Set(),
     assignedClients: new Set(),
+    unassignedClients: new Set(),
     portfolio: 0,
     categoryByClient: new Map(),
     principalByClient: new Map()
@@ -169,7 +172,7 @@ function emptyAccumulator(): MetricAccumulator {
 function accumulatedMetrics(accumulator?: MetricAccumulator): Metrics {
   if (!accumulator) {
     return {
-      numberOfClients: 0, withAccountOfficer: 0, portfolio: 0,
+      numberOfClients: 0, withAccountOfficer: 0, withoutAccountOfficer: 0, portfolio: 0,
       current: 0, currentBalance: 0, delayed: 0, delayedBalance: 0,
       pastDue: 0, pastDueBalance: 0, litigated: 0, litigatedBalance: 0
     };
@@ -187,6 +190,7 @@ function accumulatedMetrics(accumulator?: MetricAccumulator): Metrics {
   return {
     numberOfClients: accumulator.clients.size,
     withAccountOfficer: accumulator.assignedClients.size,
+    withoutAccountOfficer: accumulator.unassignedClients.size,
     portfolio: accumulator.portfolio,
     current: status.current.clients,
     currentBalance: status.current.balance,
@@ -270,6 +274,7 @@ function addLoanMetrics(
   const accumulator = target.get(key) ?? emptyAccumulator();
   accumulator.clients.add(loan.clientId);
   if (hasAssignedOfficer) accumulator.assignedClients.add(loan.clientId);
+  else accumulator.unassignedClients.add(loan.clientId);
   accumulator.portfolio += principalBalance;
   accumulator.principalByClient.set(
     loan.clientId,
@@ -290,6 +295,7 @@ function aggregateMetrics(items: Metrics[]): Metrics {
   return {
     numberOfClients: total("numberOfClients"),
     withAccountOfficer: total("withAccountOfficer"),
+    withoutAccountOfficer: total("withoutAccountOfficer"),
     portfolio: total("portfolio"),
     current: total("current"),
     currentBalance: total("currentBalance"),
@@ -312,8 +318,8 @@ function money(value: number | null) {
   return value.toLocaleString("en-US", { style: "currency", currency: "PHP" });
 }
 
-const locationRowGrid = "grid min-w-[1480px] grid-cols-[minmax(300px,1fr)_100px_130px_160px_repeat(4,150px)] items-center";
-const officerRowGrid = "grid min-w-[1350px] grid-cols-[minmax(300px,1fr)_100px_160px_repeat(4,150px)] items-center";
+const locationRowGrid = "grid grid-cols-[minmax(150px,1.7fr)_repeat(8,minmax(0,1fr))] items-start gap-x-2";
+const officerRowGrid = "grid grid-cols-[minmax(150px,1.7fr)_repeat(6,minmax(0,1fr))] items-start gap-x-2";
 
 export default async function LocationMasterlistPage() {
   const user = await requireFunction("LOCATION_MASTERLIST");
@@ -758,14 +764,14 @@ export default async function LocationMasterlistPage() {
             As of {todayKey}: Past Due means maturity is before today with a remaining balance. Delayed means an amortization due on or before today is not fully paid. Litigated is tracked separately.
           </p>
         </div>
-        <div className="overflow-x-auto text-sm">
+        <div className="text-sm">
           <div className={`${locationRowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 shadow-sm`}>
             <span>Location</span><span className="text-right">No. of Clients</span>
-            <span className="text-right">With Account Officer</span><span className="text-right">Portfolio</span>
+            <span className="text-right">With Account Officer</span><span className="text-right">Without Account Officer</span><span className="text-right">Portfolio</span>
             <StatusHeader label="Current" /><StatusHeader label="Delayed" />
             <StatusHeader label="Past Due" /><StatusHeader label="Litigated" />
           </div>
-          <div className="min-w-[1480px]">
+          <div>
             <ReorderableRows
               ids={provinceList.map((province) => province.name)}
               storageKey="location-pivot-province-order"
@@ -905,14 +911,14 @@ export default async function LocationMasterlistPage() {
             Click an officer&apos;s client count for the loan details, or the Location button for their province, city/municipality, and barangay. Every level can be dragged into the order you prefer. The total counts each client only once across all officers.
           </p>
         </div>
-        <div className="overflow-x-auto text-sm">
+        <div className="text-sm">
           <div className={`${officerRowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 shadow-sm`}>
             <span>Area TL / Branch TL / Officer</span><span className="text-right">No. of Clients</span>
             <span className="text-right">Portfolio</span>
             <StatusHeader label="Current" /><StatusHeader label="Delayed" />
             <StatusHeader label="Past Due" /><StatusHeader label="Litigated" />
           </div>
-          <div className="min-w-[1350px] divide-y divide-slate-200">
+          <div className="divide-y divide-slate-200">
             <ReorderableRows
               ids={teamLeaderPivot.map((leader) => leader.key)}
               storageKey="officer-pivot-leader-order"
@@ -1111,6 +1117,22 @@ function MetricCells({
               locationName={`${reportScope.locationName} — with Account Officer`}
             />
           ) : count(metrics.withAccountOfficer)}
+        </span>
+      ) : null}
+      {showWithAccountOfficer ? (
+        <span className="text-right font-bold text-amber-700">
+          {reportScope ? (
+            // The loans still waiting to be handed out. Opening them gives the same window,
+            // and therefore the officer dropdown that assigns one.
+            <BarangayLoanReport
+              {...reportScope}
+              unassignedOnly
+              tone="amber"
+              category="all"
+              clientCount={metrics.withoutAccountOfficer ?? 0}
+              locationName={`${reportScope.locationName} — without Account Officer`}
+            />
+          ) : count(metrics.withoutAccountOfficer)}
         </span>
       ) : null}
       <span className="text-right font-bold text-red-700">{money(metrics.portfolio)}</span>

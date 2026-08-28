@@ -70,6 +70,7 @@ export type LoanReportScope = {
   zone?: string;
   district?: string;
   assignedOnly?: boolean;
+  unassignedOnly?: boolean;
 };
 
 type SortKey =
@@ -124,6 +125,7 @@ export function BarangayLoanReport({
   zone,
   district,
   assignedOnly = false,
+  unassignedOnly = false,
   category = "all",
   tone = "blue"
 }: {
@@ -140,9 +142,10 @@ export function BarangayLoanReport({
   zone?: string;
   district?: string;
   assignedOnly?: boolean;
+  unassignedOnly?: boolean;
   category?: LocationReportCategory;
   // The With Account Officer column is green, so its link matches the column it sits in.
-  tone?: "blue" | "green";
+  tone?: "blue" | "green" | "amber";
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -191,8 +194,9 @@ export function BarangayLoanReport({
     if (zone) params.set("zone", zone);
     if (district) params.set("district", district);
     if (assignedOnly) params.set("assignedOnly", "1");
+    if (unassignedOnly) params.set("unassignedOnly", "1");
     return `/api/location-masterlist/officer-loans?${params.toString()}`;
-  }, [areaTeamLeaderId, assignedOnly, branchId, category, district, filterKey, filterValue, locationId, locationName, municipality, officerId, officerIdsKey, province, sort, zone]);
+  }, [areaTeamLeaderId, assignedOnly, unassignedOnly, branchId, category, district, filterKey, filterValue, locationId, locationName, municipality, officerId, officerIdsKey, province, sort, zone]);
 
   function toggleSort(key: SortKey) {
     setPage(1);
@@ -274,7 +278,7 @@ export function BarangayLoanReport({
     <>
       <button
         type="button"
-        className={`font-bold underline decoration-dotted underline-offset-2 ${tone === "green" ? "text-brand-green hover:text-emerald-800" : "text-brand-blue hover:text-blue-800"}`}
+        className={`font-bold underline decoration-dotted underline-offset-2 ${tone === "green" ? "text-brand-green hover:text-emerald-800" : tone === "amber" ? "text-amber-700 hover:text-amber-900" : "text-brand-blue hover:text-blue-800"}`}
         title="View complete loan details"
         data-report-open={open ? "true" : "false"}
         aria-expanded={open}
