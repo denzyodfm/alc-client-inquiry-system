@@ -720,6 +720,7 @@ export default async function LocationMasterlistPage() {
       key: zoneKey,
       name,
       metrics: accumulatedMetrics(metricsByZone.get(zoneKey)),
+      scope: { zone: name, assignedOnly: true, locationName: `Zone Summary — ${name}` },
       children: Array.from(districtNames.entries())
         .filter(([districtKey]) => metricsByZoneDistrict.has(`${zoneKey}\u0000${districtKey}`))
         .map(([districtKey, districtName]) => ({
@@ -777,8 +778,19 @@ export default async function LocationMasterlistPage() {
                     {province.name}
                     <AccountOfficerSummary locationName={province.name} rows={accountOfficerRows(province.officers)} />
                   </span>
-                  <span className="text-right font-bold text-brand-blue">{count(province.metrics.numberOfClients)}</span>
-                  <MetricCells metrics={province.metrics} showClients={false} showWithAccountOfficer />
+                  <span className="text-right font-bold text-brand-blue">
+                    <BarangayLoanReport
+                      province={province.name}
+                      clientCount={province.metrics.numberOfClients ?? 0}
+                      locationName={`Location Pivot — ${province.name}`}
+                    />
+                  </span>
+                  <MetricCells
+                    metrics={province.metrics}
+                    showClients={false}
+                    showWithAccountOfficer
+                    reportScope={{ province: province.name, locationName: `Location Pivot — ${province.name}` }}
+                  />
                 </summary>
                 <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
                   <ReorderableRows
@@ -797,8 +809,20 @@ export default async function LocationMasterlistPage() {
                             rows={accountOfficerRows(municipality.officers)}
                           />
                         </span>
-                        <span className="text-right font-bold text-brand-blue">{count(municipality.metrics.numberOfClients)}</span>
-                        <MetricCells metrics={municipality.metrics} showClients={false} showWithAccountOfficer />
+                        <span className="text-right font-bold text-brand-blue">
+                          <BarangayLoanReport
+                            province={province.name}
+                            municipality={municipality.name}
+                            clientCount={municipality.metrics.numberOfClients ?? 0}
+                            locationName={`Location Pivot — ${municipality.name}, ${province.name}`}
+                          />
+                        </span>
+                        <MetricCells
+                          metrics={municipality.metrics}
+                          showClients={false}
+                          showWithAccountOfficer
+                          reportScope={{ province: province.name, municipality: municipality.name, locationName: `Location Pivot — ${municipality.name}, ${province.name}` }}
+                        />
                       </summary>
                       <div className="border-t border-slate-100 bg-white pl-8">
                         <ReorderableRows
@@ -821,7 +845,12 @@ export default async function LocationMasterlistPage() {
                                   locationName={`${barangay.name}, ${municipality.name}, ${province.name}`}
                                 />
                               </span>
-                              <MetricCells metrics={barangay.metrics} showClients={false} showWithAccountOfficer />
+                              <MetricCells
+                                metrics={barangay.metrics}
+                                showClients={false}
+                                showWithAccountOfficer
+                                reportScope={{ locationId: barangay.id, locationName: `Location Pivot — ${barangay.name}, ${municipality.name}, ${province.name}` }}
+                              />
                             </summary>
                             <div className="border-t border-slate-100 bg-blue-50/40 pl-8">
                               {barangay.officers.map((officer) => (
@@ -989,6 +1018,7 @@ export default async function LocationMasterlistPage() {
         storageKey="zone-summary-order"
         rows={zoneSummary}
         total={accountOfficerTotal}
+        totalScope={{ assignedOnly: true, locationName: "Zone Summary — All Zones" }}
         description="Assigned outstanding-loan portfolio summarized by Zone. Open a zone for its districts, which use the Division value recorded in Account Tagging."
       />
 

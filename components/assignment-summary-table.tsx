@@ -3,6 +3,7 @@
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { useMemo, useState } from "react";
 import { DistrictOfficerSummary } from "@/components/district-officer-summary";
+import { BarangayLoanReport, type LoanReportScope } from "@/components/officer-barangay-loans";
 import { ReorderableRows } from "@/components/reorderable-rows";
 
 export type SummaryMetrics = {
@@ -26,6 +27,8 @@ export type SummaryRow = {
   // Set on district rows so the name opens the officers carrying that district's loans.
   zone?: string;
   district?: string;
+  // Set to make this row's quantities open the loan-details window for its own slice.
+  scope?: LoanReportScope;
 };
 
 type SortKey = "name" | "numberOfClients" | "portfolio" | "current" | "delayed" | "pastDue" | "litigated";
@@ -65,6 +68,7 @@ export function AssignmentSummaryTable({
   childLabel,
   rows,
   total,
+  totalScope,
   description,
   storageKey
 }: {
@@ -73,6 +77,7 @@ export function AssignmentSummaryTable({
   childLabel?: string;
   rows: SummaryRow[];
   total: SummaryMetrics;
+  totalScope?: LoanReportScope;
   description?: string;
   // When given, each level can be dragged into a reader's own order.
   storageKey?: string;
@@ -117,7 +122,7 @@ export function AssignmentSummaryTable({
                 <span className="font-bold text-slate-900 before:mr-2 before:inline-block before:text-[10px] before:content-['▶'] group-open/summary:before:rotate-90">
                   {row.name}
                 </span>
-                <MetricCells metrics={row.metrics} />
+                <MetricCells metrics={row.metrics} scope={row.scope} />
               </summary>
               <div className="bg-white/60">
                 <Reorderable
@@ -133,7 +138,7 @@ export function AssignmentSummaryTable({
                         ? <DistrictOfficerSummary zone={child.zone} district={child.district} label={child.name} />
                         : child.name}
                     </span>
-                    <MetricCells metrics={child.metrics} />
+                    <MetricCells metrics={child.metrics} scope={child.scope} />
                   </div>
                 ))}
                 </Reorderable>
@@ -142,7 +147,7 @@ export function AssignmentSummaryTable({
           ) : (
             <div key={row.key} className={`${ROW_GRID} px-4 py-3`}>
               <span className="font-bold text-slate-900">{row.name}</span>
-              <MetricCells metrics={row.metrics} />
+              <MetricCells metrics={row.metrics} scope={row.scope} />
             </div>
           )))}
           </Reorderable>
@@ -151,7 +156,7 @@ export function AssignmentSummaryTable({
         {rows.length ? (
           <div className={`${ROW_GRID} border-t-2 border-slate-300 bg-slate-50 px-4 py-3 font-extrabold text-slate-950`}>
             <span>Grand Total</span>
-            <MetricCells metrics={total} />
+            <MetricCells metrics={total} scope={totalScope} />
           </div>
         ) : null}
       </div>
@@ -214,23 +219,41 @@ function SortHeader({
   );
 }
 
-function MetricCells({ metrics }: { metrics: SummaryMetrics }) {
+function MetricCells({ metrics, scope }: { metrics: SummaryMetrics; scope?: LoanReportScope }) {
   return (
     <>
-      <span className="text-right font-bold text-brand-blue">{count(metrics.numberOfClients)}</span>
+      <span className="text-right font-bold text-brand-blue">
+        {scope
+          ? <BarangayLoanReport {...scope} category="all" clientCount={metrics.numberOfClients ?? 0} />
+          : count(metrics.numberOfClients)}
+      </span>
       <span className="text-right font-bold text-red-700">{money(metrics.portfolio)}</span>
-      <StatusMetric countValue={metrics.current} balance={metrics.currentBalance} />
-      <StatusMetric countValue={metrics.delayed} balance={metrics.delayedBalance} />
-      <StatusMetric countValue={metrics.pastDue} balance={metrics.pastDueBalance} />
-      <StatusMetric countValue={metrics.litigated} balance={metrics.litigatedBalance} />
+      <StatusMetric countValue={metrics.current} balance={metrics.currentBalance} category="current" scope={scope} />
+      <StatusMetric countValue={metrics.delayed} balance={metrics.delayedBalance} category="delayed" scope={scope} />
+      <StatusMetric countValue={metrics.pastDue} balance={metrics.pastDueBalance} category="pastDue" scope={scope} />
+      <StatusMetric countValue={metrics.litigated} balance={metrics.litigatedBalance} category="litigated" scope={scope} />
     </>
   );
 }
 
-function StatusMetric({ countValue, balance }: { countValue: number | null; balance: number | null }) {
+function StatusMetric({
+  countValue,
+  balance,
+  category,
+  scope
+}: {
+  countValue: number | null;
+  balance: number | null;
+  category: "current" | "delayed" | "pastDue" | "litigated";
+  scope?: LoanReportScope;
+}) {
   return (
     <span className="text-right">
-      <span className="block font-bold text-slate-900">{count(countValue)}</span>
+      <span className="block font-bold text-slate-900">
+        {scope
+          ? <BarangayLoanReport {...scope} category={category} clientCount={countValue ?? 0} />
+          : count(countValue)}
+      </span>
       <span className="mt-0.5 block text-[11px] font-bold text-red-700">{money(balance)}</span>
     </span>
   );

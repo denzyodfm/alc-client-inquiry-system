@@ -52,6 +52,24 @@ type Result = {
 
 export type LocationReportCategory = "all" | "current" | "delayed" | "pastDue" | "litigated";
 
+// Which slice of the portfolio a report opens on. Every pivot row that shows a quantity
+// supplies one of these, so any row can open the same loan-details window. At least one
+// narrowing field must be set - the API rejects a scope that would select everything.
+export type LoanReportScope = {
+  officerId?: number;
+  officerIds?: number[];
+  areaTeamLeaderId?: number | "unassigned";
+  locationId?: number;
+  branchId?: number;
+  officerName?: string;
+  locationName: string;
+  province?: string;
+  municipality?: string;
+  zone?: string;
+  district?: string;
+  assignedOnly?: boolean;
+};
+
 type SortKey =
   | "clientName" | "contactNumber" | "loanNumber" | "branch" | "product" | "releasedAt" | "maturityAt" | "status"
   | "originalPrincipal" | "principalBalance" | "interest" | "penalty" | "otherCharges" | "paidAmount"
