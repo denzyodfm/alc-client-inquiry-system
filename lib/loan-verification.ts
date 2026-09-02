@@ -228,6 +228,39 @@ export async function verificationBranchProgress(user: SessionUser) {
   };
 }
 
+// Flagged addresses summarised by branch, so the work can be picked up a branch at a time
+// the way Verify Loans is. Counts loans rather than clients: one client can hold several, and
+// re-tagging any one of them now clears the whole client anyway.
+export async function invalidAddressBranchSummary(user: SessionUser) {
+  const loans = await prisma.loan.findMany({
+    where: { AND: [invalidAddressLoanWhere(), await verificationBranchScope(user)] },
+    select: LOAN_SELECT
+  });
+
+  const byBranch = new Map<number, VerificationBranchSummary>();
+  for (const loan of loans) {
+    const existing = byBranch.get(loan.branchId) ?? {
+      branchId: loan.branchId,
+      branchName: loan.branch.branchName,
+      branchCode: loan.branch.branchCode,
+      loans: 0,
+      principalBalance: 0
+    };
+    existing.loans += 1;
+    existing.principalBalance += loanPrincipalBalance(loan);
+    byBranch.set(loan.branchId, existing);
+  }
+
+  const branches = Array.from(byBranch.values()).sort((a, b) => b.loans - a.loans);
+  return {
+    branches,
+    totals: {
+      loans: branches.reduce((sum, branch) => sum + branch.loans, 0),
+      principalBalance: branches.reduce((sum, branch) => sum + branch.principalBalance, 0)
+    }
+  };
+}
+
 export type VerificationLoanRow = {
   id: number;
   loanNumber: string;

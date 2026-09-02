@@ -1,16 +1,18 @@
 import Link from "next/link";
-import { MapPinOff, Search } from "lucide-react";
+import { Building2, MapPinOff, Search } from "lucide-react";
 import { InvalidAddressWorkspace, type InvalidAddressRow } from "@/components/invalid-address-workspace";
 import { requireFunction } from "@/lib/auth";
-import { invalidAddressLoanWhere, loanPrincipalBalance, verificationBranchScope } from "@/lib/loan-verification";
+import { invalidAddressBranchSummary, invalidAddressLoanWhere, loanPrincipalBalance, verificationBranchScope } from "@/lib/loan-verification";
+import { money } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 100;
 
-function href(params: { q?: string; page?: number }) {
+function href(params: { q?: string; page?: number; branchId?: number | null }) {
   const search = new URLSearchParams();
+  if (params.branchId) search.set("branchId", String(params.branchId));
   if (params.q?.trim()) search.set("q", params.q.trim());
   if (params.page && params.page > 1) search.set("page", String(params.page));
   const query = search.toString();
@@ -20,7 +22,7 @@ function href(params: { q?: string; page?: number }) {
 export default async function InvalidAddressPage({
   searchParams
 }: {
-  searchParams?: Promise<{ q?: string; page?: string }>;
+  searchParams?: Promise<{ q?: string; page?: string; branchId?: string }>;
 }) {
   const user = await requireFunction("INVALID_ADDRESS");
   const params = await searchParams;
@@ -28,10 +30,18 @@ export default async function InvalidAddressPage({
   const requestedPage = Math.max(1, Number(params?.page) || 1);
   const terms = search.split(/\s+/).filter(Boolean);
 
+  const summary = await invalidAddressBranchSummary(user);
+  // Only a branch the reader can already see, so a hand-edited URL cannot widen the list.
+  const requestedBranchId = Number(params?.branchId);
+  const selectedBranchId = summary.branches.some((branch) => branch.branchId === requestedBranchId)
+    ? requestedBranchId
+    : null;
+
   const where = {
     AND: [
       invalidAddressLoanWhere(),
       await verificationBranchScope(user),
+      selectedBranchId ? { branchId: selectedBranchId } : {},
       ...terms.map((term) => ({
         OR: [
           { loanNumber: { contains: term } },
@@ -103,16 +113,54 @@ export default async function InvalidAddressPage({
         </p>
       </div>
 
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {summary.branches.map((branch) => {
+          const active = branch.branchId === selectedBranchId;
+          return (
+            <Link
+              key={branch.branchId}
+              href={href({ branchId: active ? null : branch.branchId, q: search })}
+              aria-pressed={active}
+              className={`panel p-4 transition hover:border-brand-blue hover:shadow-md ${active ? "ring-2 ring-brand-blue" : ""}`}
+            >
+              <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-brand-green">
+                <Building2 className="h-4 w-4" />{branch.branchCode}
+              </span>
+              <span className="mt-1 block truncate font-bold text-slate-950">{branch.branchName}</span>
+              <span className="mt-3 block text-2xl font-extrabold tabular-nums text-amber-700">
+                {branch.loans.toLocaleString("en-US")}
+              </span>
+              <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">flagged loan(s)</span>
+              <span className="mt-2 block text-sm font-bold text-red-700">{money(branch.principalBalance)}</span>
+              <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">principal balance</span>
+            </Link>
+          );
+        })}
+        {!summary.branches.length ? (
+          <p className="panel p-8 text-center font-semibold text-slate-500 sm:col-span-2 xl:col-span-4">
+            No loans are flagged as having an invalid address.
+          </p>
+        ) : null}
+      </section>
+
+      {summary.branches.length ? (
+        <p className="text-sm font-semibold text-slate-600">
+          {summary.totals.loans.toLocaleString("en-US")} flagged loan(s) · {money(summary.totals.principalBalance)} principal balance
+          {selectedBranchId ? " · showing the selected branch" : " · select a branch card to narrow the list"}
+        </p>
+      ) : null}
+
       <section className="panel overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3">
           <form className="flex flex-wrap gap-2" action="/invalid-address">
+            {selectedBranchId ? <input type="hidden" name="branchId" value={selectedBranchId} /> : null}
             <label className="relative block">
               <span className="sr-only">Search flagged loans</span>
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input className="field min-w-[280px] pl-9" name="q" defaultValue={search} placeholder="Search client, loan, address or branch" />
             </label>
             <button className="btn-primary" type="submit">Search</button>
-            {search ? <Link className="btn-secondary" href={href({})}>Clear</Link> : null}
+            {search ? <Link className="btn-secondary" href={href({ branchId: selectedBranchId })}>Clear</Link> : null}
           </form>
           <p className="text-xs font-semibold text-slate-500">
             {matching.toLocaleString("en-US")} flagged loan(s) · page {page} of {totalPages}
@@ -133,7 +181,7 @@ export default async function InvalidAddressPage({
                 <Link
                   key={button.label}
                   className={`btn-secondary h-9 px-3 text-xs ${button.disabled ? "pointer-events-none opacity-50" : ""}`}
-                  href={href({ q: search, page: button.target })}
+                  href={href({ branchId: selectedBranchId, q: search, page: button.target })}
                 >{button.label}</Link>
               ))}
             </div>
