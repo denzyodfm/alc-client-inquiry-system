@@ -4,6 +4,7 @@ import { InvalidAddressWorkspace, type InvalidAddressRow } from "@/components/in
 import { requireFunction } from "@/lib/auth";
 import { invalidAddressBranchSummary, invalidAddressLoanWhere, loanPrincipalBalance, verificationBranchScope } from "@/lib/loan-verification";
 import { money } from "@/lib/format";
+import { principalBalanceByLoan } from "@/lib/principal-balance";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -74,7 +75,6 @@ export default async function InvalidAddressPage({
         loanProduct: true,
         principalAmount: true,
         balance: true,
-        amortizationSchedules: { select: { principalAmort: true, paidPrincipal: true } },
         client: { select: { fullName: true, clientId: true, address: true } },
         branch: { select: { branchName: true, branchCode: true } },
         locationMasterlist: { select: { province: true, municipality: true, barangay: true } }
@@ -86,6 +86,7 @@ export default async function InvalidAddressPage({
     })
   ]);
 
+  const scheduled = await principalBalanceByLoan(loans.map((loan) => loan.id));
   const rows: InvalidAddressRow[] = loans.map((loan) => ({
     id: loan.id,
     loanNumber: loan.loanNumber ?? loan.remoteId,
@@ -94,7 +95,7 @@ export default async function InvalidAddressPage({
     address: loan.client.address,
     branch: `${loan.branch.branchCode} - ${loan.branch.branchName}`,
     product: loan.loanProduct,
-    principalBalance: loanPrincipalBalance(loan),
+    principalBalance: loanPrincipalBalance(loan, scheduled.get(loan.id)),
     province: loan.locationMasterlist?.province ?? null,
     municipality: loan.locationMasterlist?.municipality ?? null,
     barangay: loan.locationMasterlist?.barangay ?? null

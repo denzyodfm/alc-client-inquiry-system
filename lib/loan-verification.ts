@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { getAccessibleBranchIds, type SessionUser } from "@/lib/auth";
 import { visibleSyncedLoanWhere } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
+import { principalBalanceByLoan, principalBalanceOf } from "@/lib/principal-balance";
 
 // Verification works on the live book: outstanding loans, under the same visibility rules the
 // pivots and Account Tagging use, so a bookkeeper never sees a row the rest of the app treats
@@ -33,23 +34,10 @@ export async function verificationBranchScope(user: SessionUser): Promise<Prisma
   return branchIds.length ? { branchId: { in: branchIds } } : { branchId: -1 };
 }
 
-// The branch system keeps principal separate from interest and charges. Principal balance is
-// what the schedule still owes on principal, capped at the loan's own balance so a stale
-// schedule can never report more outstanding than the loan actually carries. Same definition
-// the loan-details report uses.
-export function loanPrincipalBalance(loan: {
-  principalAmount: unknown;
-  balance: unknown;
-  amortizationSchedules: Array<{ principalAmort: unknown; paidPrincipal: unknown }>;
-}) {
-  const balance = Math.max(0, Number(loan.balance));
-  if (!loan.amortizationSchedules.length) return Math.min(Math.max(0, Number(loan.principalAmount)), balance);
-  const scheduled = loan.amortizationSchedules.reduce(
-    (sum, row) => sum + Math.max(0, Number(row.principalAmort) - Number(row.paidPrincipal)),
-    0
-  );
-  return Math.min(scheduled, balance);
-}
+// Principal balance is what the schedule still owes on principal, capped at the loan's own
+// balance so a stale schedule cannot report more outstanding than the loan carries. The sum
+// itself is done in the database - see lib/principal-balance.ts for why.
+export { principalBalanceOf as loanPrincipalBalance } from "@/lib/principal-balance";
 
 export type VerificationBranchSummary = {
   branchId: number;
@@ -64,8 +52,7 @@ const LOAN_SELECT = {
   branchId: true,
   principalAmount: true,
   balance: true,
-  branch: { select: { branchName: true, branchCode: true } },
-  amortizationSchedules: { select: { principalAmort: true, paidPrincipal: true } }
+  branch: { select: { branchName: true, branchCode: true } }
 } as const;
 
 // One pass over the loans in scope, totalled per branch. The counts and the list below the
@@ -75,6 +62,7 @@ export async function verificationBranchSummary(user: SessionUser, verified: boo
     where: { AND: [verifiableLoanWhere(verified), await verificationBranchScope(user)] },
     select: LOAN_SELECT
   });
+  const scheduled = await principalBalanceByLoan(loans.map((loan) => loan.id));
 
   const byBranch = new Map<number, VerificationBranchSummary>();
   for (const loan of loans) {
@@ -86,7 +74,7 @@ export async function verificationBranchSummary(user: SessionUser, verified: boo
       principalBalance: 0
     };
     existing.loans += 1;
-    existing.principalBalance += loanPrincipalBalance(loan);
+    existing.principalBalance += principalBalanceOf(loan, scheduled.get(loan.id));
     byBranch.set(loan.branchId, existing);
   }
 
@@ -150,6 +138,7 @@ export async function verificationBranchProgress(user: SessionUser) {
     where: { AND: [visibleSyncedLoanWhere(), { balance: { gt: 0 } }, scope] },
     select: { ...LOAN_SELECT, loanVerified: true, notValidAddress: true, createdAt: true }
   });
+  const scheduled = await principalBalanceByLoan(loans.map((loan) => loan.id));
 
   const byBranch = new Map<number, VerificationBranchProgress>();
   for (const loan of loans) {
@@ -167,7 +156,7 @@ export async function verificationBranchProgress(user: SessionUser) {
       baseline: emptyCohort(),
       added: emptyCohort()
     };
-    const principal = loanPrincipalBalance(loan);
+    const principal = principalBalanceOf(loan, scheduled.get(loan.id));
     if (loan.notValidAddress) {
       existing.flagged += 1;
       byBranch.set(loan.branchId, existing);
@@ -236,6 +225,7 @@ export async function invalidAddressBranchSummary(user: SessionUser) {
     where: { AND: [invalidAddressLoanWhere(), await verificationBranchScope(user)] },
     select: LOAN_SELECT
   });
+  const scheduled = await principalBalanceByLoan(loans.map((loan) => loan.id));
 
   const byBranch = new Map<number, VerificationBranchSummary>();
   for (const loan of loans) {
@@ -247,7 +237,7 @@ export async function invalidAddressBranchSummary(user: SessionUser) {
       principalBalance: 0
     };
     existing.loans += 1;
-    existing.principalBalance += loanPrincipalBalance(loan);
+    existing.principalBalance += principalBalanceOf(loan, scheduled.get(loan.id));
     byBranch.set(loan.branchId, existing);
   }
 
@@ -357,6 +347,7 @@ export async function verificationLoanRows({
       verifiedBy: { select: { name: true } }
     }
   });
+  const scheduled = await principalBalanceByLoan(loans.map((loan) => loan.id));
 
   const everyRow: VerificationLoanRow[] = loans.map((loan) => ({
     id: loan.id,
@@ -369,7 +360,7 @@ export async function verificationLoanRows({
     maturityAt: loan.maturityAt?.toISOString() ?? null,
     status: loan.sourceStatusName,
     principalAmount: Number(loan.principalAmount),
-    principalBalance: loanPrincipalBalance(loan),
+    principalBalance: principalBalanceOf(loan, scheduled.get(loan.id)),
     balance: Number(loan.balance),
     verifiedAt: loan.verifiedAt?.toISOString() ?? null,
     verifiedBy: loan.verifiedBy?.name ?? null
@@ -399,6 +390,7 @@ export async function verificationReport(user: SessionUser) {
       verifiedBy: { select: { name: true, email: true } }
     }
   });
+  const scheduled = await principalBalanceByLoan(loans.map((loan) => loan.id));
 
   const byAccount = new Map<string, {
     key: string;
@@ -422,7 +414,7 @@ export async function verificationReport(user: SessionUser) {
       lastVerifiedAt: null as string | null
     };
     existing.loans += 1;
-    existing.principalBalance += loanPrincipalBalance(loan);
+    existing.principalBalance += principalBalanceOf(loan, scheduled.get(loan.id));
     const at = loan.verifiedAt?.toISOString() ?? null;
     if (at) {
       if (!existing.firstVerifiedAt || at < existing.firstVerifiedAt) existing.firstVerifiedAt = at;
