@@ -109,9 +109,9 @@ export default async function VerifiedLoansPage({
             Quantity verified per account, counted from the loans themselves so it always agrees with the list below.
           </p>
         </div>
-        <div className="overflow-x-auto">
+        <div className="max-h-[70vh] overflow-auto">
           <table className="w-full min-w-[900px] text-left text-xs">
-            <thead className="bg-slate-50 uppercase tracking-wide text-slate-500">
+            <thead className="sticky top-0 z-10 bg-slate-50 uppercase tracking-wide text-slate-500 shadow-sm">
               <tr>
                 <th className="px-4 py-3">Verified by</th>
                 <th className="px-4 py-3 text-right">Qty verified</th>
@@ -187,9 +187,9 @@ export default async function VerifiedLoansPage({
           </p>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="max-h-[70vh] overflow-auto">
           <table className="w-full min-w-[1200px] text-left text-xs">
-            <thead className="bg-slate-50 uppercase tracking-wide text-slate-500">
+            <thead className="sticky top-0 z-10 bg-slate-50 uppercase tracking-wide text-slate-500 shadow-sm">
               <tr>
                 <th className="px-3 py-3 text-right">#</th>
                 {COLUMNS.map((column) => {
@@ -268,9 +268,9 @@ export default async function VerifiedLoansPage({
             carried is kept here instead. Most recent 100.
           </p>
         </div>
-        <div className="overflow-x-auto">
+        <div className="max-h-[70vh] overflow-auto">
           <table className="w-full min-w-[1000px] text-left text-xs">
-            <thead className="bg-slate-50 uppercase tracking-wide text-slate-500">
+            <thead className="sticky top-0 z-10 bg-slate-50 uppercase tracking-wide text-slate-500 shadow-sm">
               <tr>
                 <th className="px-4 py-3 text-right">#</th>
                 <th className="px-4 py-3">Client</th>

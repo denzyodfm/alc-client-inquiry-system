@@ -86,9 +86,9 @@ export function InvalidAddressWorkspace({
         </p>
       ) : null}
 
-      <div className="overflow-x-auto">
+      <div className="max-h-[70vh] overflow-auto">
         <table className="w-full min-w-[1500px] text-left text-xs">
-          <thead className="bg-slate-50 uppercase tracking-wide text-slate-500">
+          <thead className="sticky top-0 z-10 bg-slate-50 uppercase tracking-wide text-slate-500 shadow-sm">
             <tr>
               <th className="px-3 py-3 text-right">#</th>
               <th className="px-3 py-3">Client</th>
