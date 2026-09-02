@@ -5,20 +5,20 @@ import { useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, Building2, CheckCircle2, LoaderCircle, Search, TriangleAlert } from "lucide-react";
 import type { VerificationBranchProgress, VerificationCohort as Cohort, VerificationLoanRow, VerificationSortKey } from "@/lib/loan-verification";
 
-const shortDay = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+const shortDay = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "2-digit" });
 
 // Two bars per card: the backlog that stood on the baseline date, and everything added since.
 function CohortBar({ label, cohort, tone }: { label: string; cohort: Cohort; tone: "baseline" | "added" }) {
   if (!cohort.workflowTotal) return null;
   return (
-    <span className="mt-2 block">
-      <span className="flex items-baseline justify-between gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</span>
-        <span className={`text-[10px] font-extrabold tabular-nums ${tone === "baseline" ? "text-brand-green" : "text-brand-blue"}`}>
-          {cohort.verified.toLocaleString("en-US")} / {cohort.workflowTotal.toLocaleString("en-US")} · {cohort.percent}%
+    <span className="mt-1 block">
+      <span className="flex items-baseline justify-between gap-1">
+        <span className="truncate text-[9px] font-bold uppercase tracking-wide text-slate-500">{label}</span>
+        <span className={`shrink-0 text-[9px] font-extrabold tabular-nums ${tone === "baseline" ? "text-brand-green" : "text-brand-blue"}`}>
+          {cohort.verified.toLocaleString("en-US")}/{cohort.workflowTotal.toLocaleString("en-US")} · {cohort.percent}%
         </span>
       </span>
-      <span className="mt-1 block h-2 overflow-hidden rounded-full bg-slate-100">
+      <span className="mt-0.5 block h-1.5 overflow-hidden rounded-full bg-slate-100">
         <span
           className={`block h-full rounded-full transition-[width] duration-500 ${tone === "baseline" ? "bg-gradient-to-r from-emerald-500 to-brand-green" : "bg-gradient-to-r from-sky-400 to-brand-blue"}`}
           style={{ width: `${cohort.percent}%` }}
@@ -130,7 +130,7 @@ export function VerifyLoansWorkspace({
         </p>
       ) : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-2 grid-cols-[repeat(auto-fit,minmax(165px,1fr))]">
         {branches.map((branch) => {
           const active = branch.branchId === selectedBranchId;
           return (
@@ -139,24 +139,23 @@ export function VerifyLoansWorkspace({
               type="button"
               onClick={() => go({ branchId: active ? null : branch.branchId, page: 1 })}
               aria-pressed={active}
-              className={`panel p-4 text-left transition hover:border-brand-blue hover:shadow-md ${active ? "ring-2 ring-brand-blue" : ""}`}
+              className={`panel p-3 text-left transition hover:border-brand-blue hover:shadow-md ${active ? "ring-2 ring-brand-blue" : ""}`}
             >
-              <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-brand-green">
-                <Building2 className="h-4 w-4" />{branch.branchCode}
+              <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-brand-green">
+                <Building2 className="h-3 w-3" />{branch.branchCode}
               </span>
-              <span className="mt-1 block truncate font-bold text-slate-950">{branch.branchName}</span>
-              <span className="mt-3 block text-2xl font-extrabold tabular-nums text-brand-blue">
+              <span className="block truncate text-xs font-bold text-slate-950">{branch.branchName}</span>
+              <span className="mt-1 block text-xl font-extrabold leading-tight tabular-nums text-brand-blue">
                 {branch.loans.toLocaleString("en-US")}
               </span>
-              <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">loan(s) to verify</span>
-              <span className="mt-2 block text-sm font-bold text-red-700">{peso(branch.principalBalance)}</span>
-              <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">principal balance</span>
-              <span className="mt-3 block border-t border-slate-100 pt-2">
+              <span className="block text-[9px] font-semibold uppercase tracking-wide text-slate-500">loan(s) to verify</span>
+              <span className="mt-1 block truncate text-[11px] font-bold text-red-700">{peso(branch.principalBalance)}</span>
+              <span className="mt-2 block border-t border-slate-100 pt-1.5">
                 <CohortBar label={`As of ${shortDay(baselineDate)}`} cohort={branch.baseline} tone="baseline" />
                 <CohortBar label="Added since" cohort={branch.added} tone="added" />
                 {branch.flagged ? (
-                  <span className="mt-2 block text-[10px] font-semibold text-amber-700">
-                    {branch.flagged.toLocaleString("en-US")} awaiting address correction
+                  <span className="mt-1 block text-[9px] font-semibold text-amber-700">
+                    {branch.flagged.toLocaleString("en-US")} awaiting address fix
                   </span>
                 ) : null}
               </span>

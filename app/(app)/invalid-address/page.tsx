@@ -114,7 +114,7 @@ export default async function InvalidAddressPage({
         </p>
       </div>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-2 grid-cols-[repeat(auto-fit,minmax(165px,1fr))]">
         {summary.branches.map((branch) => {
           const active = branch.branchId === selectedBranchId;
           return (
@@ -122,18 +122,17 @@ export default async function InvalidAddressPage({
               key={branch.branchId}
               href={href({ branchId: active ? null : branch.branchId, q: search })}
               aria-pressed={active}
-              className={`panel p-4 transition hover:border-brand-blue hover:shadow-md ${active ? "ring-2 ring-brand-blue" : ""}`}
+              className={`panel p-3 transition hover:border-brand-blue hover:shadow-md ${active ? "ring-2 ring-brand-blue" : ""}`}
             >
-              <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-brand-green">
-                <Building2 className="h-4 w-4" />{branch.branchCode}
+              <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-brand-green">
+                <Building2 className="h-3 w-3" />{branch.branchCode}
               </span>
-              <span className="mt-1 block truncate font-bold text-slate-950">{branch.branchName}</span>
-              <span className="mt-3 block text-2xl font-extrabold tabular-nums text-amber-700">
+              <span className="block truncate text-xs font-bold text-slate-950">{branch.branchName}</span>
+              <span className="mt-1 block text-xl font-extrabold leading-tight tabular-nums text-amber-700">
                 {branch.loans.toLocaleString("en-US")}
               </span>
-              <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">flagged loan(s)</span>
-              <span className="mt-2 block text-sm font-bold text-red-700">{money(branch.principalBalance)}</span>
-              <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">principal balance</span>
+              <span className="block text-[9px] font-semibold uppercase tracking-wide text-slate-500">flagged loan(s)</span>
+              <span className="mt-1 block truncate text-[11px] font-bold text-red-700">{money(branch.principalBalance)}</span>
             </Link>
           );
         })}
