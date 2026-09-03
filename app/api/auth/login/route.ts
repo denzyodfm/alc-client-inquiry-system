@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { setSession } from "@/lib/auth";
 import { requestIp, writeAudit } from "@/lib/audit";
 import { checkLoginRateLimit, clearLoginFailures, recordLoginFailure } from "@/lib/login-rate-limit";
+import { isLoginAllowedFrom } from "@/lib/login-ip-allowlist";
 
 // Keep nonexistent accounts on the same expensive password-verification path as real users.
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync("invalid-password-sentinel", 12);
@@ -17,6 +18,21 @@ export async function POST(request: Request) {
 
   if (!email || !password) {
     return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
+  }
+
+  // Checked before the password is even looked at, so a blocked address learns nothing about
+  // whether the account exists. No entries configured means no restriction.
+  if (!(await isLoginAllowedFrom(ipAddress))) {
+    await writeAudit({
+      userName: String(email).trim().toLocaleLowerCase("en"),
+      userEmail: String(email).trim().toLocaleLowerCase("en"),
+      action: "LOGIN_BLOCKED_IP",
+      module: "Authentication",
+      details: `Sign-in refused: ${ipAddress ?? "unknown address"} is not on the allowlist`,
+      ipAddress,
+      includeAdmin: true
+    });
+    return NextResponse.json({ error: "Sign-in is not permitted from this network." }, { status: 403 });
   }
 
   const rateLimit = checkLoginRateLimit(email, ipAddress);

@@ -3,6 +3,7 @@ import test from "node:test";
 import { branchIdentityScope, branchRecordScope } from "../lib/branch-scope";
 import { checkLoginRateLimit, clearLoginFailures, loginRateLimitPolicy, recordLoginFailure, resetLoginRateLimitsForTests } from "../lib/login-rate-limit";
 import { sessionSecret } from "../lib/session-security";
+import { addressMatches, isAddressAllowed, isValidAllowlistAddress } from "../lib/login-ip-allowlist";
 
 test("production refuses a missing or short session secret", () => {
   assert.throws(() => sessionSecret({ NODE_ENV: "production" }), /SESSION_SECRET/);
@@ -34,4 +35,37 @@ test("branch scopes deny empty assignments instead of widening access", () => {
   assert.deepEqual(branchIdentityScope([2, 4]), { id: { in: [2, 4] } });
   assert.deepEqual(branchRecordScope([]), { branchId: -1 });
   assert.deepEqual(branchRecordScope([2, 4]), { branchId: { in: [2, 4] } });
+});
+
+test("an empty or fully disabled allowlist never blocks anyone", () => {
+  assert.equal(isAddressAllowed("203.0.113.9", []), true);
+  assert.equal(isAddressAllowed("203.0.113.9", [{ address: "192.168.4.0/24", enabled: false }]), true);
+  assert.equal(isAddressAllowed(null, []), true);
+});
+
+test("an active allowlist admits its own addresses and ranges only", () => {
+  const entries = [
+    { address: "192.168.4.0/24", enabled: true },
+    { address: "203.0.113.7", enabled: true }
+  ];
+  assert.equal(isAddressAllowed("192.168.4.200", entries), true);
+  assert.equal(isAddressAllowed("192.168.5.200", entries), false);
+  assert.equal(isAddressAllowed("203.0.113.7", entries), true);
+  assert.equal(isAddressAllowed("154.16.112.232", entries), false);
+  // A request whose address cannot be read is refused while the list is in force.
+  assert.equal(isAddressAllowed(null, entries), false);
+});
+
+test("allowlist addresses are validated before they can be stored", () => {
+  assert.equal(isValidAllowlistAddress("192.168.4.200"), true);
+  assert.equal(isValidAllowlistAddress("192.168.4.0/24"), true);
+  assert.equal(isValidAllowlistAddress("192.168.4.0/33"), false);
+  assert.equal(isValidAllowlistAddress("999.1.1.1"), false);
+  assert.equal(isValidAllowlistAddress(""), false);
+});
+
+test("a /32 matches one host and a /0 matches everything", () => {
+  assert.equal(addressMatches("10.0.0.5", "10.0.0.5/32"), true);
+  assert.equal(addressMatches("10.0.0.6", "10.0.0.5/32"), false);
+  assert.equal(addressMatches("10.0.0.6", "0.0.0.0/0"), true);
 });

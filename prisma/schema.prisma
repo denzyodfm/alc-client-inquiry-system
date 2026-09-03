@@ -77,6 +77,7 @@ model User {
   verifiedLoans Loan[] @relation("LoanVerifiedBy")
   verificationReturns LoanVerificationReturn[] @relation("VerificationReturnedBy")
   verificationsUndone LoanVerificationReturn[] @relation("VerificationReturnOriginalVerifier")
+  allowlistEntries LoginIpAllowlist[] @relation("LoginIpAllowlistCreatedBy")
   auditLogs    AuditLog[]
   preferences  UserPreference[]
   baseBranch   Branch?  @relation("UserBaseBranch", fields: [baseBranchId], references: [id], onDelete: SetNull)
@@ -624,6 +625,23 @@ model LocationLinkRun {
 // The line that splits the verification queue in two: loans that were already here on this
 // date are the backlog being worked down, and anything that synced in after it is new work.
 // One row for the whole organisation, so every bookkeeper measures against the same date.
+// Addresses allowed to sign in. Empty means no restriction, which is also what happens if
+// every entry is disabled - the list can narrow access but can never lock everyone out by
+// being misconfigured to nothing.
+model LoginIpAllowlist {
+  id          Int      @id @default(autoincrement())
+  address     String   @unique @db.VarChar(64)
+  label       String?  @db.VarChar(120)
+  enabled     Boolean  @default(true)
+  createdById Int?     @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdBy   User?    @relation("LoginIpAllowlistCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([enabled])
+  @@map("login_ip_allowlist")
+}
+
 model VerificationBaseline {
   id        Int      @id @default(1)
   startDate DateTime @map("start_date") @db.Date

@@ -17,6 +17,9 @@ import { ChangeLogViewer } from "@/components/change-log-viewer";
 import { CHANGE_LOG } from "@/lib/change-log";
 import { FooterBrandingForm } from "@/components/footer-branding-form";
 import { VerificationBaselineForm } from "@/components/verification-baseline-form";
+import { LoginAllowlistManager } from "@/components/login-allowlist-manager";
+import { loginAllowlistEntries } from "@/lib/login-ip-allowlist";
+import { headers } from "next/headers";
 import { verificationBaselineDate } from "@/lib/loan-verification";
 import { getFooterBranding } from "@/lib/footer-branding";
 import { listAreaTeamLeaders } from "@/lib/area-team-leaders";
@@ -60,7 +63,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     : [];
   const isAdmin = currentUser.role === "ADMIN";
 
-  const [allBranches, privileges, areas, users, userBranches, syncLogs, auditLogs, footerBranding, verificationBaseline] = await Promise.all([
+  const [allBranches, privileges, areas, users, userBranches, syncLogs, auditLogs, footerBranding, verificationBaseline, allowlist] = await Promise.all([
     canBranches ? prisma.branch.findMany({ orderBy: { branchName: "asc" }, include: { branchTeamLeader: { select: { id: true, name: true } } } }) : [],
     canSettings ? prisma.privilegeTemplate.findMany({ orderBy: { name: "asc" }, include: { permissions: { select: { functionKey: true } }, _count: { select: { users: true } } } }) : [],
     canSettings || canUsers ? prisma.area.findMany({ orderBy: { name: "asc" }, include: { areaTeamLeader: { select: { id: true, name: true } }, _count: { select: { users: true } } } }) : [],
@@ -73,7 +76,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     canSyncLogs ? prisma.syncLog.findMany({ take: 100, orderBy: { startedAt: "desc" }, include: { branch: { select: { branchName: true } } } }) : [],
     currentUser.role === "ADMIN" ? prisma.auditLog.findMany({ take: 2000, where: adminUserIds.length ? { OR: [{ userId: null }, { userId: { notIn: adminUserIds } }] } : undefined, orderBy: { createdAt: "desc" }, select: { id: true, userName: true, userEmail: true, action: true, module: true, details: true, ipAddress: true, createdAt: true } }) : [],
     canSettings ? getFooterBranding() : null,
-    canSettings ? verificationBaselineDate() : null
+    canSettings ? verificationBaselineDate() : null,
+    canSettings ? loginAllowlistEntries() : []
   ]);
   const safeBranches = allBranches.map(({ encryptedDbPassword: _encryptedDbPassword, ...branch }) =>
     branchAccess === "FULL" ? branch : toAssignOnlyBranch(branch)
@@ -106,6 +110,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <div className="panel p-5"><div className="mb-4 flex h-11 w-11 items-center justify-center rounded-md bg-slate-100 text-slate-700"><KeyRound className="h-5 w-5" /></div><h3 className="font-bold text-slate-950">Credential Storage</h3><p className="mt-4 text-sm leading-6 text-slate-600">Branch database passwords are encrypted with AES-256-GCM before storage and decrypted only during sync.</p></div>
       {footerBranding ? <FooterBrandingForm initialValues={footerBranding} /> : null}
       {verificationBaseline ? <VerificationBaselineForm startDate={verificationBaseline.toISOString().slice(0, 10)} /> : null}
+      {canSettings ? (
+        <div className="xl:col-span-2">
+          <LoginAllowlistManager
+            currentIp={(await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? (await headers()).get("x-real-ip") ?? null}
+            rows={allowlist.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }))}
+          />
+        </div>
+      ) : null}
       <div className="panel p-4 xl:col-span-2"><h3 className="mb-3 font-bold text-slate-950">Branch Sync Status</h3><div className="grid gap-3 md:grid-cols-2">{safeBranches.map((branch) => <div key={branch.id} className="rounded-lg border border-slate-200 p-3"><div className="flex justify-between gap-2"><div><b>{branch.branchName}</b><p className="text-xs text-slate-500">{branch.branchCode}</p></div><span className="h-fit rounded bg-slate-100 px-2 py-1 text-[10px] font-bold">{branch.status}</span></div><p className="mt-3 text-xs text-slate-500">Last sync: {dateTime(branch.lastSyncAt)}</p></div>)}</div></div>
       <div className="panel p-4"><h3 className="mb-3 font-bold text-slate-950">Latest Sync Logs</h3><div className="max-h-72 space-y-2 overflow-auto">{syncLogs.slice(0, 10).map((log) => <div key={log.id} className="flex justify-between gap-2 rounded border border-slate-200 p-2"><div><b className="text-sm">{log.branch?.branchName ?? "System"}</b><p className="text-xs text-slate-500">{dateTime(log.startedAt)}</p></div><span className={`h-fit rounded px-2 py-1 text-[10px] font-bold ${log.status === "SUCCESS" ? "bg-emerald-50 text-brand-green" : "bg-red-50 text-red-700"}`}>{log.status}</span></div>)}</div></div>
     </section> : null}
