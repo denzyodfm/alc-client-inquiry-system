@@ -3,7 +3,7 @@
 import { FormEvent, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { AccountTaggingLoanRow } from "@/components/account-tagging-workspace";
-import { LoanDetailLink } from "@/components/loan-detail-link";
+import { LazyLoanDetailLink } from "@/components/lazy-loan-detail-link";
 import { dateOnly, money } from "@/lib/format";
 import { barangayOptions, municipalityOptions, provinceOptions, withCurrentValue, type LocationOption } from "@/lib/location-options";
 
@@ -246,7 +246,7 @@ export function LocationReportLoanRow({
         <p className="text-slate-500">{loan.clientId || "-"}</p>
       </td>
       <td className="px-3 py-2 font-bold text-brand-blue">
-        <LoanDetailLink loan={loan.loanDetail} label={loan.loanNumber} />
+        <LazyLoanDetailLink loanId={loan.id} label={loan.loanNumber} />
       </td>
       <td className="px-3 py-2">{loan.branchName}</td>
       <td className="px-3 py-2">{loan.loanProduct || "-"}</td>

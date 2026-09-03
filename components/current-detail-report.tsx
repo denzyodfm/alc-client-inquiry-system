@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { FileSpreadsheet, Search } from "lucide-react";
-import { LoanDetailWindow, type LoanDetailLoan } from "@/components/loan-detail-window";
+import { LazyLoanDetailLink } from "@/components/lazy-loan-detail-link";
 import { PrintReportButton } from "@/components/print-report-button";
 import { dateOnly, money } from "@/lib/format";
 
@@ -29,7 +29,6 @@ export type CurrentDetailRow = {
   dueToday: number;
   paid: number;
   balance: number;
-  loan: LoanDetailLoan;
 };
 
 export function CurrentDetailReport({
@@ -47,7 +46,6 @@ export function CurrentDetailReport({
   rows: CurrentDetailRow[];
   closeHref: string;
 }) {
-  const [selectedLoan, setSelectedLoan] = useState<LoanDetailLoan | null>(null);
   const [query, setQuery] = useState("");
 
   const filteredRows = useMemo(() => {
@@ -172,9 +170,9 @@ export function CurrentDetailReport({
                   </td>
                   <td className="px-4 py-3">{row.branchName}</td>
                   <td className="px-4 py-3">
-                    <button type="button" className="font-bold text-brand-blue hover:underline no-print" onClick={() => setSelectedLoan(row.loan)}>
-                      {row.loanNumber}
-                    </button>
+                    <span className="no-print">
+                      <LazyLoanDetailLink loanId={row.id} label={row.loanNumber} />
+                    </span>
                     <span className="print-only font-bold text-brand-blue">{row.loanNumber}</span>
                   </td>
                   <td className="px-4 py-3">{row.loanProduct ?? "-"}</td>
@@ -196,8 +194,6 @@ export function CurrentDetailReport({
           </table>
         </div>
       </div>
-
-      {selectedLoan ? <LoanDetailWindow loan={selectedLoan} onClose={() => setSelectedLoan(null)} /> : null}
     </div>
   );
 }

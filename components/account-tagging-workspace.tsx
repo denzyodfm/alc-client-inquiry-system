@@ -4,8 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { CheckSquare, FileSpreadsheet, Search, Tag, Users } from "lucide-react";
-import { LoanDetailLink } from "@/components/loan-detail-link";
-import type { LoanDetailLoan } from "@/components/loan-detail-window";
+import { LazyLoanDetailLink } from "@/components/lazy-loan-detail-link";
 import { PrintReportButton } from "@/components/print-report-button";
 import { money, dateOnly } from "@/lib/format";
 import { barangayOptions, municipalityOptions, provinceOptions, withCurrentValue, type LocationOption } from "@/lib/location-options";
@@ -60,7 +59,6 @@ export type AccountTaggingLoanRow = {
   barangay: string | null;
   clientCondition: string | null;
   conditionApprovalStatus: string | null;
-  loanDetail: LoanDetailLoan;
 };
 
 type PageLink = {
@@ -816,7 +814,7 @@ export function AccountTaggingWorkspace({
                   <td className="px-2 py-2">
                     <p className="font-semibold text-slate-700">{loan.branchName}</p>
                     <span className="mt-1 block no-print">
-                      <LoanDetailLink loan={loan.loanDetail} label={loan.loanNumber} />
+                      <LazyLoanDetailLink loanId={loan.id} label={loan.loanNumber} />
                     </span>
                     <span className="print-only font-bold text-brand-blue">{loan.loanNumber}</span>
                   </td>

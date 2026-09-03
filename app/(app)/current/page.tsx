@@ -3,11 +3,11 @@ import Link from "next/link";
 import { ClipboardCheck, Layers3, WalletCards } from "lucide-react";
 import { CurrentDetailReport, type CurrentDetailRow } from "@/components/current-detail-report";
 import { CurrentLoansFilter } from "@/components/current-loans-filter";
-import type { LoanDetailLoan } from "@/components/loan-detail-window";
 import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { inactiveStatus12Where } from "@/lib/loan-filters";
-import { amountDueAsOfToday, numberValue, schedulePaidTotal } from "@/lib/loan-amounts";
-import { toLoanDetail } from "@/lib/loan-detail";
+import { numberValue } from "@/lib/loan-amounts";
+import { manilaDateKey } from "@/lib/location-loan-aging";
+import { amountDueFrom, paidTotalFrom, scheduleFactsByLoan, type LoanScheduleFacts } from "@/lib/principal-balance";
 import { money } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
@@ -27,21 +27,21 @@ function fullNameWordSearch(value: string): Prisma.ClientWhereInput {
     : { fullName: { contains: value.trim() } };
 }
 
+// The schedule and payment rows are no longer loaded with the list. The two figures this
+// page needs from them - what is due by today and what has been paid - come back as
+// aggregates instead, and the detail window fetches its loan when a reader opens one.
 type LoanWithRelations = Prisma.LoanGetPayload<{
   include: {
     client: true;
     branch: true;
-    amortizationSchedules: true;
-    payments: true;
   };
 }>;
 
-function loanPaidTotal(loan: LoanWithRelations) {
-  const schedulePaid = loan.amortizationSchedules.reduce((sum, schedule) => sum + schedulePaidTotal(schedule), 0);
-  return schedulePaid || numberValue(loan.paidAmount);
-}
-
-function toCurrentRow(loan: LoanWithRelations): CurrentDetailRow & { branchId: number } {
+function toCurrentRow(
+  loan: LoanWithRelations,
+  facts: LoanScheduleFacts | undefined,
+  todayKey: string
+): CurrentDetailRow & { branchId: number } {
   return {
     id: loan.id,
     clientName: loan.client.fullName,
@@ -52,10 +52,9 @@ function toCurrentRow(loan: LoanWithRelations): CurrentDetailRow & { branchId: n
     loanProduct: loan.loanProduct,
     releasedAt: loan.releasedAt?.toISOString() ?? null,
     maturityAt: loan.maturityAt?.toISOString() ?? null,
-    dueToday: amountDueAsOfToday(loan),
-    paid: loanPaidTotal(loan),
-    balance: numberValue(loan.balance),
-    loan: toLoanDetail(loan)
+    dueToday: amountDueFrom(loan, facts, todayKey),
+    paid: paidTotalFrom(loan, facts),
+    balance: numberValue(loan.balance)
   };
 }
 
@@ -122,16 +121,7 @@ export default async function CurrentLoansPage({
     prisma.loan.findMany({
       where,
       orderBy: [{ releasedAt: "desc" }, { updatedAt: "desc" }],
-      include: {
-        client: true,
-        branch: true,
-        amortizationSchedules: {
-          orderBy: [{ amortNo: "asc" }, { amortDate: "asc" }]
-        },
-        payments: {
-          orderBy: { paidAt: "asc" }
-        }
-      }
+      include: { client: true, branch: true }
     }),
     prisma.branch.findMany({
       where: accountOfficerBranchIds === null ? {} : { id: { in: accountOfficerBranchIds } },
@@ -150,7 +140,9 @@ export default async function CurrentLoansPage({
   ]);
   const products = productOptions.map((option) => option.loanProduct).filter((product): product is string => typeof product === "string" && Boolean(product.trim()));
 
-  const rows = loans.map(toCurrentRow);
+  const todayKey = manilaDateKey(new Date());
+  const scheduleFacts = await scheduleFactsByLoan(loans.map((loan) => loan.id), todayKey);
+  const rows = loans.map((loan) => toCurrentRow(loan, scheduleFacts.get(loan.id), todayKey));
   const totalLoans = rows.length;
   const totalDueToday = rows.reduce((sum, row) => sum + row.dueToday, 0);
   const totalBalance = rows.reduce((sum, row) => sum + row.balance, 0);

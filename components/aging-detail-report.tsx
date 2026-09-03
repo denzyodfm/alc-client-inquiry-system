@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileSpreadsheet, Search } from "lucide-react";
-import { LoanDetailWindow, type LoanDetailLoan } from "@/components/loan-detail-window";
+import { LazyLoanDetailLink } from "@/components/lazy-loan-detail-link";
 import { PrintReportButton } from "@/components/print-report-button";
 import { dateOnly, money } from "@/lib/format";
 import { useModalAccessibility } from "@/components/use-modal-accessibility";
@@ -33,7 +33,6 @@ export type AgingDetailRow = {
   dueToday: number;
   paid: number;
   balance: number;
-  loan: LoanDetailLoan;
 };
 
 export function AgingDetailReport({
@@ -52,10 +51,11 @@ export function AgingDetailReport({
   closeHref: string;
 }) {
   const router = useRouter();
-  const [selectedLoan, setSelectedLoan] = useState<LoanDetailLoan | null>(null);
+  // A loan window opens in front of this report; while it is up the report stops trapping focus.
+  const [loanWindowOpen, setLoanWindowOpen] = useState(false);
   const [query, setQuery] = useState("");
   const dialogRef = useRef<HTMLDivElement>(null);
-  useModalAccessibility(!selectedLoan, dialogRef, () => router.push(closeHref));
+  useModalAccessibility(!loanWindowOpen, dialogRef, () => router.push(closeHref));
 
   const filteredRows = useMemo(() => {
     const terms = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
@@ -182,13 +182,9 @@ export function AgingDetailReport({
                   </td>
                   <td className="px-4 py-3">{row.branchName}</td>
                   <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      className="font-bold text-brand-blue hover:underline no-print"
-                      onClick={() => setSelectedLoan(row.loan)}
-                    >
-                      {row.loanNumber}
-                    </button>
+                    <span className="no-print">
+                      <LazyLoanDetailLink loanId={row.id} label={row.loanNumber} onOpenChange={setLoanWindowOpen} />
+                    </span>
                     <span className="print-only font-bold text-brand-blue">{row.loanNumber}</span>
                   </td>
                   <td className="px-4 py-3">{row.loanProduct ?? "-"}</td>
@@ -211,8 +207,6 @@ export function AgingDetailReport({
           </table>
         </div>
       </div>
-
-      {selectedLoan ? <LoanDetailWindow loan={selectedLoan} onClose={() => setSelectedLoan(null)} /> : null}
     </div>
   );
 }

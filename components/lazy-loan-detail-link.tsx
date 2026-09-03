@@ -10,11 +10,15 @@ import { LoanDetailWindow, type LoanDetailLoan } from "@/components/loan-detail-
 export function LazyLoanDetailLink({
   loanId,
   label,
-  className = "font-bold text-brand-blue hover:underline"
+  className = "font-bold text-brand-blue hover:underline",
+  onOpenChange
 }: {
   loanId: number;
   label: string;
   className?: string;
+  // Lets a surrounding dialog know a window is stacked on top of it, so it can stand
+  // its own focus trap and Escape handler down while the loan is in front.
+  onOpenChange?: (open: boolean) => void;
 }) {
   const [loan, setLoan] = useState<LoanDetailLoan | null>(null);
   const [loading, setLoading] = useState(false);
@@ -23,7 +27,10 @@ export function LazyLoanDetailLink({
   async function open(event: React.MouseEvent) {
     event.stopPropagation();
     event.preventDefault();
-    if (loan) return setLoan(loan);
+    if (loan) {
+      onOpenChange?.(true);
+      return setLoan(loan);
+    }
     setLoading(true);
     setError(null);
     try {
@@ -31,6 +38,7 @@ export function LazyLoanDetailLink({
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(data?.error ?? "Unable to load this loan.");
       setLoan(data.loan as LoanDetailLoan);
+      onOpenChange?.(true);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to load this loan.");
     } finally {
@@ -45,7 +53,7 @@ export function LazyLoanDetailLink({
         {loading ? <LoaderCircle className="ml-1 inline h-3 w-3 animate-spin" /> : null}
       </button>
       {error ? <span className="block text-[10px] font-semibold text-red-700">{error}</span> : null}
-      {loan ? <LoanDetailWindow loan={loan} onClose={() => setLoan(null)} /> : null}
+      {loan ? <LoanDetailWindow loan={loan} onClose={() => { setLoan(null); onOpenChange?.(false); }} /> : null}
     </>
   );
 }

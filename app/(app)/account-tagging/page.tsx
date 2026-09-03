@@ -2,17 +2,20 @@ import type { Prisma } from "@prisma/client";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AccountTaggingWorkspace, type AccountTaggingLoanRow } from "@/components/account-tagging-workspace";
-import type { LoanDetailLoan } from "@/components/loan-detail-window";
 import { LocationReportLoanList } from "@/components/location-report-loan-row";
 import { PrintReportButton } from "@/components/print-report-button";
 import { accountTaggingHref, accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { canAssignRemedial, getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { money } from "@/lib/format";
-import { toLoanDetail } from "@/lib/loan-detail";
+import { manilaDateKey } from "@/lib/location-loan-aging";
+import { interestBalanceFrom, scheduleFactsByLoan, type LoanScheduleFacts } from "@/lib/principal-balance";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+// The breakdown below needs two sums out of a loan's amortization schedule and nothing
+// else, so those come back as aggregates and the schedule rows are never loaded. The
+// detail window fetches its own loan when a reader opens one.
 type AccountTaggingLoan = Prisma.LoanGetPayload<{
   include: {
     branch: true;
@@ -23,12 +26,10 @@ type AccountTaggingLoan = Prisma.LoanGetPayload<{
         areaTeamLeader: { select: { id: true; name: true; email: true } };
       };
     };
-    amortizationSchedules: true;
-    payments: true;
   };
 }>;
 
-function loanAmountBreakdown(loan: AccountTaggingLoan) {
+function loanAmountBreakdown(loan: AccountTaggingLoan, facts: LoanScheduleFacts | undefined) {
   const originalPrincipal = Number(loan.principalAmount);
   const originalInterest = Number(loan.interestAmount);
   const originalPdi = 0;
@@ -36,18 +37,8 @@ function loanAmountBreakdown(loan: AccountTaggingLoan) {
   const otherCharges = Number(loan.otherChargesAmount);
   const totalPayments = Number(loan.paidAmount);
   const totalBalance = Number(loan.balance);
-  const schedulePrincipalBalance = loan.amortizationSchedules.reduce(
-    (sum, schedule) => sum + Math.max(0, Number(schedule.principalAmort) - Number(schedule.paidPrincipal)),
-    0
-  );
-  const scheduleInterestBalance = loan.amortizationSchedules.reduce(
-    (sum, schedule) => sum + Math.max(0, Number(schedule.interestAmort) - Number(schedule.paidInterest)),
-    0
-  );
-  const principalBalance = loan.amortizationSchedules.length ? Math.min(schedulePrincipalBalance, totalBalance) : Math.min(originalPrincipal, totalBalance);
-  const interestBalance = loan.amortizationSchedules.length
-    ? Math.min(scheduleInterestBalance, Math.max(0, totalBalance - principalBalance))
-    : Math.min(originalInterest, Math.max(0, totalBalance - principalBalance));
+  const principalBalance = facts?.count ? Math.min(facts.principalBalance, totalBalance) : Math.min(originalPrincipal, totalBalance);
+  const interestBalance = interestBalanceFrom(loan, facts, principalBalance);
   const pdiBalance = 0;
   const otherChargesBalance = Math.min(otherCharges, Math.max(0, totalBalance - principalBalance - interestBalance - pdiBalance));
   const penaltyBalance = Math.max(0, totalBalance - principalBalance - interestBalance - pdiBalance - otherChargesBalance);
@@ -70,8 +61,8 @@ function loanAmountBreakdown(loan: AccountTaggingLoan) {
   };
 }
 
-function toAccountTaggingRow(loan: AccountTaggingLoan): AccountTaggingLoanRow {
-  const amounts = loanAmountBreakdown(loan);
+function toAccountTaggingRow(loan: AccountTaggingLoan, facts: LoanScheduleFacts | undefined): AccountTaggingLoanRow {
+  const amounts = loanAmountBreakdown(loan, facts);
 
   return {
     id: loan.id,
@@ -99,8 +90,7 @@ function toAccountTaggingRow(loan: AccountTaggingLoan): AccountTaggingLoanRow {
     municipality: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.municipality : null,
     barangay: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.barangay : null,
     clientCondition: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.clientCondition : null,
-    conditionApprovalStatus: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.conditionApprovalStatus : null,
-    loanDetail: toLoanDetail(loan)
+    conditionApprovalStatus: loan.remedialAssignment?.status === "ACTIVE" ? loan.remedialAssignment.conditionApprovalStatus : null
   };
 }
 
@@ -116,18 +106,14 @@ function piePath(startAngle: number, endAngle: number, radius = 240, center = 26
   return `M ${center} ${center} L ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} 0 ${end.x} ${end.y} Z`;
 }
 
-function distributionPrincipalBalance(loan: {
-  principalAmount: unknown;
-  balance: unknown;
-  amortizationSchedules: Array<{ principalAmort: unknown; paidPrincipal: unknown }>;
-}) {
+function distributionPrincipalBalance(
+  loan: { id: number; principalAmount: unknown; balance: unknown },
+  facts: Map<number, LoanScheduleFacts>
+) {
   const balance = Number(loan.balance);
-  if (!loan.amortizationSchedules.length) return Math.min(Number(loan.principalAmount), balance);
-  const scheduleBalance = loan.amortizationSchedules.reduce(
-    (sum, schedule) => sum + Math.max(0, Number(schedule.principalAmort) - Number(schedule.paidPrincipal)),
-    0
-  );
-  return Math.min(scheduleBalance, balance);
+  const schedule = facts.get(loan.id);
+  if (!schedule?.count) return Math.min(Number(loan.principalAmount), balance);
+  return Math.min(schedule.principalBalance, balance);
 }
 
 function normalizedLocationKey(value: string) {
@@ -224,11 +210,11 @@ export default async function AccountTaggingPage({
           assignedTo: { select: { id: true, name: true, email: true } },
           loan: {
             select: {
+              id: true,
               clientId: true,
               balance: true,
               paidAmount: true,
-              principalAmount: true,
-              amortizationSchedules: { select: { principalAmort: true, paidPrincipal: true } }
+              principalAmount: true
             }
           }
         }
@@ -249,17 +235,24 @@ export default async function AccountTaggingPage({
           ]
         },
         select: {
+          id: true,
           clientId: true,
           balance: true,
-          principalAmount: true,
-          amortizationSchedules: { select: { principalAmort: true, paidPrincipal: true } }
+          principalAmount: true
         }
       })
     : [];
+  const todayKey = manilaDateKey(new Date());
+  // One aggregate covers every loan on the page - the distribution summaries and the
+  // portfolio list alike - so the schedule is read once instead of per section.
+  const distributionFacts = await scheduleFactsByLoan(
+    [...assignmentRows.map((assignment) => assignment.loan.id), ...unassignedLoans.map((loan) => loan.id)],
+    todayKey
+  );
   const unassignedCount = unassignedLoans.length;
   const unassignedCustomerCount = new Set(unassignedLoans.map((loan) => loan.clientId)).size;
   const unassignedPrincipalBalance = unassignedLoans.reduce(
-    (sum, loan) => sum + distributionPrincipalBalance(loan),
+    (sum, loan) => sum + distributionPrincipalBalance(loan, distributionFacts),
     0
   );
   const summaryMap = new Map<number, {
@@ -289,7 +282,7 @@ export default async function AccountTaggingPage({
     current.count += 1;
     current.balance += Number(assignment.loan.balance);
     current.payments += Number(assignment.loan.paidAmount);
-    current.principalBalance += distributionPrincipalBalance(assignment.loan);
+    current.principalBalance += distributionPrincipalBalance(assignment.loan, distributionFacts);
     current.customerIds.add(assignment.loan.clientId);
     const zone = assignment.zone?.trim() || "Not specified";
     current.zones.add(zone);
@@ -370,7 +363,7 @@ export default async function AccountTaggingPage({
     const summary = provinceSummaryMap.get(province) ?? { count: 0, customers: new Set<number>(), principalBalance: 0 };
     summary.count += 1;
     summary.customers.add(assignment.loan.clientId);
-    summary.principalBalance += distributionPrincipalBalance(assignment.loan);
+    summary.principalBalance += distributionPrincipalBalance(assignment.loan, distributionFacts);
     provinceSummaryMap.set(province, summary);
   }
   const provinceOrder = ["AGUSAN DEL NORTE", "AGUSAN DEL SUR", "SURIGAO DEL NORTE", "SURIGAO DEL SUR", "PROVINCE NOT SET"];
@@ -575,21 +568,16 @@ export default async function AccountTaggingPage({
               assignedTo: { select: { id: true, name: true, email: true } }
               ,areaTeamLeader: { select: { id: true, name: true, email: true } }
             }
-          },
-          amortizationSchedules: {
-            orderBy: [{ amortNo: "asc" }, { amortDate: "asc" }]
-          },
-          payments: {
-            orderBy: { paidAt: "asc" }
           }
         }
       })
     : [];
+  const portfolioFacts = await scheduleFactsByLoan(portfolioLoans.map((loan) => loan.id), todayKey);
   const firstResult = totalLoans ? (printAllResults ? 1 : (safePage - 1) * pageSize + 1) : 0;
   const lastResult = printAllResults ? totalLoans : Math.min(safePage * pageSize, totalLoans);
   const portfolioTotals = portfolioLoans.reduce(
     (totals, loan) => {
-      const amounts = loanAmountBreakdown(loan);
+      const amounts = loanAmountBreakdown(loan, portfolioFacts.get(loan.id));
       return {
         originalPrincipal: totals.originalPrincipal + amounts.originalPrincipal,
         originalInterest: totals.originalInterest + amounts.originalInterest,
@@ -653,9 +641,9 @@ export default async function AccountTaggingPage({
     summary.barangay = preferredLocationLabel(summary.barangay, barangay);
     summary.accounts += 1;
     summary.customers.add(loan.clientId);
-    summary.principalBalance += loanAmountBreakdown(loan).principalBalance;
+    summary.principalBalance += loanAmountBreakdown(loan, portfolioFacts.get(loan.id)).principalBalance;
     summary.balance += Number(loan.balance);
-    summary.loans.push(toAccountTaggingRow(loan));
+    summary.loans.push(toAccountTaggingRow(loan, portfolioFacts.get(loan.id)));
     locationSummaryMap.set(key, summary);
   }
   const locationSummary = Array.from(locationSummaryMap.values())
@@ -1025,7 +1013,7 @@ export default async function AccountTaggingPage({
           ...configuredConditionOptions.map((option) => option.name),
           ...savedConditionOptions.map((option) => option.clientCondition).filter((condition): condition is string => Boolean(condition))
         ]))}
-        loans={loans.map(toAccountTaggingRow)}
+        loans={loans.map((loan) => toAccountTaggingRow(loan, portfolioFacts.get(loan.id)))}
         selectedBranchId={selectedBranchId}
         selectedProduct={selectedProduct}
         selectedStatus={selectedStatus}

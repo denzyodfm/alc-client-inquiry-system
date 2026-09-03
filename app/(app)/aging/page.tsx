@@ -3,22 +3,23 @@ import Link from "next/link";
 import { AlertTriangle, Building2, Hourglass, Layers3, UserRound } from "lucide-react";
 import { AgingDetailReport, type AgingDetailRow } from "@/components/aging-detail-report";
 import { AgingReportFilter } from "@/components/aging-report-filter";
-import type { LoanDetailLoan } from "@/components/loan-detail-window";
 import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
-import { amountDueAsOfToday, loanContractAmount, numberValue, scheduleIsPaid, schedulePaidTotal } from "@/lib/loan-amounts";
-import { toLoanDetail } from "@/lib/loan-detail";
+import { numberValue } from "@/lib/loan-amounts";
+import { manilaDateKey } from "@/lib/location-loan-aging";
+import { amountDueFrom, contractAmountFrom, paidTotalFrom, scheduleFactsByLoan, type LoanScheduleFacts } from "@/lib/principal-balance";
 import { pastDueLoanWhere } from "@/lib/remedial";
 import { money } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+// The aging figures - what is contracted, what is paid, what is due, and which instalment
+// first went unpaid - are all aggregates over a loan's schedule, so the database returns
+// them and the schedule rows stay where they are.
 type AgingLoan = Prisma.LoanGetPayload<{
   include: {
     branch: true;
     client: true;
-    amortizationSchedules: true;
-    payments: true;
     remedialAssignment: { include: { assignedTo: true } };
   };
 }>;
@@ -43,7 +44,6 @@ type AgingRow = {
   bucket: string;
   assignedOfficerId: number | null;
   assignedOfficerName: string;
-  loan: LoanDetailLoan;
 };
 
 const buckets = [
@@ -85,17 +85,12 @@ function daysBetween(start: Date, end: Date) {
   return Math.max(0, Math.floor((endDay.getTime() - startDay.getTime()) / (24 * 60 * 60 * 1000)));
 }
 
-function loanPaidTotal(loan: AgingLoan) {
-  const schedulePaid = loan.amortizationSchedules.reduce((sum, schedule) => sum + schedulePaidTotal(schedule), 0);
-  return schedulePaid || numberValue(loan.paidAmount);
-}
-
-function pastDueInfo(loan: AgingLoan) {
+function pastDueInfo(loan: AgingLoan, facts: LoanScheduleFacts | undefined) {
   const today = new Date();
-  const overdueSchedule = loan.amortizationSchedules
-    .filter((schedule) => schedule.amortDate && schedule.amortDate <= today && !scheduleIsPaid(schedule))
-    .sort((a, b) => (a.amortDate?.getTime() ?? 0) - (b.amortDate?.getTime() ?? 0))[0];
-  const pastDueDate = overdueSchedule?.amortDate ?? (loan.maturityAt && loan.maturityAt < today ? loan.maturityAt : null);
+  // The oldest unsettled instalment, or - for a loan with no schedule to read - the
+  // maturity date once it has passed.
+  const overdue = facts?.earliestOverdue ? new Date(facts.earliestOverdue) : null;
+  const pastDueDate = overdue ?? (loan.maturityAt && loan.maturityAt < today ? loan.maturityAt : null);
 
   return {
     pastDueDate: pastDueDate?.toISOString() ?? null,
@@ -107,8 +102,8 @@ function bucketFor(daysPastDue: number) {
   return buckets.find((bucket) => daysPastDue >= bucket.min && daysPastDue <= bucket.max)?.label ?? "Unaged";
 }
 
-function toAgingRow(loan: AgingLoan): AgingRow {
-  const aging = pastDueInfo(loan);
+function toAgingRow(loan: AgingLoan, facts: LoanScheduleFacts | undefined, todayKey: string): AgingRow {
+  const aging = pastDueInfo(loan, facts);
   const balance = numberValue(loan.balance);
   const assignedOfficer = loan.remedialAssignment?.assignedTo;
 
@@ -125,14 +120,13 @@ function toAgingRow(loan: AgingLoan): AgingRow {
     maturityAt: loan.maturityAt?.toISOString() ?? null,
     pastDueDate: aging.pastDueDate,
     daysPastDue: aging.daysPastDue,
-    due: loanContractAmount(loan),
-    dueToday: amountDueAsOfToday(loan),
-    paid: loanPaidTotal(loan),
+    due: contractAmountFrom(loan, facts),
+    dueToday: amountDueFrom(loan, facts, todayKey),
+    paid: paidTotalFrom(loan, facts),
     balance,
     bucket: bucketFor(aging.daysPastDue),
     assignedOfficerId: assignedOfficer?.id ?? null,
-    assignedOfficerName: assignedOfficer?.name ?? "Unassigned",
-    loan: toLoanDetail(loan)
+    assignedOfficerName: assignedOfficer?.name ?? "Unassigned"
   };
 }
 
@@ -208,12 +202,6 @@ export default async function AgingReportPage({
       include: {
         branch: true,
         client: true,
-        amortizationSchedules: {
-          orderBy: [{ amortNo: "asc" }, { amortDate: "asc" }]
-        },
-        payments: {
-          orderBy: { paidAt: "asc" }
-        },
         remedialAssignment: { include: { assignedTo: true } }
       }
     }),
@@ -231,7 +219,9 @@ export default async function AgingReportPage({
   ]);
   const products = productOptions.map((option) => option.loanProduct).filter((product): product is string => typeof product === "string" && Boolean(product.trim()));
 
-  const allRows = allLoans.map(toAgingRow);
+  const todayKey = manilaDateKey(new Date());
+  const scheduleFacts = await scheduleFactsByLoan(allLoans.map((loan) => loan.id), todayKey);
+  const allRows = allLoans.map((loan) => toAgingRow(loan, scheduleFacts.get(loan.id), todayKey));
   const activeDetailBranch =
     selectedDetailBranchId === null ? null : branches.find((branch) => branch.id === selectedDetailBranchId) ?? null;
   const bucketSummary = buckets.map((bucket) => {
