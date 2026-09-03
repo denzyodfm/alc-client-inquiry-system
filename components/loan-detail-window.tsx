@@ -42,6 +42,10 @@ export type LoanDetailLoan = {
   loanNumber: string | null;
   loanProduct?: string | null;
   loanType2Name?: string | null;
+  branchAo?: string | null;
+  loanSecurityCode?: string | null;
+  loanSecurityName?: string | null;
+  otherChargesAmount?: string | null;
   principalAmount: string;
   interestRate: string;
   interestAmount: string;
@@ -296,7 +300,9 @@ export function LoanDetailWindow({ loan, onClose }: LoanDetailWindowProps) {
           </div>
 
           <div className="border border-slate-500 bg-white p-2">
-            {activeTab === "Payments View" ? (
+            {activeTab === "General Details View" ? (
+              <GeneralDetailsView loan={loan} totals={totals} />
+            ) : activeTab === "Payments View" ? (
               receiptGroups.length ? (
                 <ReceiptPaymentsTable groups={receiptGroups} />
               ) : (
@@ -509,6 +515,97 @@ function GridHead({ children, align = "right" }: { children: ReactNode; align?: 
 
 function GridCell({ children, align = "right" }: { children: ReactNode; align?: "left" | "right" }) {
   return <td className={`border border-slate-300 px-1.5 py-0.5 ${align === "left" ? "text-left" : "text-right"}`}>{children}</td>;
+}
+
+function DetailField({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[150px_1fr] items-baseline gap-2 border-b border-slate-100 py-1 last:border-b-0">
+      <span className="text-right text-[11px] font-semibold text-slate-500">{label}</span>
+      <span className="font-bold text-slate-900">{value}</span>
+    </div>
+  );
+}
+
+// Everything the branch system shows here that this database actually holds. Fields it keeps
+// but we never sync - loan interval, interest payment type, ledger, cycle, location code, the
+// old-account block and the remarks boxes - are named as not synced rather than left as empty
+// boxes, so nobody reads a blank as a zero.
+function GeneralDetailsView({
+  loan,
+  totals
+}: {
+  loan: LoanDetailLoan;
+  totals: { paidPrincipal: number; paidInterest: number; penalty: number; pdi: number; otherCharges: number; paidTotal: number };
+}) {
+  const notSynced = <span className="font-normal italic text-slate-400">Not synced from the branch</span>;
+  const text = (value: string | null | undefined) => value?.trim() ? value : notSynced;
+  const rate = Number(loan.interestRate ?? 0);
+
+  return (
+    <div className="grid gap-3 lg:grid-cols-2">
+      <section className="border border-slate-300 bg-white p-3">
+        <h4 className="mb-2 border-b border-slate-300 pb-1 text-xs font-bold uppercase tracking-wide text-slate-600">Loan</h4>
+        <DetailField label="Loan Number" value={loan.loanNumber ?? loan.remoteId} />
+        <DetailField label="Loan Status" value={<span className="text-brand-blue">{loan.sourceStatusName ?? loan.status}</span>} />
+        <DetailField label="Loan Product" value={text(loan.loanProduct)} />
+        <DetailField label="Loan Type 2" value={text(loan.loanType2Name)} />
+        <DetailField
+          label="Loan Security"
+          value={loan.loanSecurityCode || loan.loanSecurityName
+            ? [loan.loanSecurityCode, loan.loanSecurityName].filter(Boolean).join(" - ")
+            : notSynced}
+        />
+        <DetailField label="Loan Term" value={text(loan.terms)} />
+        <DetailField label="Interest Rate" value={rate ? `${rate}%` : notSynced} />
+        <DetailField label="Granted Date" value={dateOnly(loan.releasedAt)} />
+        <DetailField label="Maturity Date" value={dateOnly(loan.maturityAt)} />
+        <DetailField label="Account Officer" value={text(loan.branchAo)} />
+      </section>
+
+      <section className="border border-slate-300 bg-white p-3">
+        <h4 className="mb-2 border-b border-slate-300 pb-1 text-xs font-bold uppercase tracking-wide text-slate-600">Borrower</h4>
+        <DetailField label="Borrower's Name" value={<span className="uppercase">{loan.client.fullName}</span>} />
+        <DetailField label="CIS Number" value={text(loan.client.clientId)} />
+        <DetailField label="Contact Number" value={text(loan.client.contactNumber)} />
+        <DetailField label="Valid ID Number" value={text(loan.client.validIdNumber)} />
+        <DetailField label="Birthdate" value={loan.client.birthdate ? dateOnly(loan.client.birthdate) : notSynced} />
+        <DetailField
+          label="Branch"
+          value={loan.branch ? `${loan.branch.branchCode} - ${loan.branch.branchName}` : notSynced}
+        />
+      </section>
+
+      <section className="border border-slate-300 bg-white p-3">
+        <h4 className="mb-2 border-b border-slate-300 pb-1 text-xs font-bold uppercase tracking-wide text-slate-600">Amounts</h4>
+        <DetailField label="Principal" value={money(loan.principalAmount)} />
+        <DetailField label="Interest" value={money(loan.interestAmount)} />
+        <DetailField label="Penalty" value={money(loan.penaltyAmount)} />
+        <DetailField label="Other Charges" value={money(loan.otherChargesAmount ?? 0)} />
+        <DetailField label="Paid Amount" value={<span className="text-brand-green">{money(loan.paidAmount)}</span>} />
+        <DetailField label="Total Balance" value={<span className="text-red-700">{money(loan.balance)}</span>} />
+        <DetailField
+          label="Remote Balance"
+          value={loan.remoteBalance === null || loan.remoteBalance === undefined
+            ? <span className="font-normal italic text-slate-400">Not synced</span>
+            : <span className="text-red-700">{money(loan.remoteBalance)}</span>}
+        />
+      </section>
+
+      <section className="border border-slate-300 bg-white p-3">
+        <h4 className="mb-2 border-b border-slate-300 pb-1 text-xs font-bold uppercase tracking-wide text-slate-600">Payments to date</h4>
+        <DetailField label="Principal Paid" value={money(totals.paidPrincipal)} />
+        <DetailField label="Interest Paid" value={money(totals.paidInterest)} />
+        <DetailField label="Penalty Paid" value={money(totals.penalty)} />
+        <DetailField label="PDI Paid" value={money(totals.pdi)} />
+        <DetailField label="Other Charges Paid" value={money(totals.otherCharges)} />
+        <DetailField label="Paid Total" value={<span className="text-brand-green">{money(totals.paidTotal)}</span>} />
+        <p className="mt-2 text-[11px] leading-5 text-slate-500">
+          Loan interval, interest payment type, ledger, cycle, location code, the old-account block and the
+          remarks boxes are held by the branch system but are not pulled by the sync, so they are not shown here.
+        </p>
+      </section>
+    </div>
+  );
 }
 
 function FooterTotal({ label, value }: { label: string; value: unknown }) {

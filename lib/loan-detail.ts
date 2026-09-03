@@ -34,6 +34,10 @@ export type LoanDetailSource = {
   loanNumber: string | null;
   loanProduct: string | null;
   loanType2Name?: string | null;
+  branchAo?: string | null;
+  loanSecurityCode?: string | null;
+  loanSecurityName?: string | null;
+  otherChargesAmount?: unknown;
   principalAmount: unknown;
   interestRate: unknown;
   interestAmount: unknown;
@@ -76,6 +80,10 @@ export function toLoanDetail(loan: LoanDetailSource): LoanDetailLoan {
     loanNumber: loan.loanNumber,
     loanProduct: loan.loanProduct,
     loanType2Name: loan.loanType2Name ?? null,
+    branchAo: loan.branchAo ?? null,
+    loanSecurityCode: loan.loanSecurityCode ?? null,
+    loanSecurityName: loan.loanSecurityName ?? null,
+    otherChargesAmount: str(loan.otherChargesAmount ?? 0),
     principalAmount: str(loan.principalAmount),
     interestRate: str(loan.interestRate),
     interestAmount: str(loan.interestAmount),
