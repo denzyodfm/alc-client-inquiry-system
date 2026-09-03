@@ -12,6 +12,12 @@ export type AccountOfficerSummaryRow = {
   // Area and privilege, or branch and privilege, depending on the role. Built on the server
   // so this component stays a table and does not need the user directory.
   detail?: string | null;
+  // Who the officer reports to. Remedial Officers sit under an Area TL, Loan Officers under
+  // a Branch TL, and someone who leads both an area and a branch heads two separate groups -
+  // the reporting line differs even though the person does not.
+  leaderKey: string;
+  leaderName: string;
+  leaderKind: string;
   numberOfClients: number;
   portfolio: number;
   current: number;
@@ -59,8 +65,13 @@ function escapeHtml(value: string) {
   })[character] ?? character);
 }
 
-function reportTable(locationName: string, rows: AccountOfficerSummaryRow[]) {
-  const reportRows = rows.map((row) => `
+function reportTable(
+  locationName: string,
+  groups: Array<{ key: string; name: string; kind: string; rows: AccountOfficerSummaryRow[] }>
+) {
+  const reportRows = groups.map((group) => `
+    <tr><td class="group" colspan="11">${escapeHtml(group.name.toLocaleUpperCase("en"))}${group.kind ? ` &middot; ${escapeHtml(group.kind)}` : ""}</td></tr>
+    ${group.rows.map((row) => `
     <tr>
       <td>${escapeHtml(row.name.toLocaleUpperCase("en"))}</td>
       <td class="number">${row.numberOfClients}</td>
@@ -73,7 +84,7 @@ function reportTable(locationName: string, rows: AccountOfficerSummaryRow[]) {
       <td class="number">${row.pastDueBalance.toFixed(2)}</td>
       <td class="number">${row.litigated}</td>
       <td class="number">${row.litigatedBalance.toFixed(2)}</td>
-    </tr>`).join("");
+    </tr>`).join("")}`).join("");
 
   return `
     <h1>Account Officer Summary</h1>
@@ -99,6 +110,7 @@ const reportStyles = `
   th,td{border:1px solid #cbd5e1;padding:6px;text-align:left}
   th{background:#f1f5f9;font-size:9px;text-transform:uppercase}
   .number{text-align:right}
+  .group{background:#e2e8f0;font-weight:bold;font-size:10px;text-transform:uppercase}
   @page{size:landscape;margin:10mm}
 `;
 
@@ -126,6 +138,27 @@ export function AccountOfficerSummary({
     () => [...rows].sort((a, b) => (sort.dir === "asc" ? 1 : -1) * compareRows(a, b, sort.key)),
     [rows, sort]
   );
+  // Officers grouped under their team leader, the chosen sort still applying within each
+  // group. Groups run in leader-name order; the unassigned bucket has no leader to report
+  // to, so it sits at the end rather than under somebody it does not belong to.
+  const groups = useMemo(() => {
+    const byLeader = new Map<string, { key: string; name: string; kind: string; rows: AccountOfficerSummaryRow[] }>();
+    for (const row of sortedRows) {
+      const key = row.key === "unassigned" ? "unassigned" : row.leaderKey;
+      const group = byLeader.get(key) ?? {
+        key,
+        name: row.key === "unassigned" ? "Without Account Officer" : row.leaderName,
+        kind: row.key === "unassigned" ? "" : row.leaderKind,
+        rows: []
+      };
+      group.rows.push(row);
+      byLeader.set(key, group);
+    }
+    return Array.from(byLeader.values()).sort((a, b) =>
+      (a.key === "unassigned" ? 1 : 0) - (b.key === "unassigned" ? 1 : 0) ||
+      a.name.localeCompare(b.name, "en", { sensitivity: "base" })
+    );
+  }, [sortedRows]);
 
   function toggleSort(key: SortKey) {
     setSort((current) => current.key === key ? { key, dir: current.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "name" ? "asc" : "desc" });
@@ -154,12 +187,12 @@ export function AccountOfficerSummary({
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
     printWindow.opener = null;
-    printWindow.document.write(`<!doctype html><html><head><title>${escapeHtml(title)}</title><style>${reportStyles}</style></head><body>${reportTable(locationName, sortedRows)}<script>window.addEventListener("load",()=>window.print())</script></body></html>`);
+    printWindow.document.write(`<!doctype html><html><head><title>${escapeHtml(title)}</title><style>${reportStyles}</style></head><body>${reportTable(locationName, groups)}<script>window.addEventListener("load",()=>window.print())</script></body></html>`);
     printWindow.document.close();
   }
 
   function downloadExcel() {
-    const workbook = `<!doctype html><html><head><meta charset="utf-8"><style>${reportStyles}</style></head><body>${reportTable(locationName, sortedRows)}</body></html>`;
+    const workbook = `<!doctype html><html><head><meta charset="utf-8"><style>${reportStyles}</style></head><body>${reportTable(locationName, groups)}</body></html>`;
     const url = URL.createObjectURL(new Blob(["\ufeff", workbook], { type: "application/vnd.ms-excel;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
@@ -225,7 +258,16 @@ export function AccountOfficerSummary({
                 <SummaryHeader label="Past Due" sortKey="pastDue" sort={sort} onSort={toggleSort} align="right" caption />
                 <SummaryHeader label="Litigated" sortKey="litigated" sort={sort} onSort={toggleSort} align="right" caption />
               </div>
-              {sortedRows.map((row) => (
+              {groups.map((group) => (
+                <div key={group.key}>
+                  <div className="flex flex-wrap items-baseline gap-x-2 border-y border-slate-200 bg-slate-50 px-4 py-2">
+                    <span className="text-xs font-bold uppercase tracking-wide text-slate-900">{group.name}</span>
+                    {group.kind ? <span className="text-[10px] font-bold uppercase tracking-wide text-brand-green">{group.kind}</span> : null}
+                    <span className="text-[10px] font-semibold text-slate-500">
+                      {group.rows.length.toLocaleString("en-US")} officer{group.rows.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  {group.rows.map((row) => (
                 <div key={row.key} className={`${GRID_COLUMNS} border-b border-slate-100 px-4 py-3 last:border-b-0`}>
                   <span className="min-w-0">
                     <span className="block font-semibold text-slate-800">{row.name.toLocaleUpperCase("en")}</span>
@@ -239,6 +281,8 @@ export function AccountOfficerSummary({
                   <SummaryMetric count={row.delayed} balance={row.delayedBalance} category="delayed" scope={scope ? rowScope(row) : undefined} />
                   <SummaryMetric count={row.pastDue} balance={row.pastDueBalance} category="pastDue" scope={scope ? rowScope(row) : undefined} />
                   <SummaryMetric count={row.litigated} balance={row.litigatedBalance} category="litigated" scope={scope ? rowScope(row) : undefined} />
+                </div>
+                  ))}
                 </div>
               ))}
               {!rows.length ? <p className="px-4 py-10 text-center font-semibold text-slate-500">No linked outstanding loans.</p> : null}

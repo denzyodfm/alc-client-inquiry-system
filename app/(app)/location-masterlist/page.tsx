@@ -244,11 +244,23 @@ function officerDetailLine(officer: {
   return [branch, privilege].filter(Boolean).join(" · ") || null;
 }
 
-function accountOfficerRows(officers: OfficerNode[], details: Map<string, string>): AccountOfficerSummaryRow[] {
-  return officers.map((officer) => ({
+function accountOfficerRows(
+  officers: OfficerNode[],
+  details: Map<string, string>,
+  leaders: Map<string, { key: string; name: string; kind: string }>
+): AccountOfficerSummaryRow[] {
+  return officers.map((officer) => {
+    // Who this officer reports to. Remedial Officers answer to an Area TL, Loan Officers to
+    // a Branch TL, and the placement map has already worked that out for the pivot itself -
+    // so the summary groups on the same reading rather than inventing a second one.
+    const leader = leaders.get(officer.key);
+    return {
     key: officer.key,
     name: officer.name,
     detail: details.get(officer.key) ?? null,
+    leaderKey: leader?.key ?? "leader-none",
+    leaderName: leader?.name ?? "NO TEAM LEADER",
+    leaderKind: leader?.kind ?? "",
     numberOfClients: officer.metrics.numberOfClients ?? 0,
     portfolio: officer.metrics.portfolio ?? 0,
     current: officer.metrics.current ?? 0,
@@ -259,7 +271,8 @@ function accountOfficerRows(officers: OfficerNode[], details: Map<string, string
     pastDueBalance: officer.metrics.pastDueBalance ?? 0,
     litigated: officer.metrics.litigated ?? 0,
     litigatedBalance: officer.metrics.litigatedBalance ?? 0
-  }));
+    };
+  });
 }
 
 // Same rule as before, reading the schedule's principal total rather than its rows: a loan
@@ -566,6 +579,14 @@ export default async function LocationMasterlistPage() {
     const line = officerDetailLine(officer);
     if (line) officerDetails.set(String(officer.id), line);
   }
+  const officerLeaders = new Map<string, { key: string; name: string; kind: string }>();
+  for (const [officerId, placement] of pivotByOfficer) {
+    officerLeaders.set(officerId, {
+      key: placement.leaderKey,
+      name: placement.leaderName,
+      kind: placement.leaderKind === "AREA" ? "Area TL" : placement.leaderKind === "BRANCH" ? "Branch TL" : ""
+    });
+  }
   const officerNames = new Map<string, string>();
   const areaTeamLeaderNames = new Map<string, string>();
   const zoneNames = new Map<string, string>();
@@ -799,7 +820,7 @@ export default async function LocationMasterlistPage() {
                 <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open:bg-blue-100`}>
                   <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open:before:rotate-90">
                     <span className="loc-caps">{province.name}</span>
-                    <AccountOfficerSummary locationName={province.name} rows={accountOfficerRows(province.officers, officerDetails)} scope={{ province: province.name }} />
+                    <AccountOfficerSummary locationName={province.name} rows={accountOfficerRows(province.officers, officerDetails, officerLeaders)} scope={{ province: province.name }} />
                   </span>
                   <span className="text-right font-bold text-brand-blue">
                     <BarangayLoanReport
@@ -829,7 +850,7 @@ export default async function LocationMasterlistPage() {
                           <span className="loc-caps">{municipality.name}</span>
                           <AccountOfficerSummary
                             locationName={`${municipality.name}, ${province.name}`}
-                            rows={accountOfficerRows(municipality.officers, officerDetails)}
+                            rows={accountOfficerRows(municipality.officers, officerDetails, officerLeaders)}
                             scope={{ province: province.name, municipality: municipality.name }}
                           />
                         </span>
