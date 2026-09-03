@@ -102,17 +102,20 @@ async function hasMidnightSyncToday() {
   return Boolean(existing);
 }
 
-async function runStartupCatchUpIfMissed() {
+// Starting the server no longer syncs. A restart is usually someone clearing a hung app, and
+// making that restart immediately pull every branch over the WAN is what kept the app under
+// load the moment it came back. Syncing now happens at midnight, or when someone asks for it
+// from a branch card. Abandoned runs are still closed out, since that only touches our own
+// rows and keeps the midnight guard honest.
+async function reconcileOnStartup() {
   const state = schedulerState();
   if (state.catchUpChecked) return;
 
   state.catchUpChecked = true;
   try {
     await reconcileStaleSyncRuns();
-    if (await hasMidnightSyncToday()) return;
-    await runScheduledSync("Midnight sync catch-up");
   } catch (error) {
-    console.error("[midnight-sync] Startup catch-up check failed:", error);
+    console.error("[midnight-sync] Startup reconciliation failed:", error);
   }
 }
 
@@ -138,9 +141,9 @@ export function startMidnightSyncScheduler() {
   state.started = true;
   scheduleNextRun();
   state.catchUpTimer = setTimeout(() => {
-    void runStartupCatchUpIfMissed();
+    void reconcileOnStartup();
   }, STARTUP_CATCH_UP_DELAY_MS);
-  console.log(`[midnight-sync] Next online-branch sync scheduled for ${state.nextRunAt?.toLocaleString()}.`);
+  console.log(`[midnight-sync] Next online-branch sync scheduled for ${state.nextRunAt?.toLocaleString()}. Startup does not sync.`);
 }
 
 export function getMidnightSyncSchedule() {

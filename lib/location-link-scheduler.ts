@@ -1,15 +1,12 @@
-import { prisma } from "@/lib/prisma";
 import { linkUnlinkedLoans } from "@/lib/location-linker";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const STARTUP_CATCH_UP_DELAY_MS = 20 * 1000;
 
 type SchedulerState = {
   started: boolean;
   running: boolean;
   catchUpChecked: boolean;
   timer?: ReturnType<typeof setTimeout>;
-  catchUpTimer?: ReturnType<typeof setTimeout>;
   nextRunAt?: Date;
 };
 
@@ -30,12 +27,6 @@ function nextDailyRun(now = new Date()) {
   return next;
 }
 
-function startOfLocalDay(now = new Date()) {
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  return start;
-}
-
 async function runScheduledLink() {
   const state = schedulerState();
   if (state.running) return;
@@ -50,20 +41,9 @@ async function runScheduledLink() {
   }
 }
 
-async function runStartupCatchUpIfMissed() {
-  const state = schedulerState();
-  if (state.catchUpChecked) return;
-  state.catchUpChecked = true;
-  try {
-    const existing = await prisma.locationLinkRun.findFirst({
-      where: { status: "SUCCESS", startedAt: { gte: startOfLocalDay() } },
-      select: { id: true }
-    });
-    if (!existing) await runScheduledLink();
-  } catch (error) {
-    console.error("[location-link] Startup catch-up failed:", error);
-  }
-}
+// Linking on startup was the same problem in miniature: a restart scanned every unlinked loan
+// before anyone had asked for anything. It runs on its daily schedule, or from the button on
+// Location Masterlist.
 
 function scheduleNextRun() {
   const state = schedulerState();
@@ -81,8 +61,7 @@ export function startLocationLinkScheduler() {
   if (state.started) return;
   state.started = true;
   scheduleNextRun();
-  state.catchUpTimer = setTimeout(() => void runStartupCatchUpIfMissed(), STARTUP_CATCH_UP_DELAY_MS);
-  console.log(`[location-link] Next daily link scheduled for ${state.nextRunAt?.toLocaleString()}.`);
+  console.log(`[location-link] Next daily link scheduled for ${state.nextRunAt?.toLocaleString()}. Startup does not link.`);
 }
 
 export function getLocationLinkSchedule() {

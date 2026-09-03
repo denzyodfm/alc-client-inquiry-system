@@ -38,3 +38,43 @@ export function principalBalanceOf(
   if (scheduledPrincipal === undefined) return Math.min(Math.max(0, Number(loan.principalAmount)), balance);
   return Math.min(scheduledPrincipal, balance);
 }
+
+// The Location Pivot needs two things from a loan's schedule and nothing else: what principal
+// it still owes, and whether any instalment due by today is short. Both are aggregates, so the
+// database can answer them and the schedule rows never have to travel.
+//
+// The unpaid test mirrors hasUnpaidDueAsOf exactly, including its fallback: a zero total_amort
+// means "use principal + interest", which is why NULLIF sits inside the COALESCE.
+export type LoanScheduleFacts = { principalBalance: number; hasUnpaidDue: boolean };
+
+export async function scheduleFactsByLoan(loanIds: number[], todayKey: string) {
+  const facts = new Map<number, LoanScheduleFacts>();
+  for (let index = 0; index < loanIds.length; index += CHUNK) {
+    const chunk = loanIds.slice(index, index + CHUNK);
+    if (!chunk.length) continue;
+    const rows = await prisma.$queryRaw<Array<{ loan_id: number; principal_balance: string | number | null; has_unpaid_due: number | null }>>(Prisma.sql`
+      SELECT
+        loan_id,
+        SUM(GREATEST(0, principal_amort - paid_principal)) AS principal_balance,
+        MAX(
+          CASE
+            WHEN amort_date IS NOT NULL
+             AND amort_date <= ${todayKey}
+             AND COALESCE(NULLIF(total_amort, 0), principal_amort + interest_amort)
+                 - (paid_principal + paid_interest) > 0
+            THEN 1 ELSE 0
+          END
+        ) AS has_unpaid_due
+      FROM amortization_schedules
+      WHERE loan_id IN (${Prisma.join(chunk)})
+      GROUP BY loan_id
+    `);
+    for (const row of rows) {
+      facts.set(Number(row.loan_id), {
+        principalBalance: Number(row.principal_balance ?? 0),
+        hasUnpaidDue: Number(row.has_unpaid_due ?? 0) === 1
+      });
+    }
+  }
+  return facts;
+}

@@ -10,6 +10,7 @@ import {
   type LocationClientCategory
 } from "@/lib/location-loan-aging";
 import { prisma } from "@/lib/prisma";
+import { scheduleFactsByLoan, type LoanScheduleFacts } from "@/lib/principal-balance";
 import { normalizedOfficerName } from "@/lib/officer-account";
 import { LocationLinkControl } from "@/components/location-link-control";
 import { BarangayLoanReport } from "@/components/officer-barangay-loans";
@@ -242,20 +243,17 @@ function accountOfficerRows(officers: OfficerNode[]): AccountOfficerSummaryRow[]
   }));
 }
 
-function outstandingPrincipalBalance(loan: {
-  principalAmount: unknown;
-  balance: unknown;
-  amortizationSchedules: Array<{ principalAmort: unknown; paidPrincipal: unknown }>;
-}) {
+// Same rule as before, reading the schedule's principal total rather than its rows: a loan
+// with no schedule, or one that owes nothing on principal, falls back to its own principal.
+function outstandingPrincipalBalance(
+  loan: { principalAmount: unknown; balance: unknown },
+  facts: LoanScheduleFacts | undefined
+) {
   const totalBalance = Math.max(0, Number(loan.balance));
   const fallbackPrincipalBalance = Math.min(Math.max(0, Number(loan.principalAmount)), totalBalance);
-  if (!loan.amortizationSchedules.length) return fallbackPrincipalBalance;
-  const schedulePrincipalBalance = loan.amortizationSchedules.reduce(
-    (sum, schedule) => sum + Math.max(0, Number(schedule.principalAmort) - Number(schedule.paidPrincipal)),
-    0
-  );
-  return schedulePrincipalBalance > 0
-    ? Math.min(schedulePrincipalBalance, totalBalance)
+  if (!facts) return fallbackPrincipalBalance;
+  return facts.principalBalance > 0
+    ? Math.min(facts.principalBalance, totalBalance)
     : fallbackPrincipalBalance;
 }
 
@@ -354,16 +352,7 @@ export default async function LocationMasterlistPage() {
         principalAmount: true,
         maturityAt: true,
         sourceStatusName: true,
-        amortizationSchedules: {
-          select: {
-            amortDate: true,
-            totalAmort: true,
-            principalAmort: true,
-            interestAmort: true,
-            paidPrincipal: true,
-            paidInterest: true
-          }
-        },
+        id: true,
         locationMasterlist: {
           select: { province: true, municipality: true, barangay: true }
         },
@@ -558,6 +547,9 @@ export default async function LocationMasterlistPage() {
   const zoneNames = new Map<string, string>();
   const districtNames = new Map<string, string>();
   const todayKey = manilaDateKey(new Date());
+  // One grouped statement answers the schedule questions for every loan on the page, so the
+  // ~60,000 instalment rows behind them never enter this process.
+  const scheduleFacts = await scheduleFactsByLoan(loans.map((loan) => loan.id), todayKey);
   const matchedLoanCount = loans.length;
   for (const loan of loans) {
     const assignment = loan.remedialAssignment;
@@ -567,8 +559,9 @@ export default async function LocationMasterlistPage() {
     const provinceKey = normalizedProvince(matchedLocation.province);
     const municipalityKey = `${provinceKey}\u0000${normalizedMunicipality(matchedLocation.municipality)}`;
     const hasAssignedOfficer = assignment.assignedToId !== null;
-    const principalBalance = outstandingPrincipalBalance(loan);
-    const category = effectiveLocationCategory(loan, todayKey);
+    const facts = scheduleFacts.get(loan.id);
+    const principalBalance = outstandingPrincipalBalance(loan, facts);
+    const category = effectiveLocationCategory(loan, todayKey, facts?.hasUnpaidDue ?? false);
     addLoanMetrics(metricsByOverall, "all", loan, hasAssignedOfficer, principalBalance, category);
     addLoanMetrics(metricsByProvince, provinceKey, loan, hasAssignedOfficer, principalBalance, category);
     addLoanMetrics(metricsByMunicipality, municipalityKey, loan, hasAssignedOfficer, principalBalance, category);
