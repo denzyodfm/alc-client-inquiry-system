@@ -5,6 +5,7 @@ import { canAccessFunction } from "@/lib/access-control";
 import { prisma } from "@/lib/prisma";
 import { UnverifyCheckbox } from "@/components/unverify-checkbox";
 import { dateTime, money } from "@/lib/format";
+import { LazyLoanDetailLink } from "@/components/lazy-loan-detail-link";
 import {
   isVerificationSortKey,
   verificationBranchSummary,
@@ -220,7 +221,7 @@ export default async function VerifiedLoansPage({
                     <p className="font-bold text-slate-950">{row.clientName}</p>
                     <p className="text-slate-500">{row.clientNumber ?? "-"}</p>
                   </td>
-                  <td className="px-3 py-3 font-bold text-brand-blue">{row.loanNumber}</td>
+                  <td className="px-3 py-3"><LazyLoanDetailLink loanId={row.id} label={row.loanNumber} /></td>
                   <td className="px-3 py-3">{row.branch}</td>
                   <td className="px-3 py-3">{row.product ?? "-"}</td>
                   <td className="px-3 py-3">{row.status ?? "-"}</td>

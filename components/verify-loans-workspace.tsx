@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, Building2, CheckCircle2, LoaderCircle, Search, TriangleAlert } from "lucide-react";
 import type { VerificationBranchProgress, VerificationCohort as Cohort, VerificationLoanRow, VerificationSortKey } from "@/lib/loan-verification";
+import { LazyLoanDetailLink } from "@/components/lazy-loan-detail-link";
 
 const shortDay = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "2-digit" });
 
@@ -263,7 +264,7 @@ export function VerifyLoansWorkspace({
                       <p className="font-bold text-slate-950">{row.clientName}</p>
                       <p className="text-slate-500">{row.clientNumber ?? "-"}</p>
                     </td>
-                    <td className="px-3 py-3 font-bold text-brand-blue">{row.loanNumber}</td>
+                    <td className="px-3 py-3"><LazyLoanDetailLink loanId={row.id} label={row.loanNumber} /></td>
                     <td className="px-3 py-3">{row.product ?? "-"}</td>
                     <td className="whitespace-nowrap px-3 py-3">{shortDate(row.releasedAt)}</td>
                     <td className="whitespace-nowrap px-3 py-3">{shortDate(row.maturityAt)}</td>

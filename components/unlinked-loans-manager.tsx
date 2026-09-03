@@ -4,6 +4,7 @@ import { FileSpreadsheet, Printer, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { money } from "@/lib/format";
 import { useModalAccessibility } from "@/components/use-modal-accessibility";
+import { LazyLoanDetailLink } from "@/components/lazy-loan-detail-link";
 
 type LocationOption = { id: number; province: string; municipality: string; barangay: string };
 type LoanRow = {
@@ -217,7 +218,7 @@ export function UnlinkedLoansManager({
                       <tr key={row.id} className={selected.has(row.id) ? "bg-blue-50" : ""}>
                         <td className="px-3 py-3"><input type="checkbox" checked={selected.has(row.id)} onChange={() => setSelected((current) => { const next = new Set(current); next.has(row.id) ? next.delete(row.id) : next.add(row.id); return next; })} /></td>
                         <td className="px-3 py-3"><p className="font-bold text-slate-950">{row.clientName}</p><p className="text-slate-500">{row.clientNumber}</p></td>
-                        <td className="px-3 py-3">{row.contactNumber || "-"}</td><td className="px-3 py-3 font-bold text-brand-blue">{row.loanNumber}</td>
+                        <td className="px-3 py-3">{row.contactNumber || "-"}</td><td className="px-3 py-3"><LazyLoanDetailLink loanId={row.id} label={row.loanNumber} /></td>
                         <td className="px-3 py-3">{row.branch}</td><td className="px-3 py-3">{row.product || "-"}</td>
                         <td className="px-3 py-3">{row.maturityAt ? new Date(row.maturityAt).toLocaleDateString("en-US") : "-"}</td>
                         <td className="px-3 py-3">{row.status || "-"}</td>

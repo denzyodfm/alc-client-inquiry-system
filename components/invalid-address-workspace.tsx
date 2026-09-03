@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LoaderCircle, RotateCcw, Save, TriangleAlert } from "lucide-react";
 import { barangayOptions, municipalityOptions, provinceOptions, type LocationOption } from "@/lib/location-options";
+import { LazyLoanDetailLink } from "@/components/lazy-loan-detail-link";
 
 export type InvalidAddressRow = {
   id: number;
@@ -116,7 +117,9 @@ export function InvalidAddressWorkspace({
                     <p className="font-bold text-slate-950">{row.clientName}</p>
                     <p className="text-slate-500">{row.clientNumber ?? "-"}</p>
                   </td>
-                  <td className="px-3 py-3 font-bold text-brand-blue">{row.loanNumber}</td>
+                  <td className="px-3 py-3">
+                    <LazyLoanDetailLink loanId={row.id} label={row.loanNumber} />
+                  </td>
                   <td className="px-3 py-3">{row.branch}</td>
                   <td className="max-w-[240px] whitespace-normal px-3 py-3 text-slate-700">{row.address ?? "-"}</td>
                   <td className="loc-caps max-w-[200px] whitespace-normal px-3 py-3 text-red-700">

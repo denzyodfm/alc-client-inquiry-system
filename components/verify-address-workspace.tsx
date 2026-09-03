@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { barangayOptions, municipalityOptions, provinceOptions, withCurrentValue } from "@/lib/location-options";
+import { LazyLoanDetailLink } from "@/components/lazy-loan-detail-link";
 
 export type VerifyAddressRow = {
   loanId: number;
@@ -126,7 +127,7 @@ export function VerifyAddressWorkspace({
                     <p className="font-bold text-slate-950">{row.clientName}</p>
                     <p className="text-slate-500">{row.clientId ?? "-"}</p>
                   </td>
-                  <td className="px-3 py-3 font-bold text-brand-blue">{row.loanNumber}</td>
+                  <td className="px-3 py-3"><LazyLoanDetailLink loanId={row.loanId} label={row.loanNumber} /></td>
                   <td className="px-3 py-3">{row.branchName}<p className="text-slate-500">{row.branchCode}</p></td>
                   <td className="max-w-[260px] whitespace-normal px-3 py-3 text-slate-700">{row.address ?? "-"}</td>
                   <td className="loc-caps max-w-[200px] whitespace-normal px-3 py-3 text-red-700">

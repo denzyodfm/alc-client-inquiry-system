@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { money } from "@/lib/format";
+import { LazyLoanDetailLink } from "@/components/lazy-loan-detail-link";
 import { ClientAddressPinEditor, type ClientAddressPin } from "@/components/client-address-pin-editor";
 import { barangayOptions, municipalityOptions, provinceOptions, withCurrentValue, type LocationOption } from "@/lib/location-options";
 
@@ -453,7 +454,7 @@ export function BarangayLoanReport({
                             <p className="pl-4 text-slate-400">same client, another loan</p>
                           )}
                         </td>
-                        <td className="px-3 py-3">{row.contactNumber || "-"}</td><td className="px-3 py-3 font-bold text-brand-blue">{row.loanNumber}</td>
+                        <td className="px-3 py-3">{row.contactNumber || "-"}</td><td className="px-3 py-3"><LazyLoanDetailLink loanId={row.id} label={row.loanNumber} /></td>
                         <td className="px-3 py-3">{row.branch}</td><td className="px-3 py-3">{row.product || "-"}</td>
                         <td className="px-3 py-3">{date(row.releasedAt)}</td><td className="px-3 py-3">{date(row.maturityAt)}</td>
                         <td className="px-3 py-3">{row.status || "-"}</td><MoneyCell value={row.originalPrincipal} /><MoneyCell value={row.principalBalance} />
