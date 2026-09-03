@@ -26,6 +26,11 @@ type PaymentSource = {
   paidPdi: unknown;
   paidOtherCharges: unknown;
   paidCa: unknown;
+  principalBalanceAfter?: unknown;
+  interestBalanceAfter?: unknown;
+  penaltyBalanceAfter?: unknown;
+  pdiBalanceAfter?: unknown;
+  otherChargesBalanceAfter?: unknown;
 };
 
 export type LoanDetailSource = {
@@ -131,7 +136,12 @@ export function toLoanDetail(loan: LoanDetailSource): LoanDetailLoan {
       paidPenalty: str(payment.paidPenalty),
       paidPdi: str(payment.paidPdi),
       paidOtherCharges: str(payment.paidOtherCharges),
-      paidCa: str(payment.paidCa)
+      paidCa: str(payment.paidCa),
+      principalBalanceAfter: payment.principalBalanceAfter === null || payment.principalBalanceAfter === undefined ? null : str(payment.principalBalanceAfter),
+      interestBalanceAfter: payment.interestBalanceAfter === null || payment.interestBalanceAfter === undefined ? null : str(payment.interestBalanceAfter),
+      penaltyBalanceAfter: payment.penaltyBalanceAfter === null || payment.penaltyBalanceAfter === undefined ? null : str(payment.penaltyBalanceAfter),
+      pdiBalanceAfter: payment.pdiBalanceAfter === null || payment.pdiBalanceAfter === undefined ? null : str(payment.pdiBalanceAfter),
+      otherChargesBalanceAfter: payment.otherChargesBalanceAfter === null || payment.otherChargesBalanceAfter === undefined ? null : str(payment.otherChargesBalanceAfter)
     }))
   };
 }

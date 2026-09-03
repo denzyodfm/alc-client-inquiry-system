@@ -34,6 +34,11 @@ export type LoanDetailPayment = {
   paidPdi: string;
   paidOtherCharges: string;
   paidCa: string;
+  principalBalanceAfter?: string | null;
+  interestBalanceAfter?: string | null;
+  penaltyBalanceAfter?: string | null;
+  pdiBalanceAfter?: string | null;
+  otherChargesBalanceAfter?: string | null;
 };
 
 export type LoanDetailLoan = {
@@ -302,6 +307,10 @@ export function LoanDetailWindow({ loan, onClose }: LoanDetailWindowProps) {
           <div className="border border-slate-500 bg-white p-2">
             {activeTab === "General Details View" ? (
               <GeneralDetailsView loan={loan} totals={totals} />
+            ) : activeTab === "Balance View" ? (
+              <BalanceView payments={loan.payments ?? []} />
+            ) : activeTab === "Cash Advances" ? (
+              <CashAdvancesView payments={loan.payments ?? []} />
             ) : activeTab === "Payments View" ? (
               receiptGroups.length ? (
                 <ReceiptPaymentsTable groups={receiptGroups} />
@@ -604,6 +613,93 @@ function GeneralDetailsView({
           remarks boxes are held by the branch system but are not pulled by the sync, so they are not shown here.
         </p>
       </section>
+    </div>
+  );
+}
+
+// What each balance stood at after every receipt, as the branch records it. These are the
+// branch's own running figures rather than anything derived here, so they are shown as they
+// arrive and a payment that carries none is left blank rather than guessed at.
+function BalanceView({ payments }: { payments: LoanDetailPayment[] }) {
+  const rows = payments.filter((payment) => payment.principalBalanceAfter !== null && payment.principalBalanceAfter !== undefined);
+  if (!rows.length) {
+    return <p className="px-3 py-10 text-center font-semibold text-slate-500">The branch has not sent running balances for this loan.</p>;
+  }
+  return (
+    <div className="max-h-[46vh] overflow-auto">
+      <table className="w-full min-w-[880px] text-left text-xs">
+        <thead className="sticky top-0 z-10 bg-[#d9d9d9] text-slate-900">
+          <tr>
+            <th className="border border-slate-400 px-2 py-1">Date</th>
+            <th className="border border-slate-400 px-2 py-1">OR No.</th>
+            <th className="border border-slate-400 px-2 py-1 text-right">Principal Bal.</th>
+            <th className="border border-slate-400 px-2 py-1 text-right">Interest Bal.</th>
+            <th className="border border-slate-400 px-2 py-1 text-right">Penalty Bal.</th>
+            <th className="border border-slate-400 px-2 py-1 text-right">PDI Bal.</th>
+            <th className="border border-slate-400 px-2 py-1 text-right">Other Charges Bal.</th>
+            <th className="border border-slate-400 px-2 py-1 text-right">Total Bal.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((payment) => {
+            const total = Number(payment.principalBalanceAfter ?? 0) + Number(payment.interestBalanceAfter ?? 0)
+              + Number(payment.penaltyBalanceAfter ?? 0) + Number(payment.pdiBalanceAfter ?? 0)
+              + Number(payment.otherChargesBalanceAfter ?? 0);
+            return (
+              <tr key={payment.id} className="odd:bg-white even:bg-slate-50">
+                <td className="border border-slate-300 px-2 py-1 whitespace-nowrap">{dateOnly(payment.paidAt)}</td>
+                <td className="border border-slate-300 px-2 py-1">{payment.orNumber || "-"}</td>
+                <td className="border border-slate-300 px-2 py-1 text-right">{money(payment.principalBalanceAfter)}</td>
+                <td className="border border-slate-300 px-2 py-1 text-right">{money(payment.interestBalanceAfter)}</td>
+                <td className="border border-slate-300 px-2 py-1 text-right">{money(payment.penaltyBalanceAfter)}</td>
+                <td className="border border-slate-300 px-2 py-1 text-right">{money(payment.pdiBalanceAfter)}</td>
+                <td className="border border-slate-300 px-2 py-1 text-right">{money(payment.otherChargesBalanceAfter)}</td>
+                <td className="border border-slate-300 px-2 py-1 text-right font-bold text-red-700">{money(total)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Cash advances appear on the payment record rather than as their own table, so this lists
+// the receipts that carried one.
+function CashAdvancesView({ payments }: { payments: LoanDetailPayment[] }) {
+  const rows = payments.filter((payment) => Number(payment.paidCa ?? 0) > 0);
+  if (!rows.length) {
+    return <p className="px-3 py-10 text-center font-semibold text-slate-500">No cash advances recorded against this loan.</p>;
+  }
+  const total = rows.reduce((sum, payment) => sum + Number(payment.paidCa ?? 0), 0);
+  return (
+    <div className="max-h-[46vh] overflow-auto">
+      <table className="w-full min-w-[560px] text-left text-xs">
+        <thead className="sticky top-0 z-10 bg-[#d9d9d9] text-slate-900">
+          <tr>
+            <th className="border border-slate-400 px-2 py-1">Date</th>
+            <th className="border border-slate-400 px-2 py-1">OR No.</th>
+            <th className="border border-slate-400 px-2 py-1 text-right">Amort No.</th>
+            <th className="border border-slate-400 px-2 py-1 text-right">Cash Advance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((payment) => (
+            <tr key={payment.id} className="odd:bg-white even:bg-slate-50">
+              <td className="border border-slate-300 px-2 py-1 whitespace-nowrap">{dateOnly(payment.paidAt)}</td>
+              <td className="border border-slate-300 px-2 py-1">{payment.orNumber || "-"}</td>
+              <td className="border border-slate-300 px-2 py-1 text-right">{payment.amortNo ?? "-"}</td>
+              <td className="border border-slate-300 px-2 py-1 text-right font-bold">{money(payment.paidCa)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="bg-[#e6e2e6] font-bold">
+            <td className="border border-slate-400 px-2 py-1" colSpan={3}>Total cash advances</td>
+            <td className="border border-slate-400 px-2 py-1 text-right">{money(total)}</td>
+          </tr>
+        </tfoot>
+      </table>
     </div>
   );
 }
