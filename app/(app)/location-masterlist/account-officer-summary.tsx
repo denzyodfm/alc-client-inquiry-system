@@ -20,6 +20,9 @@ export type AccountOfficerSummaryRow = {
   leaderKey: string;
   leaderName: string;
   leaderKind: string;
+  // The area or branch the leader is read against - two leaders can share a name, and one
+  // person can lead both an area and a branch.
+  leaderScope: string;
   numberOfClients: number;
   portfolio: number;
   current: number;
@@ -85,10 +88,10 @@ function escapeHtml(value: string) {
 
 function reportTable(
   locationName: string,
-  groups: Array<{ key: string; name: string; kind: string; rows: AccountOfficerSummaryRow[] }>
+  groups: Array<{ key: string; name: string; kind: string; scopes: Set<string>; rows: AccountOfficerSummaryRow[] }>
 ) {
   const reportRows = groups.map((group) => `
-    <tr><td class="group" colspan="11">${escapeHtml(group.name.toLocaleUpperCase("en"))}${group.kind ? ` &middot; ${escapeHtml(group.kind)}` : ""}</td></tr>
+    <tr><td class="group" colspan="11">${escapeHtml(group.name.toLocaleUpperCase("en"))}${group.kind ? ` &middot; ${escapeHtml(group.kind)}` : ""}${group.scopes.size ? ` &middot; ${escapeHtml(Array.from(group.scopes).sort().join(", "))}` : ""}</td></tr>
     ${group.rows.map((row) => `
     <tr>
       <td>${escapeHtml(row.name.toLocaleUpperCase("en"))}</td>
@@ -164,15 +167,17 @@ export function AccountOfficerSummary({
   // group. Groups run in leader-name order; the unassigned bucket has no leader to report
   // to, so it sits at the end rather than under somebody it does not belong to.
   const groups = useMemo(() => {
-    const byLeader = new Map<string, { key: string; name: string; kind: string; rows: AccountOfficerSummaryRow[] }>();
+    const byLeader = new Map<string, { key: string; name: string; kind: string; scopes: Set<string>; rows: AccountOfficerSummaryRow[] }>();
     for (const row of sortedRows) {
       const key = row.key === "unassigned" ? "unassigned" : row.leaderKey;
       const group = byLeader.get(key) ?? {
         key,
         name: row.key === "unassigned" ? "Without Account Officer" : row.leaderName,
         kind: row.key === "unassigned" ? "" : row.leaderKind,
+        scopes: new Set<string>(),
         rows: []
       };
+      if (row.key !== "unassigned" && row.leaderScope) group.scopes.add(row.leaderScope);
       group.rows.push(row);
       byLeader.set(key, group);
     }
@@ -306,6 +311,11 @@ export function AccountOfficerSummary({
                             <span className="block truncate text-xs font-bold uppercase tracking-wide text-slate-900">{group.name}</span>
                             <span className="flex flex-wrap items-baseline gap-x-2">
                               {group.kind ? <span className="text-[10px] font-bold uppercase tracking-wide text-brand-green">{group.kind}</span> : null}
+                              {group.scopes.size ? (
+                                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                                  {Array.from(group.scopes).sort().join(", ")}
+                                </span>
+                              ) : null}
                               <span className="text-[10px] font-semibold text-slate-500">
                                 {group.rows.length.toLocaleString("en-US")} officer{group.rows.length === 1 ? "" : "s"}
                               </span>

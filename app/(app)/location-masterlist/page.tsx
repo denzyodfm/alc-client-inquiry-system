@@ -257,7 +257,7 @@ function officerDetailLine(officer: {
 function accountOfficerRows(
   officers: OfficerNode[],
   details: Map<string, string>,
-  leaders: Map<string, { key: string; name: string; kind: string }>
+  leaders: Map<string, { key: string; name: string; kind: string; scope: string }>
 ): AccountOfficerSummaryRow[] {
   return officers.map((officer) => {
     // Who this officer reports to. Remedial Officers answer to an Area TL, Loan Officers to
@@ -271,6 +271,7 @@ function accountOfficerRows(
     leaderKey: leader?.key ?? "leader-none",
     leaderName: leader?.name ?? "NO TEAM LEADER",
     leaderKind: leader?.kind ?? "",
+    leaderScope: leader?.scope ?? "",
     numberOfClients: officer.metrics.numberOfClients ?? 0,
     portfolio: officer.metrics.portfolio ?? 0,
     current: officer.metrics.current ?? 0,
@@ -595,12 +596,24 @@ export default async function LocationMasterlistPage() {
     const line = officerDetailLine(officer);
     if (line) officerDetails.set(String(officer.id), line);
   }
-  const officerLeaders = new Map<string, { key: string; name: string; kind: string }>();
+  // A team leader is read against a place: an Area TL against their area, a Branch TL
+  // against their branch. Two leaders can share a name, and one person can lead both an
+  // area and a branch, so the header needs the place to be readable at all.
+  const officerScope = new Map<string, { area: string | null; branch: string | null }>();
+  for (const officer of pivotOfficerRows) {
+    officerScope.set(String(officer.id), {
+      area: officer.area?.name ?? null,
+      branch: officer.baseBranch ? `${officer.baseBranch.branchCode} - ${officer.baseBranch.branchName}` : null
+    });
+  }
+  const officerLeaders = new Map<string, { key: string; name: string; kind: string; scope: string }>();
   for (const [officerId, placement] of pivotByOfficer) {
+    const scope = officerScope.get(officerId);
     officerLeaders.set(officerId, {
       key: placement.leaderKey,
       name: placement.leaderName,
-      kind: placement.leaderKind === "AREA" ? "Area TL" : placement.leaderKind === "BRANCH" ? "Branch TL" : ""
+      kind: placement.leaderKind === "AREA" ? "Area TL" : placement.leaderKind === "BRANCH" ? "Branch TL" : "",
+      scope: (placement.leaderKind === "AREA" ? scope?.area : placement.leaderKind === "BRANCH" ? scope?.branch : null) ?? ""
     });
   }
   const officerNames = new Map<string, string>();
