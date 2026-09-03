@@ -235,11 +235,12 @@ function officerDetailLine(officer: {
   const key = privilege.toLocaleLowerCase("en");
   const branch = officer.baseBranch ? `${officer.baseBranch.branchCode} - ${officer.baseBranch.branchName}` : null;
 
-  // Area TL is read against their area; the branch-based roles against their branch; a
-  // Remedial Officer covers an area's worth of ground, so only the privilege is meaningful.
-  if (key.startsWith("area")) return [officer.area?.name, privilege].filter(Boolean).join(" · ") || null;
-  if (key === "remedial officer") return privilege || null;
-  if (key.startsWith("branch") || key === "loan officer") return [branch, privilege].filter(Boolean).join(" · ") || null;
+  // The roles that work an area are read against their area, the ones that work a branch
+  // against their branch. A Remedial Officer belongs to an area even though they are based
+  // at a branch, so the area is what identifies them here.
+  if (key.startsWith("area") || key === "remedial officer") {
+    return [officer.area?.name, privilege].filter(Boolean).join(" · ") || null;
+  }
   return [branch, privilege].filter(Boolean).join(" · ") || null;
 }
 
