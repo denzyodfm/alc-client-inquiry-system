@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { money } from "@/lib/format";
 import { BarangayLoanReport, type LoanReportScope } from "@/components/officer-barangay-loans";
+import { ReorderableRows } from "@/components/reorderable-rows";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 export type AccountOfficerSummaryRow = {
   key: string;
@@ -28,6 +30,22 @@ export type AccountOfficerSummaryRow = {
   pastDueBalance: number;
   litigated: number;
   litigatedBalance: number;
+};
+
+// A team leader's own totals, worked out on the server from the loans rather than by adding
+// the officer rows up here - two officers under one leader can hold loans for the same
+// client, and adding their counts would count that person twice.
+export type AccountOfficerGroupTotals = {
+  numberOfClients: number | null;
+  portfolio: number | null;
+  current: number | null;
+  currentBalance: number | null;
+  delayed: number | null;
+  delayedBalance: number | null;
+  pastDue: number | null;
+  pastDueBalance: number | null;
+  litigated: number | null;
+  litigatedBalance: number | null;
 };
 
 type SortKey = "name" | "numberOfClients" | "portfolio" | "current" | "delayed" | "pastDue" | "litigated";
@@ -117,16 +135,20 @@ const reportStyles = `
 export function AccountOfficerSummary({
   locationName,
   rows,
+  groupTotals,
   scope
 }: {
   locationName: string;
   rows: AccountOfficerSummaryRow[];
+  // Keyed by leaderKey. Absent for a group means no totals row rather than a wrong one.
+  groupTotals?: Record<string, AccountOfficerGroupTotals>;
   // Where this summary was opened from, so a row can narrow the report to one officer within
   // that same place. Without it the quantities stay plain text.
   scope?: Pick<LoanReportScope, "province" | "municipality" | "locationId">;
 }) {
   const [open, setOpen] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   function rowScope(row: AccountOfficerSummaryRow): LoanReportScope {
     const base = { ...scope, locationName: `${locationName} — ${row.name}` };
@@ -258,33 +280,74 @@ export function AccountOfficerSummary({
                 <SummaryHeader label="Past Due" sortKey="pastDue" sort={sort} onSort={toggleSort} align="right" caption />
                 <SummaryHeader label="Litigated" sortKey="litigated" sort={sort} onSort={toggleSort} align="right" caption />
               </div>
-              {groups.map((group) => (
-                <div key={group.key}>
-                  <div className="flex flex-wrap items-baseline gap-x-2 border-y border-slate-200 bg-slate-50 px-4 py-2">
-                    <span className="text-xs font-bold uppercase tracking-wide text-slate-900">{group.name}</span>
-                    {group.kind ? <span className="text-[10px] font-bold uppercase tracking-wide text-brand-green">{group.kind}</span> : null}
-                    <span className="text-[10px] font-semibold text-slate-500">
-                      {group.rows.length.toLocaleString("en-US")} officer{group.rows.length === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                  {group.rows.map((row) => (
-                <div key={row.key} className={`${GRID_COLUMNS} border-b border-slate-100 px-4 py-3 last:border-b-0`}>
-                  <span className="min-w-0">
-                    <span className="block font-semibold text-slate-800">{row.name.toLocaleUpperCase("en")}</span>
-                    {row.detail ? <span className="block text-[10px] font-semibold uppercase tracking-wide text-brand-blue">{row.detail}</span> : null}
-                  </span>
-                  <span className="text-right font-bold text-brand-blue">
-                    {scope ? <BarangayLoanReport {...rowScope(row)} category="all" clientCount={row.numberOfClients} /> : countValue(row.numberOfClients)}
-                  </span>
-                  <span className="text-right font-bold text-red-700">{money(row.portfolio)}</span>
-                  <SummaryMetric count={row.current} balance={row.currentBalance} category="current" scope={scope ? rowScope(row) : undefined} />
-                  <SummaryMetric count={row.delayed} balance={row.delayedBalance} category="delayed" scope={scope ? rowScope(row) : undefined} />
-                  <SummaryMetric count={row.pastDue} balance={row.pastDueBalance} category="pastDue" scope={scope ? rowScope(row) : undefined} />
-                  <SummaryMetric count={row.litigated} balance={row.litigatedBalance} category="litigated" scope={scope ? rowScope(row) : undefined} />
-                </div>
-                  ))}
-                </div>
-              ))}
+              <ReorderableRows
+                ids={groups.map((group) => group.key)}
+                storageKey={`account-officer-summary-groups:${locationName}`}
+                defaultOrderLabel="team leader order"
+                variant="compact"
+              >
+                {groups.map((group) => {
+                  const totals = groupTotals?.[group.key];
+                  const isCollapsed = collapsed[group.key] === true;
+                  return (
+                    <div key={group.key}>
+                      <div className={`${GRID_COLUMNS} items-center border-y border-slate-200 bg-slate-50 px-4 py-2`}>
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <button
+                            type="button"
+                            className="rounded p-0.5 text-slate-500 hover:bg-slate-200 hover:text-slate-900"
+                            aria-expanded={!isCollapsed}
+                            aria-label={`${isCollapsed ? "Show" : "Hide"} officers under ${group.name}`}
+                            onClick={() => setCollapsed((current) => ({ ...current, [group.key]: !isCollapsed }))}
+                          >
+                            {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </button>
+                          <span className="min-w-0">
+                            <span className="block truncate text-xs font-bold uppercase tracking-wide text-slate-900">{group.name}</span>
+                            <span className="flex flex-wrap items-baseline gap-x-2">
+                              {group.kind ? <span className="text-[10px] font-bold uppercase tracking-wide text-brand-green">{group.kind}</span> : null}
+                              <span className="text-[10px] font-semibold text-slate-500">
+                                {group.rows.length.toLocaleString("en-US")} officer{group.rows.length === 1 ? "" : "s"}
+                              </span>
+                            </span>
+                          </span>
+                        </span>
+                        <span className="text-right text-xs font-bold text-slate-900">{totals?.numberOfClients ? countValue(totals.numberOfClients) : "-"}</span>
+                        <span className="text-right text-xs font-bold text-red-700">{totals?.portfolio ? money(totals.portfolio) : "-"}</span>
+                        <GroupMetric count={totals?.current} balance={totals?.currentBalance} />
+                        <GroupMetric count={totals?.delayed} balance={totals?.delayedBalance} />
+                        <GroupMetric count={totals?.pastDue} balance={totals?.pastDueBalance} />
+                        <GroupMetric count={totals?.litigated} balance={totals?.litigatedBalance} />
+                      </div>
+                      {isCollapsed ? null : (
+                        <ReorderableRows
+                          ids={group.rows.map((row) => row.key)}
+                          storageKey={`account-officer-summary-officers:${locationName}:${group.key}`}
+                          defaultOrderLabel="sorted order"
+                          variant="nav"
+                        >
+                          {group.rows.map((row) => (
+                            <div key={row.key} className={`${GRID_COLUMNS} border-b border-slate-100 px-4 py-3 last:border-b-0`}>
+                              <span className="min-w-0 pl-7">
+                                <span className="block font-semibold text-slate-800">{row.name.toLocaleUpperCase("en")}</span>
+                                {row.detail ? <span className="block text-[10px] font-semibold uppercase tracking-wide text-brand-blue">{row.detail}</span> : null}
+                              </span>
+                              <span className="text-right font-bold text-brand-blue">
+                                {scope ? <BarangayLoanReport {...rowScope(row)} category="all" clientCount={row.numberOfClients} /> : countValue(row.numberOfClients)}
+                              </span>
+                              <span className="text-right font-bold text-red-700">{money(row.portfolio)}</span>
+                              <SummaryMetric count={row.current} balance={row.currentBalance} category="current" scope={scope ? rowScope(row) : undefined} />
+                              <SummaryMetric count={row.delayed} balance={row.delayedBalance} category="delayed" scope={scope ? rowScope(row) : undefined} />
+                              <SummaryMetric count={row.pastDue} balance={row.pastDueBalance} category="pastDue" scope={scope ? rowScope(row) : undefined} />
+                              <SummaryMetric count={row.litigated} balance={row.litigatedBalance} category="litigated" scope={scope ? rowScope(row) : undefined} />
+                            </div>
+                          ))}
+                        </ReorderableRows>
+                      )}
+                    </div>
+                  );
+                })}
+              </ReorderableRows>
               {!rows.length ? <p className="px-4 py-10 text-center font-semibold text-slate-500">No linked outstanding loans.</p> : null}
             </div>
           </section>
@@ -325,6 +388,15 @@ function SummaryHeader({
           : <ArrowUpDown className="h-3 w-3 opacity-30" />}
       </button>
       {caption ? <span className="block text-[9px] normal-case tracking-normal">Clients / Principal</span> : null}
+    </span>
+  );
+}
+
+function GroupMetric({ count, balance }: { count?: number | null; balance?: number | null }) {
+  return (
+    <span className="text-right">
+      <span className="block text-xs font-bold text-slate-900">{count === undefined || count === null ? "-" : countValue(count)}</span>
+      <span className="mt-0.5 block text-[10px] font-bold text-red-700">{balance === undefined || balance === null ? "-" : money(balance)}</span>
     </span>
   );
 }

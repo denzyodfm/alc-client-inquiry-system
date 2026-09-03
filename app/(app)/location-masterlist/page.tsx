@@ -204,6 +204,16 @@ function accumulatedMetrics(accumulator?: MetricAccumulator): Metrics {
   };
 }
 
+// Team-leader totals for one place, keyed by leader, ready for the summary component.
+function leaderTotalsForLocation(locationPrefix: string, metricsByLeader: Map<string, MetricAccumulator>) {
+  const totals: Record<string, Metrics> = {};
+  for (const [key, accumulator] of metricsByLeader) {
+    if (!key.startsWith(`${locationPrefix}\u0000`)) continue;
+    totals[key.slice(key.lastIndexOf("\u0000") + 1)] = accumulatedMetrics(accumulator);
+  }
+  return totals;
+}
+
 function officerNodesForLocation(
   locationPrefix: string,
   metricsByOfficer: Map<string, MetricAccumulator>,
@@ -554,6 +564,12 @@ export default async function LocationMasterlistPage() {
     });
   }
   const metricsByPivotLeader = new Map<string, MetricAccumulator>();
+  // Team-leader totals per place. Accumulated from the loans rather than summed from the
+  // officer rows: two officers under one leader can hold loans for the same client, and
+  // adding their client counts would count that person twice. A client also takes their
+  // worst category across the whole team, which is not always the worst in any one row.
+  const metricsByProvinceLeader = new Map<string, MetricAccumulator>();
+  const metricsByMunicipalityLeader = new Map<string, MetricAccumulator>();
   const metricsByOfficerBranch = new Map<string, MetricAccumulator>();
   const branchNames = new Map<string, string>();
 
@@ -614,6 +630,10 @@ export default async function LocationMasterlistPage() {
     const rawOfficerKey = assignment.assignedToId === null ? "unassigned" : String(assignment.assignedToId);
     const officerKey = rawOfficerKey === "unassigned" ? rawOfficerKey : (canonicalOfficerIdById.get(rawOfficerKey) ?? rawOfficerKey);
     officerNames.set(officerKey, canonicalOfficerNameById.get(rawOfficerKey) ?? (assignment.assignedTo?.name ?? "Unassigned").toLocaleUpperCase("en"));
+    const officerPlacement = pivotByOfficer.get(officerKey);
+    const leaderKeyForOfficer = hasAssignedOfficer ? officerPlacement?.leaderKey ?? "leader-none" : "leader-none";
+    addLoanMetrics(metricsByProvinceLeader, `${provinceKey}\u0000${leaderKeyForOfficer}`, loan, hasAssignedOfficer, principalBalance, category);
+    addLoanMetrics(metricsByMunicipalityLeader, `${municipalityKey}\u0000${leaderKeyForOfficer}`, loan, hasAssignedOfficer, principalBalance, category);
     if (hasAssignedOfficer) {
       addLoanMetrics(metricsByAssignedOverall, "assigned", loan, true, principalBalance, category);
       const officerAreaTeamLeader = areaTeamLeaderByOfficer.get(officerKey) ?? null;
@@ -637,9 +657,7 @@ export default async function LocationMasterlistPage() {
       districtNames.set(districtKey, districtName.toLocaleUpperCase("en"));
       addLoanMetrics(metricsByDistrict, districtKey, loan, true, principalBalance, category);
       addLoanMetrics(metricsByZoneDistrict, `${zoneKey}\u0000${districtKey}`, loan, true, principalBalance, category);
-      const placement = pivotByOfficer.get(officerKey);
-      const pivotLeaderKey = placement?.leaderKey ?? "leader-none";
-      addLoanMetrics(metricsByPivotLeader, pivotLeaderKey, loan, true, principalBalance, category);
+      addLoanMetrics(metricsByPivotLeader, leaderKeyForOfficer, loan, true, principalBalance, category);
       const branchKey = String(loan.branchId);
       branchNames.set(branchKey, `${loan.branch.branchName} - ${loan.branch.branchCode}`);
       addLoanMetrics(metricsByOfficerBranch, `${officerKey}\u0000${branchKey}`, loan, true, principalBalance, category);
@@ -820,7 +838,7 @@ export default async function LocationMasterlistPage() {
                 <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open:bg-blue-100`}>
                   <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open:before:rotate-90">
                     <span className="loc-caps">{province.name}</span>
-                    <AccountOfficerSummary locationName={province.name} rows={accountOfficerRows(province.officers, officerDetails, officerLeaders)} scope={{ province: province.name }} />
+                    <AccountOfficerSummary locationName={province.name} rows={accountOfficerRows(province.officers, officerDetails, officerLeaders)} groupTotals={leaderTotalsForLocation(normalizedProvince(province.name), metricsByProvinceLeader)} scope={{ province: province.name }} />
                   </span>
                   <span className="text-right font-bold text-brand-blue">
                     <BarangayLoanReport
@@ -851,6 +869,7 @@ export default async function LocationMasterlistPage() {
                           <AccountOfficerSummary
                             locationName={`${municipality.name}, ${province.name}`}
                             rows={accountOfficerRows(municipality.officers, officerDetails, officerLeaders)}
+                            groupTotals={leaderTotalsForLocation(`${normalizedProvince(province.name)}\u0000${normalizedMunicipality(municipality.name)}`, metricsByMunicipalityLeader)}
                             scope={{ province: province.name, municipality: municipality.name }}
                           />
                         </span>
