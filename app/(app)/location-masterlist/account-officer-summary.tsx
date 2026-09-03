@@ -9,6 +9,9 @@ import { BarangayLoanReport, type LoanReportScope } from "@/components/officer-b
 export type AccountOfficerSummaryRow = {
   key: string;
   name: string;
+  // Area and privilege, or branch and privilege, depending on the role. Built on the server
+  // so this component stays a table and does not need the user directory.
+  detail?: string | null;
   numberOfClients: number;
   portfolio: number;
   current: number;
@@ -224,7 +227,10 @@ export function AccountOfficerSummary({
               </div>
               {sortedRows.map((row) => (
                 <div key={row.key} className={`${GRID_COLUMNS} border-b border-slate-100 px-4 py-3 last:border-b-0`}>
-                  <span className="font-semibold text-slate-800">{row.name.toLocaleUpperCase("en")}</span>
+                  <span className="min-w-0">
+                    <span className="block font-semibold text-slate-800">{row.name.toLocaleUpperCase("en")}</span>
+                    {row.detail ? <span className="block text-[10px] font-semibold uppercase tracking-wide text-brand-blue">{row.detail}</span> : null}
+                  </span>
                   <span className="text-right font-bold text-brand-blue">
                     {scope ? <BarangayLoanReport {...rowScope(row)} category="all" clientCount={row.numberOfClients} /> : countValue(row.numberOfClients)}
                   </span>

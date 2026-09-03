@@ -226,10 +226,28 @@ function officerNodesForLocation(
     });
 }
 
-function accountOfficerRows(officers: OfficerNode[]): AccountOfficerSummaryRow[] {
+function officerDetailLine(officer: {
+  privilegeTemplate: { name: string } | null;
+  area: { name: string } | null;
+  baseBranch: { branchName: string; branchCode: string } | null;
+}) {
+  const privilege = (officer.privilegeTemplate?.name ?? "").trim();
+  const key = privilege.toLocaleLowerCase("en");
+  const branch = officer.baseBranch ? `${officer.baseBranch.branchCode} - ${officer.baseBranch.branchName}` : null;
+
+  // Area TL is read against their area; the branch-based roles against their branch; a
+  // Remedial Officer covers an area's worth of ground, so only the privilege is meaningful.
+  if (key.startsWith("area")) return [officer.area?.name, privilege].filter(Boolean).join(" · ") || null;
+  if (key === "remedial officer") return privilege || null;
+  if (key.startsWith("branch") || key === "loan officer") return [branch, privilege].filter(Boolean).join(" · ") || null;
+  return [branch, privilege].filter(Boolean).join(" · ") || null;
+}
+
+function accountOfficerRows(officers: OfficerNode[], details: Map<string, string>): AccountOfficerSummaryRow[] {
   return officers.map((officer) => ({
     key: officer.key,
     name: officer.name,
+    detail: details.get(officer.key) ?? null,
     numberOfClients: officer.metrics.numberOfClients ?? 0,
     portfolio: officer.metrics.portfolio ?? 0,
     current: officer.metrics.current ?? 0,
@@ -416,7 +434,7 @@ export default async function LocationMasterlistPage() {
         privilegeTemplate: { select: { name: true } },
         areaTeamLeaderId: true,
         areaTeamLeader: { select: { id: true, name: true } },
-        area: { select: { areaTeamLeaderId: true, areaTeamLeader: { select: { id: true, name: true } } } },
+        area: { select: { name: true, areaTeamLeaderId: true, areaTeamLeader: { select: { id: true, name: true } } } },
         branchTeamLeaderId: true,
         branchTeamLeader: { select: { id: true, name: true } },
         baseBranch: {
@@ -542,6 +560,11 @@ export default async function LocationMasterlistPage() {
   const metricsByProvinceAreaTeamLeaderOfficer = new Map<string, MetricAccumulator>();
   const metricsByMunicipalityAreaTeamLeaderOfficer = new Map<string, MetricAccumulator>();
   const metricsByLocationAreaTeamLeaderOfficer = new Map<string, MetricAccumulator>();
+  const officerDetails = new Map<string, string>();
+  for (const officer of pivotOfficerRows) {
+    const line = officerDetailLine(officer);
+    if (line) officerDetails.set(String(officer.id), line);
+  }
   const officerNames = new Map<string, string>();
   const areaTeamLeaderNames = new Map<string, string>();
   const zoneNames = new Map<string, string>();
@@ -775,7 +798,7 @@ export default async function LocationMasterlistPage() {
                 <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open:bg-blue-100`}>
                   <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open:before:rotate-90">
                     <span className="loc-caps">{province.name}</span>
-                    <AccountOfficerSummary locationName={province.name} rows={accountOfficerRows(province.officers)} scope={{ province: province.name }} />
+                    <AccountOfficerSummary locationName={province.name} rows={accountOfficerRows(province.officers, officerDetails)} scope={{ province: province.name }} />
                   </span>
                   <span className="text-right font-bold text-brand-blue">
                     <BarangayLoanReport
@@ -805,7 +828,7 @@ export default async function LocationMasterlistPage() {
                           <span className="loc-caps">{municipality.name}</span>
                           <AccountOfficerSummary
                             locationName={`${municipality.name}, ${province.name}`}
-                            rows={accountOfficerRows(municipality.officers)}
+                            rows={accountOfficerRows(municipality.officers, officerDetails)}
                             scope={{ province: province.name, municipality: municipality.name }}
                           />
                         </span>
