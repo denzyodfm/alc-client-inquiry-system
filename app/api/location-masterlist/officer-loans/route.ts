@@ -1,7 +1,7 @@
 import type { Prisma, UserRole } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
-import { requireApiFunction } from "@/lib/api";
+import { requireApiAnyFunction, requireApiFunction } from "@/lib/api";
 import { canAccessFunction } from "@/lib/access-control";
 import { canAccessBranch, getAccessibleBranchIds } from "@/lib/auth";
 import { clientOutstandingLoanIds } from "@/lib/client-loan-group";
@@ -74,8 +74,14 @@ function compareRows(left: Record<SortKey, unknown>, right: Record<SortKey, unkn
 }
 
 export async function GET(request: NextRequest) {
-  const { user, response } = await requireApiFunction("LOCATION_MASTERLIST");
+  // My Clients drills into this same report, so an officer reaches it without holding the
+  // Location Masterlist privilege.
+  const { user, response } = await requireApiAnyFunction(["LOCATION_MASTERLIST", "MY_CLIENTS"]);
   if (response) return response;
+
+  // Whoever gets here only through My Clients reads their own book and nobody else's,
+  // whatever their role: that layout shows one officer at a time and that officer is them.
+  const ownBookOnly = !(await canAccessFunction(user!, "LOCATION_MASTERLIST"));
 
   const officerParam = request.nextUrl.searchParams.get("officerId");
   const officerId = officerParam ? Number(officerParam) : null;
@@ -137,15 +143,16 @@ export async function GET(request: NextRequest) {
   ) {
     return NextResponse.json({ error: "A valid Account Officer or location report scope is required." }, { status: 400 });
   }
-  if (user.role === "ACCOUNT_OFFICER" && officerId !== null && officerId !== user.id) {
+  const ownLoansOnly = user.role === "ACCOUNT_OFFICER" || ownBookOnly;
+  if (ownLoansOnly && officerId !== null && officerId !== user.id) {
     return NextResponse.json({ error: "You can view only your assigned loans." }, { status: 403 });
   }
   // An Account Officer only ever sees their own loans, so a multi-officer scope collapses to
   // themselves rather than widening what the row would otherwise show them.
-  if (user.role === "ACCOUNT_OFFICER" && officerIds.some((id) => id !== user.id)) {
+  if (ownLoansOnly && officerIds.some((id) => id !== user.id)) {
     return NextResponse.json({ error: "You can view only your assigned loans." }, { status: 403 });
   }
-  const effectiveOfficerId = officerId ?? (user.role === "ACCOUNT_OFFICER" ? user.id : null);
+  const effectiveOfficerId = officerId ?? (ownLoansOnly ? user.id : null);
   const officerFamily = effectiveOfficerId ? await officerAccountFamily(effectiveOfficerId) : null;
   if (effectiveOfficerId && !officerFamily) {
     return NextResponse.json({ error: "Account Officer not found." }, { status: 404 });
