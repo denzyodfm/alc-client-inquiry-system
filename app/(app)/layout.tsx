@@ -6,7 +6,7 @@ import { AuditTracker } from "@/components/audit-tracker";
 import { canAccessAnyFunction, canAccessFunction, type AppFunctionKey } from "@/lib/access-control";
 import { getFooterBranding } from "@/lib/footer-branding";
 
-type IconName = "Gauge" | "Banknote" | "Search" | "ClipboardCheck" | "ClipboardList" | "FileClock" | "Hourglass" | "Percent" | "ReceiptText" | "UserRoundCheck" | "MapPinned" | "Tag" | "History" | "Users" | "Settings" | "MapPin" | "KeyRound" | "BadgeCheck" | "MapPinOff";
+type IconName = "Gauge" | "Banknote" | "Search" | "ClipboardCheck" | "ClipboardList" | "FileClock" | "Hourglass" | "Percent" | "ReceiptText" | "UserRoundCheck" | "MapPinned" | "Tag" | "History" | "Users" | "Settings" | "MapPin" | "KeyRound" | "BadgeCheck" | "MapPinOff" | "UserRound";
 type NavConfig = { href?: string; label: string; icon: IconName; functionKey?: AppFunctionKey; functionKeys?: AppFunctionKey[]; adminOnly?: boolean; children?: NavConfig[] };
 
 const nav: NavConfig[] = [
@@ -14,7 +14,8 @@ const nav: NavConfig[] = [
   { label: "Clients", icon: "Users", children: [
     { href: "/inquiry", label: "Client Inquiry", icon: "Search", functionKey: "CLIENT_INQUIRY" },
     { href: "/client-logs", label: "Client Logs", icon: "FileClock", functionKey: "CLIENT_LOGS" },
-    { href: "/client-conditions", label: "Client Condition", icon: "UserRoundCheck", functionKey: "CLIENT_CONDITION" }
+    { href: "/client-conditions", label: "Client Condition", icon: "UserRoundCheck", functionKey: "CLIENT_CONDITION" },
+    { href: "/my-clients", label: "My Clients", icon: "UserRound", functionKey: "MY_CLIENTS" }
   ] },
   { href: "/co-makers", label: "Co Makers", icon: "UserRoundCheck", functionKey: "CO_MAKERS" },
   { label: "Loans", icon: "ClipboardList", children: [

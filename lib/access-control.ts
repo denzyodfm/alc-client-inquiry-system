@@ -20,6 +20,7 @@ export const APP_FUNCTIONS = [
   { key: "INVALID_ADDRESS", label: "Invalid Address", description: "Re-tag loans flagged as having a wrong address" },
   { key: "VERIFIED_LOANS", label: "Verified Loans", description: "Review verified loans and the verification report" },
   { key: "CLIENT_CONDITION", label: "Client Condition", description: "Manage client condition records" },
+  { key: "MY_CLIENTS", label: "My Clients", description: "An officer's own clients, grouped by location" },
   { key: "SYNC_LOGS", label: "Sync Logs", description: "View branch synchronization history" },
   { key: "USER_MANAGEMENT", label: "User Management", description: "Create and manage authorized user accounts" },
   { key: "SETTINGS_ACCESS", label: "Settings and Access Control", description: "Manage branches, privileges, and access matrix" }

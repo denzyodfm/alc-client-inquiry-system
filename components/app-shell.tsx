@@ -26,6 +26,7 @@ import {
   Search,
   Settings,
   Tag,
+  UserRound,
   UserRoundCheck,
   Users,
   X
@@ -61,6 +62,7 @@ const icons = {
   Search,
   Settings,
   Tag,
+  UserRound,
   UserRoundCheck,
   Users
 };
