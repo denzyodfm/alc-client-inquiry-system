@@ -2,6 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: process.cwd(),
+  // A deploy builds into a staging directory and swaps it into place at restart, so the
+  // running app never has its own chunks deleted underneath it - which is what produced the
+  // "client-side exception" page during every deploy. Unset at runtime: the build being
+  // served is always .next.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // Sent on every response. Deliberately not a Content-Security-Policy: the app loads map
   // tiles from openstreetmap.org and Next emits inline bootstrap scripts, so a policy strict
   // enough to be worth having needs testing against those rather than guessing at it.

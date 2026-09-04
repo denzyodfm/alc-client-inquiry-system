@@ -20,8 +20,16 @@
 # So: watch the build log. If it stops growing while the process is still alive, the build
 # is hung rather than slow - kill it and start over.
 #
+# Where the build lands
+# ---------------------
+# Into a staging directory, not .next. A build writing straight into .next deletes the chunk
+# files the running app is still handing out, so every deploy broke the site from the moment
+# the build reached that point until the restart. Staging plus scripts/vps-release.sh narrows
+# that to the restart itself.
+#
 # Usage:
-#   bash scripts/vps-build.sh
+#   bash scripts/vps-build.sh          # build into .next-staging
+#   bash scripts/vps-release.sh        # swap it into place and restart
 #   ATTEMPTS=6 STALL_SECONDS=240 bash scripts/vps-build.sh
 #
 set -uo pipefail
@@ -33,6 +41,8 @@ ATTEMPTS="${ATTEMPTS:-4}"
 # pages is the quietest real phase, so this needs headroom above that.
 STALL_SECONDS="${STALL_SECONDS:-180}"
 POLL_SECONDS="${POLL_SECONDS:-10}"
+# Built here, then moved into place by vps-release.sh. Never .next: that is the live one.
+STAGING_DIR="${STAGING_DIR:-.next-staging}"
 
 cd "$APP_DIR"
 
@@ -47,8 +57,10 @@ kill_tree() {
 for attempt in $(seq 1 "$ATTEMPTS"); do
   echo "==> Build attempt $attempt of $ATTEMPTS"
   rm -f "$LOG_FILE"
+  # A half-written staging directory from a hung attempt must not be mistaken for a good one.
+  rm -rf "$APP_DIR/$STAGING_DIR"
 
-  setsid nohup npm run build > "$LOG_FILE" 2>&1 < /dev/null &
+  NEXT_DIST_DIR="$STAGING_DIR" setsid nohup npm run build > "$LOG_FILE" 2>&1 < /dev/null &
   wrapper_pid=$!
   sleep 3
   # The npm wrapper forks; the node process doing the work is the one to watch and kill.
@@ -89,9 +101,10 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
   fi
 
   # An exited build still has to have actually succeeded.
-  if grep -q "Compiled successfully" "$LOG_FILE" && [[ -s "$APP_DIR/.next/BUILD_ID" ]]; then
+  if grep -q "Compiled successfully" "$LOG_FILE" && [[ -s "$APP_DIR/$STAGING_DIR/BUILD_ID" ]]; then
     echo "==> Build succeeded on attempt $attempt"
-    echo "    BUILD_ID $(cat "$APP_DIR/.next/BUILD_ID")"
+    echo "    BUILD_ID $(cat "$APP_DIR/$STAGING_DIR/BUILD_ID") staged in $STAGING_DIR"
+    echo "    the live site is untouched until scripts/vps-release.sh runs"
     exit 0
   fi
 
