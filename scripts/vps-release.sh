@@ -59,6 +59,24 @@ if ! mv "$STAGING_DIR" .next; then
   exit 1
 fi
 
+# A page already open in somebody's browser still asks for the chunk files of the build it
+# was served by. Those are gone the moment the new build takes over, which is why an open tab
+# throws "a client-side exception has occurred" after a deploy even though the server is
+# perfectly healthy. Carrying the previous build's static files forward - without overwriting
+# any of the new ones - lets those tabs keep working until the reader reloads.
+if [[ -d "$PREVIOUS_DIR/static" ]]; then
+  before="$(find .next/static -type f 2>/dev/null | wc -l)"
+  # -n so a new file is never overwritten by its older namesake, -p so the carried files keep
+  # their original dates - the pruning below reads those dates to decide what has aged out.
+  cp -rpn "$PREVIOUS_DIR/static/." .next/static/ 2>/dev/null
+  after="$(find .next/static -type f 2>/dev/null | wc -l)"
+  echo "    carried forward $(( after - before )) file(s) from the previous build so open tabs survive"
+  # Each release carries the one before it, so without this the directory would grow for ever.
+  # A week is far longer than a browser tab stays open on a build nobody has reloaded.
+  pruned="$(find .next/static -type f -mtime "+${KEEP_ASSET_DAYS:-7}" -print -delete 2>/dev/null | wc -l)"
+  [[ "$pruned" -gt 0 ]] && echo "    pruned $pruned asset(s) older than ${KEEP_ASSET_DAYS:-7} days"
+fi
+
 echo "==> Restarting $APP_NAME"
 if ! timeout 90 pm2 restart "$APP_NAME" --update-env >/dev/null 2>&1; then
   echo "    pm2 restart did not return cleanly; checking whether the app came up anyway"
