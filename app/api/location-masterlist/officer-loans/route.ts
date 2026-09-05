@@ -355,8 +355,19 @@ export async function GET(request: NextRequest) {
     }
   });
 
+  // What this one officer actually is, so a report about a named person can say "Remedial
+  // Officer" rather than the umbrella term. Only meaningful when the report is scoped to one
+  // officer; a report spanning several has no single answer and gets null.
+  const scopedOfficerRole = effectiveOfficerId
+    ? (await prisma.user.findUnique({
+        where: { id: effectiveOfficerId },
+        select: { privilegeTemplate: { select: { name: true } } }
+      }))?.privilegeTemplate?.name?.trim() || null
+    : null;
+
   return NextResponse.json({
     rows,
+    scopedOfficerRole,
     clientStartIndex,
     clientsOnPage: pageClientIds.length,
     officers: officers.map((officer) => ({

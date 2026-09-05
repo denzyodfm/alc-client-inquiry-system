@@ -42,6 +42,8 @@ type OfficerOption = { id: number; name: string; allBranches: boolean; branchIds
 
 type Result = {
   rows: LoanRow[];
+  // Set only when the report covers one officer; a report spanning several has no single role.
+  scopedOfficerRole: string | null;
   clientStartIndex: number;
   clientsOnPage: number;
   officers: OfficerOption[];
@@ -365,7 +367,7 @@ export function BarangayLoanReport({
                 <p className="text-xs font-bold uppercase tracking-wide text-brand-green">Client and Loan Information</p>
                 <h3 className="mt-1 text-xl font-bold text-slate-950">{categoryLabels[category]}</h3>
                 <p className="mt-1 text-sm font-semibold text-slate-600">{locationName}</p>
-                {officerName ? <p className="mt-1 text-xs font-bold uppercase tracking-wide text-brand-blue">Account Officer: {officerName}</p> : null}
+                {officerName ? <p className="mt-1 text-xs font-bold uppercase tracking-wide text-brand-blue">{result?.scopedOfficerRole ?? "Account Officer"}: {officerName}</p> : null}
               </div>
               <div className="flex flex-wrap gap-2">
                 <a className="btn-secondary" href={`${baseUrl}&format=excel`} download>Download Excel</a>
