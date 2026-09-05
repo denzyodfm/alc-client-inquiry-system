@@ -129,6 +129,25 @@ if wait_for_build "$NEW_BUILD"; then
   exit 0
 fi
 
+# Nothing came back, which means pm2 did not respawn it either - its daemon is wedged badly
+# enough that it is no longer supervising anything. Left here the site is simply down, which
+# is exactly what happened on 5 Sep. Clearing the daemon and restoring from its saved dump is
+# what actually works on this host. It restarts every app pm2 owns, so it is a last resort.
+echo "==> Nothing is listening; clearing the wedged pm2 daemon and restoring from its dump" >&2
+timeout 45 pm2 kill >/dev/null 2>&1 || {
+  GOD="$(pgrep -f 'PM2.*God' | head -1)"
+  [[ -n "$GOD" ]] && kill -9 "$GOD" 2>/dev/null
+}
+sleep 4
+timeout 90 pm2 resurrect >/dev/null 2>&1
+
+if wait_for_build "$NEW_BUILD"; then
+  echo "==> Live on $NEW_BUILD (pid $(app_pid)) after a full pm2 restart"
+  echo "    pm2 had to be cleared to get here - worth looking at why it wedged." >&2
+  rm -rf "$PREVIOUS_DIR"
+  exit 0
+fi
+
 echo "==> The app is not serving $NEW_BUILD; rolling back to $OLD_BUILD" >&2
 if [[ -d "$PREVIOUS_DIR" ]]; then
   rm -rf "$STAGING_DIR"
@@ -138,6 +157,13 @@ if [[ -d "$PREVIOUS_DIR" ]]; then
   if ! wait_for_build "$OLD_BUILD"; then
     CURRENT_PID="$(app_pid)"
     [[ -n "$CURRENT_PID" ]] && kill "$CURRENT_PID" 2>/dev/null
+    sleep 5
+  fi
+  # Same last resort as above: getting the site back matters more than being gentle.
+  if ! wait_for_build "$OLD_BUILD"; then
+    timeout 45 pm2 kill >/dev/null 2>&1 || { GOD="$(pgrep -f 'PM2.*God' | head -1)"; [[ -n "$GOD" ]] && kill -9 "$GOD" 2>/dev/null; }
+    sleep 4
+    timeout 90 pm2 resurrect >/dev/null 2>&1
   fi
   if wait_for_build "$OLD_BUILD"; then
     echo "    rolled back; the build that would not start is in $STAGING_DIR" >&2
