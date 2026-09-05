@@ -749,7 +749,7 @@ export default async function AccountTaggingPage({
         <p className="mt-2 text-sm font-semibold text-slate-600">
           {user.role === "ACCOUNT_OFFICER"
             ? "View the accounts assigned to you by zone."
-            : "Search outstanding loans by address and customer name, then assign matching accounts to an Account Officer."}
+            : "Search outstanding loans by address and customer name, then assign matching accounts to an Loan / Remedial Officer."}
         </p>
         </div>
         {user.role !== "ACCOUNT_OFFICER" ? (
@@ -768,12 +768,12 @@ export default async function AccountTaggingPage({
       {viewDistribution ? (
         <section className="panel p-6">
           <div>
-            <h3 className="text-xl font-bold text-slate-950">Account Distribution per Account Officer</h3>
+            <h3 className="text-xl font-bold text-slate-950">Account Distribution per Loan / Remedial Officer</h3>
             <p className="mt-1 text-sm text-slate-600">{distributionTotal.toLocaleString("en-US")} account(s), including unassigned</p>
           </div>
           {distributionTotal ? (
             <div className="mt-4 grid items-center gap-4 lg:grid-cols-[minmax(520px,1fr)_340px]">
-              <svg className="mx-auto h-auto w-full max-w-[620px]" viewBox="0 0 520 520" role="img" aria-label="Account distribution per Account Officer">
+              <svg className="mx-auto h-auto w-full max-w-[620px]" viewBox="0 0 520 520" role="img" aria-label="Account distribution per Loan / Remedial Officer">
                 {distributionSegments.map((segment) => (
                   <path key={segment.id} d={piePath(segment.startAngle, segment.endAngle)} fill={segment.color} stroke="#fff" strokeWidth="2" />
                 ))}
@@ -956,7 +956,7 @@ export default async function AccountTaggingPage({
             <p className="mt-1 text-sm text-slate-600">
               {user.role === "ACCOUNT_OFFICER"
                 ? "Select a zone to view your assigned accounts."
-                : "Select a zone inside an Account Officer card to view its tagged portfolio."}
+                : "Select a zone inside an Loan / Remedial Officer card to view its tagged portfolio."}
             </p>
           </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">

@@ -20,7 +20,7 @@ export type PickableOfficer = {
 function roleWord(officers: PickableOfficer[]) {
   const roles = new Set(officers.map((officer) => (officer.role ?? "").trim()).filter(Boolean));
   if (roles.size === 1) return [...roles][0];
-  return "Account Officer";
+  return "Loan / Remedial Officer";
 }
 
 // An administrator reads somebody else's book, so they have to say whose first. An officer

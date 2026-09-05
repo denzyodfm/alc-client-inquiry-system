@@ -702,7 +702,7 @@ export function RemedialWorkspace({
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-wide text-brand-green">Remedial Assignment</p>
-                <h3 className="text-xl font-bold text-slate-950">Assign follow-up to Account Officer</h3>
+                <h3 className="text-xl font-bold text-slate-950">Assign follow-up to Loan / Remedial Officer</h3>
               </div>
               <button
                 type="button"
@@ -719,9 +719,9 @@ export function RemedialWorkspace({
             <form onSubmit={submitAssignmentModal} className="grid max-h-[calc(90vh-80px)] gap-4 overflow-auto p-5">
               <div className="grid gap-3 lg:grid-cols-[1fr_0.7fr_1fr]">
                 <label className="block">
-                  <span className="mb-2 block text-sm font-semibold text-slate-700">Account Officer</span>
+                  <span className="mb-2 block text-sm font-semibold text-slate-700">Loan / Remedial Officer</span>
                   <select name="assignedToId" className="field" required>
-                    <option value="">Select Account Officer</option>
+                    <option value="">Select Loan / Remedial Officer</option>
                     {officers.map((officer) => (
                       <option key={officer.id} value={officer.id}>
                         {officer.name} - {officer.email}

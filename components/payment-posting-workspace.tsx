@@ -426,7 +426,7 @@ function PostingFields({
       </label>
       <label className="mt-2 flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-700">
         <input name="accountOfficerChanged" type="checkbox" className="h-4 w-4 rounded border-slate-300" />
-        Select different Account Officer
+        Select different Loan / Remedial Officer
       </label>
       <button type="submit" className="btn-primary mt-2 w-full" disabled={posting || !selectedLoan || total <= 0}>
         {posting ? "Posting locally..." : "Post payment locally"}

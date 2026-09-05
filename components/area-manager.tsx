@@ -61,7 +61,7 @@ export function AreaManager({ initialAreas, teamLeaders }: { initialAreas: Area[
   return <div className="grid gap-6 xl:grid-cols-[0.75fr_1.25fr]">
     <form key={editing?.id ?? "new"} onSubmit={submit} className="panel space-y-4 p-5">
       <div className="flex items-center justify-between gap-3">
-        <div><h3 className="text-lg font-bold text-slate-950">{editing ? "Edit Area" : "Create Area"}</h3><p className="mt-1 text-sm text-slate-500">Define the areas that can be assigned to Account Officers.</p></div>
+        <div><h3 className="text-lg font-bold text-slate-950">{editing ? "Edit Area" : "Create Area"}</h3><p className="mt-1 text-sm text-slate-500">Define the areas that can be assigned to Loan / Remedial Officers.</p></div>
         {editing ? <button type="button" className="btn-secondary h-9 px-3" onClick={() => setEditing(null)}><X className="h-4 w-4" />Cancel</button> : null}
       </div>
       {error ? <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</div> : null}
@@ -73,7 +73,7 @@ export function AreaManager({ initialAreas, teamLeaders }: { initialAreas: Area[
           <option value="">No Area Team Leader</option>
           {teamLeaders.map((leader) => <option key={leader.id} value={leader.id}>{leader.name}</option>)}
         </select>
-        <span className="mt-1 block text-xs text-slate-500">Account Officers assigned to this area report to this Area Team Leader.</span>
+        <span className="mt-1 block text-xs text-slate-500">Loan / Remedial Officers assigned to this area report to this Area Team Leader.</span>
       </label>
       <textarea name="description" className="field min-h-24" placeholder="Description (optional)" defaultValue={editing?.description ?? ""} maxLength={255} />
       <button className="btn-primary w-full" disabled={loading}>{editing ? <Save className="h-4 w-4" /> : <Plus className="h-4 w-4" />}{loading ? "Saving..." : editing ? "Update Area" : "Create Area"}</button>
@@ -85,7 +85,7 @@ export function AreaManager({ initialAreas, teamLeaders }: { initialAreas: Area[
           <div className="min-w-0"><p className="flex items-center gap-2 font-bold text-slate-950"><MapPinned className="h-4 w-4 text-brand-blue" />{area.name}</p><p className="mt-1 text-sm text-slate-500">{area.areaTeamLeader ? <span className="font-semibold text-brand-blue">Area TL: {area.areaTeamLeader.name}</span> : <span className="font-semibold text-red-600">No Area TL</span>}{area._count ? ` · ${area._count.users} officer(s)` : ""}</p><p className="text-sm text-slate-500">{area.description || "No description"}</p></div>
           <div className="flex gap-2"><button type="button" className="btn-secondary h-9 px-3 text-xs" onClick={() => { setEditing(area); setError(null); setNotice(null); }} disabled={loading}><Pencil className="h-4 w-4" />Edit</button><button type="button" className="inline-flex h-9 items-center gap-2 rounded-md border border-red-200 px-3 text-xs font-semibold text-red-600 hover:bg-red-50" onClick={() => remove(area)} disabled={loading}><Trash2 className="h-4 w-4" />Delete</button></div>
         </div>)}
-        {!areas.length ? <p className="p-5 text-sm text-slate-500">No areas yet. Create one to make it selectable when assigning Account Officers.</p> : null}
+        {!areas.length ? <p className="p-5 text-sm text-slate-500">No areas yet. Create one to make it selectable when assigning Loan / Remedial Officers.</p> : null}
       </div>
     </div>
   </div>;

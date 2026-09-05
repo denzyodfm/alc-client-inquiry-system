@@ -132,7 +132,7 @@ export function ClientConditionList({
             <thead className="bg-slate-50 uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-3 py-3">No.</th><th className="px-3 py-3">Client</th><th className="px-3 py-3">Address</th>
-                <th className="px-3 py-3">Branch / Loan</th><th className="px-3 py-3">Account Officer</th><th className="px-3 py-3">Area TL</th>
+                <th className="px-3 py-3">Branch / Loan</th><th className="px-3 py-3">Loan / Remedial Officer</th><th className="px-3 py-3">Area TL</th>
                 <th className="px-3 py-3">Zone</th><th className="px-3 py-3">Condition</th><th className="px-3 py-3">Approval</th>
                 <th className="px-3 py-3">Dates</th><th className="px-3 py-3 no-print">Actions</th>
               </tr>

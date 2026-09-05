@@ -149,7 +149,7 @@ export function BarangayLoanReport({
   assignedOnly?: boolean;
   unassignedOnly?: boolean;
   category?: LocationReportCategory;
-  // The With Account Officer column is green, so its link matches the column it sits in.
+  // The With Loan / Remedial Officer column is green, so its link matches the column it sits in.
   tone?: "blue" | "green" | "amber";
 }) {
   const router = useRouter();
@@ -251,7 +251,7 @@ export function BarangayLoanReport({
     const place = locationFor(row);
     const hasLocation = Boolean(place.province && place.municipality && place.barangay);
     if ((!Number.isInteger(assignedToId) || assignedToId <= 0) && !hasLocation) {
-      setError("Select an Account Officer or a complete location.");
+      setError("Select an Loan / Remedial Officer or a complete location.");
       return;
     }
     setSavingLoanId(row.id);
@@ -263,11 +263,11 @@ export function BarangayLoanReport({
         body: JSON.stringify({ loanId: row.id, assignedToId: assignedToId > 0 ? assignedToId : 0, ...(hasLocation ? place : {}) })
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data?.error ?? "Unable to assign the Account Officer.");
+      if (!response.ok) throw new Error(data?.error ?? "Unable to assign the Loan / Remedial Officer.");
       setReload((value) => value + 1);
       router.refresh();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Unable to assign the Account Officer.");
+      setError(requestError instanceof Error ? requestError.message : "Unable to assign the Loan / Remedial Officer.");
     } finally {
       setSavingLoanId(null);
     }
@@ -367,7 +367,7 @@ export function BarangayLoanReport({
                 <p className="text-xs font-bold uppercase tracking-wide text-brand-green">Client and Loan Information</p>
                 <h3 className="mt-1 text-xl font-bold text-slate-950">{categoryLabels[category]}</h3>
                 <p className="mt-1 text-sm font-semibold text-slate-600">{locationName}</p>
-                {officerName ? <p className="mt-1 text-xs font-bold uppercase tracking-wide text-brand-blue">{result?.scopedOfficerRole ?? "Account Officer"}: {officerName}</p> : null}
+                {officerName ? <p className="mt-1 text-xs font-bold uppercase tracking-wide text-brand-blue">{result?.scopedOfficerRole ?? "Loan / Remedial Officer"}: {officerName}</p> : null}
               </div>
               <div className="flex flex-wrap gap-2">
                 <a className="btn-secondary" href={`${baseUrl}&format=excel`} download>Download Excel</a>
@@ -433,7 +433,7 @@ export function BarangayLoanReport({
                       ))}
                       <th className="px-3 py-3 text-center">Not Valid Address</th>
                       <th className="min-w-[420px] px-3 py-3">Assign Location</th>
-                      <th className="min-w-[260px] px-3 py-3">Account Officer / Action</th>
+                      <th className="min-w-[260px] px-3 py-3">Loan / Remedial Officer / Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -526,7 +526,7 @@ export function BarangayLoanReport({
                                 value={selectedOfficers[row.id] ?? String(row.assignedOfficerId ?? "")}
                                 onChange={(event) => setSelectedOfficers((current) => ({ ...current, [row.id]: event.target.value }))}
                               >
-                                <option value="">Select Account Officer</option>
+                                <option value="">Select Loan / Remedial Officer</option>
                                 {result.officers
                                   .filter((officer) => officer.allBranches || officer.branchIds.includes(row.branchId))
                                   .map((officer) => <option key={officer.id} value={officer.id}>{officer.name}</option>)}

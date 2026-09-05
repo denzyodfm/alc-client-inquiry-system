@@ -470,7 +470,7 @@ export default async function LocationMasterlistPage() {
   ]);
 
   // Old inactive accounts may still own historical assignments. Resolve every duplicate
-  // name to its active Account Officer so the pivot and its drilldowns show one identity.
+  // name to its active Loan / Remedial Officer so the pivot and its drilldowns show one identity.
   const activeOfficerByName = new Map<string, { id: number; name: string }>();
   for (const officer of pivotOfficerRows) {
     if (!officer.isActive) continue;
@@ -486,7 +486,7 @@ export default async function LocationMasterlistPage() {
     canonicalOfficerNameById.set(String(officer.id), canonical.name.toLocaleUpperCase("en"));
   }
 
-  // An Account Officer's Area TL is now a standing assignment: the one picked
+  // A Loan / Remedial Officer's Area TL is now a standing assignment: the one picked
   // directly on the user wins, otherwise it comes from their Area. Either way
   // it beats the per-loan remedial tagging; officers with neither still fall
   // back to the loan's own tag so nothing disappears before the backfill.
@@ -836,7 +836,7 @@ export default async function LocationMasterlistPage() {
         <div className="text-sm">
           <div className={`${locationRowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 shadow-sm`}>
             <span>Location</span><span className="text-right">No. of Clients</span>
-            <span className="text-right">With Account Officer</span><span className="text-right">Without Account Officer</span><span className="text-right">Portfolio</span>
+            <span className="text-right">With Loan / Remedial Officer</span><span className="text-right">Without Loan / Remedial Officer</span><span className="text-right">Portfolio</span>
             <StatusHeader label="Current" /><StatusHeader label="Delayed" />
             <StatusHeader label="Past Due" /><StatusHeader label="Litigated" />
           </div>
@@ -933,7 +933,7 @@ export default async function LocationMasterlistPage() {
                               {barangay.officers.map((officer) => (
                                 <div key={officer.key} className={`${locationRowGrid} border-b border-blue-100 px-4 py-3 last:border-b-0`}>
                                   <span>
-                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Account Officer</span>
+                                    <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Loan / Remedial Officer</span>
                                     <span className="ml-3 font-semibold text-slate-800">{officer.name}</span>
                                     {officer.key !== "unassigned" ? <OfficerBranchSummary officerId={Number(officer.key)} officerName={officer.name} /> : null}
                                   </span>
@@ -976,7 +976,7 @@ export default async function LocationMasterlistPage() {
 
       <section className="panel overflow-hidden">
         <div className="border-b border-slate-200 p-5">
-          <h3 className="text-lg font-bold text-slate-950">Account Officer Location Pivot</h3>
+          <h3 className="text-lg font-bold text-slate-950">Loan / Remedial Officer Location Pivot</h3>
           <p className="mt-1 text-sm text-slate-600">
             Area Team Leaders and Branch Team Leaders sit side by side. Open a team leader for its officers, then an officer for the province, city/municipality, and barangay of their assigned loans.
             Click an officer&apos;s client count for the loan details, or the Location button for their province, city/municipality, and barangay. Every level can be dragged into the order you prefer. The total counts each client only once across all officers.
@@ -1078,10 +1078,10 @@ export default async function LocationMasterlistPage() {
           </div>
           {pivotOfficerCount ? (
             <div className={`${officerRowGrid} border-t-2 border-slate-300 bg-slate-50 px-4 py-3 font-extrabold text-slate-950`}>
-              <span>Account Officer Total</span>
+              <span>Loan / Remedial Officer Total</span>
               <MetricCells
                 metrics={accountOfficerTotal}
-                reportScope={{ assignedOnly: true, locationName: "All Account Officers — All Assigned Locations" }}
+                reportScope={{ assignedOnly: true, locationName: "All Loan / Remedial Officers — All Assigned Locations" }}
               />
             </div>
           ) : null}
@@ -1185,7 +1185,7 @@ function MetricCells({
               tone="green"
               category="all"
               clientCount={metrics.withAccountOfficer ?? 0}
-              locationName={`${reportScope.locationName} — with Account Officer`}
+              locationName={`${reportScope.locationName} — with Loan / Remedial Officer`}
             />
           ) : count(metrics.withAccountOfficer)}
         </span>
@@ -1201,7 +1201,7 @@ function MetricCells({
               tone="amber"
               category="all"
               clientCount={metrics.withoutAccountOfficer ?? 0}
-              locationName={`${reportScope.locationName} — without Account Officer`}
+              locationName={`${reportScope.locationName} — without Loan / Remedial Officer`}
             />
           ) : count(metrics.withoutAccountOfficer)}
         </span>

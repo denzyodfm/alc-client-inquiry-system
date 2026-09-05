@@ -114,9 +114,9 @@ export function DistrictOfficerSummary({ zone, district, label }: { zone: string
       .number{text-align:right;white-space:nowrap}
       @page{size:landscape;margin:10mm}
     </style></head><body>
-      <h1>Account Officers - ${escapeHtml(district)}</h1><h2>Zone: ${escapeHtml(zone)}</h2>
+      <h1>Loan / Remedial Officers - ${escapeHtml(district)}</h1><h2>Zone: ${escapeHtml(zone)}</h2>
       <table><thead><tr>
-        <th>No.</th><th>Account Officer</th><th>Privilege</th><th>Branch</th><th>Clients</th><th>Portfolio</th>
+        <th>No.</th><th>Loan / Remedial Officer</th><th>Privilege</th><th>Branch</th><th>Clients</th><th>Portfolio</th>
         <th>Current</th><th>Current Principal</th><th>Delayed</th><th>Delayed Principal</th>
         <th>Past Due</th><th>Past Due Principal</th><th>Litigated</th><th>Litigated Principal</th>
       </tr></thead><tbody>${body || '<tr><td colspan="14">No assigned loans.</td></tr>'}</tbody></table>
@@ -152,7 +152,7 @@ export function DistrictOfficerSummary({ zone, district, label }: { zone: string
           event.stopPropagation();
           setOpen(true);
         }}
-        title={`Account Officers in ${district}`}
+        title={`Loan / Remedial Officers in ${district}`}
       >
         {label}
       </button>
@@ -174,7 +174,7 @@ export function DistrictOfficerSummary({ zone, district, label }: { zone: string
               >
                 <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-brand-green">Account Officers</p>
+                    <p className="text-xs font-bold uppercase tracking-wide text-brand-green">Loan / Remedial Officers</p>
                     <h3 className="mt-1 text-lg font-bold text-slate-950">{district}</h3>
                     <p className="text-xs text-slate-500">Zone: {zone}. Click a client count for the loan details.</p>
                   </div>
@@ -210,7 +210,7 @@ export function DistrictOfficerSummary({ zone, district, label }: { zone: string
                   {rows ? (
                     <>
                       <div className={`sticky top-0 z-10 ${ROW_GRID} border-b border-slate-200 bg-white px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-slate-500 shadow-sm`}>
-                        <SortHeader label="Account Officer" sortKey="officerName" sort={sort} onSort={toggleSort} />
+                        <SortHeader label="Loan / Remedial Officer" sortKey="officerName" sort={sort} onSort={toggleSort} />
                         <SortHeader label="Privilege" sortKey="privilege" sort={sort} onSort={toggleSort} />
                         <SortHeader label="Branch" sortKey="branches" sort={sort} onSort={toggleSort} />
                         <SortHeader label="Clients" sortKey="numberOfClients" sort={sort} onSort={toggleSort} align="right" />

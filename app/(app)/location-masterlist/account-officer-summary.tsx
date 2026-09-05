@@ -108,12 +108,12 @@ function reportTable(
     </tr>`).join("")}`).join("");
 
   return `
-    <h1>Account Officer Summary</h1>
+    <h1>Loan / Remedial Officer Summary</h1>
     <h2>${escapeHtml(locationName)}</h2>
     <table>
       <thead>
         <tr>
-          <th>Account Officer</th><th>Clients</th><th>Portfolio</th>
+          <th>Loan / Remedial Officer</th><th>Clients</th><th>Portfolio</th>
           <th>Current Clients</th><th>Current Principal</th>
           <th>Delayed Clients</th><th>Delayed Principal</th>
           <th>Past Due Clients</th><th>Past Due Principal</th>
@@ -172,7 +172,7 @@ export function AccountOfficerSummary({
       const key = row.key === "unassigned" ? "unassigned" : row.leaderKey;
       const group = byLeader.get(key) ?? {
         key,
-        name: row.key === "unassigned" ? "Without Account Officer" : row.leaderName,
+        name: row.key === "unassigned" ? "Without Loan / Remedial Officer" : row.leaderName,
         kind: row.key === "unassigned" ? "" : row.leaderKind,
         scopes: new Set<string>(),
         rows: []
@@ -190,7 +190,7 @@ export function AccountOfficerSummary({
   function toggleSort(key: SortKey) {
     setSort((current) => current.key === key ? { key, dir: current.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "name" ? "asc" : "desc" });
   }
-  const title = `Account Officer Summary - ${locationName}`;
+  const title = `Loan / Remedial Officer Summary - ${locationName}`;
   const excelFileName = useMemo(
     () => `account-officer-summary-${locationName.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLocaleLowerCase("en") || "location"}.xls`,
     [locationName]
@@ -241,7 +241,7 @@ export function AccountOfficerSummary({
           setOpen(true);
         }}
       >
-        Account Officers
+        Loan / Remedial Officers
       </button>
       {open ? createPortal(
         <div
@@ -260,7 +260,7 @@ export function AccountOfficerSummary({
           >
             <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-brand-green">Account Officer Summary</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-brand-green">Loan / Remedial Officer Summary</p>
                 <h3 className="mt-1 text-lg font-bold text-slate-950">{locationName}</h3>
               </div>
               <div className="flex items-center gap-2">
@@ -277,7 +277,7 @@ export function AccountOfficerSummary({
             </header>
             <div className="overflow-auto">
               <div className={`sticky top-0 z-10 ${GRID_COLUMNS} border-b border-slate-200 bg-white px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-slate-500 shadow-sm`}>
-                <SummaryHeader label="Account Officer" sortKey="name" sort={sort} onSort={toggleSort} />
+                <SummaryHeader label="Loan / Remedial Officer" sortKey="name" sort={sort} onSort={toggleSort} />
                 <SummaryHeader label="Clients" sortKey="numberOfClients" sort={sort} onSort={toggleSort} align="right" />
                 <SummaryHeader label="Portfolio" sortKey="portfolio" sort={sort} onSort={toggleSort} align="right" />
                 <SummaryHeader label="Current" sortKey="current" sort={sort} onSort={toggleSort} align="right" caption />

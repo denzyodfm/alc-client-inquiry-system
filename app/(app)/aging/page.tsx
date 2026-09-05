@@ -303,7 +303,7 @@ export default async function AgingReportPage({
     : closeDetailHref;
   const backToBranchCardsHref = buildAgingHref({ branchId: selectedBranchId, product: selectedProduct, searchText, detail: "matches" });
   const matchingDetailTitle = searchText ? `Matching past-due accounts for "${searchText}"` : "All matching past-due accounts";
-  const activeOfficerName = selectedOfficerKey === "unassigned" ? "Unassigned" : matchesDetailAgingRows[0]?.assignedOfficerName ?? "Account Officer";
+  const activeOfficerName = selectedOfficerKey === "unassigned" ? "Unassigned" : matchesDetailAgingRows[0]?.assignedOfficerName ?? "Loan / Remedial Officer";
 
   return (
     <div className="space-y-6">
