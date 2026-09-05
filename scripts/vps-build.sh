@@ -30,16 +30,21 @@
 # Usage:
 #   bash scripts/vps-build.sh          # build into .next-staging
 #   bash scripts/vps-release.sh        # swap it into place and restart
-#   ATTEMPTS=6 STALL_SECONDS=240 bash scripts/vps-build.sh
+#   ATTEMPTS=6 STALL_SECONDS=1200 bash scripts/vps-build.sh
 #
 set -uo pipefail
 
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 LOG_FILE="${LOG_FILE:-$APP_DIR/build.log}"
 ATTEMPTS="${ATTEMPTS:-4}"
-# Longest the log may stay unchanged before the build is treated as hung. Generating static
-# pages is the quietest real phase, so this needs headroom above that.
-STALL_SECONDS="${STALL_SECONDS:-180}"
+# Longest the log may stay unchanged before the build is treated as hung.
+#
+# This has to clear the quietest healthy phase by a wide margin. "Linting and checking validity
+# of types" prints nothing at all while it runs, and on 5 Sep 2026 it outgrew a 180s threshold:
+# four builds in a row compiled successfully and were then killed by this script for being
+# quiet, which reads in the log as a hang and is not one. Fifteen minutes is far longer than a
+# real typecheck here and still catches the genuine article, which never recovers at all.
+STALL_SECONDS="${STALL_SECONDS:-900}"
 POLL_SECONDS="${POLL_SECONDS:-10}"
 # Built here, then moved into place by vps-release.sh. Never .next: that is the live one.
 STAGING_DIR="${STAGING_DIR:-.next-staging}"
