@@ -2,7 +2,8 @@ import { CalendarDays, UserRound } from "lucide-react";
 import { OfficerLogCalendar } from "@/components/officer-log-calendar";
 import { requireFunction } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { OfficerPicker, type PickableOfficer } from "../my-clients/officer-picker";
+import { officerChoiceFor, canReadOfficer } from "@/lib/officer-scope";
+import { OfficerPicker } from "../my-clients/officer-picker";
 
 export const dynamic = "force-dynamic";
 
@@ -27,24 +28,11 @@ export default async function MySchedulePage({
   const params = await searchParams;
   const isOfficer = user.role === "ACCOUNT_OFFICER";
 
-  // An officer reads their own schedule and nobody else's, so the id in the address is ignored
-  // for them rather than checked. The endpoint behind the calendar enforces the same rule.
+  const choice = await officerChoiceFor(user);
   const requestedId = Number(params?.officerId ?? 0) || null;
-  const officerId = isOfficer ? user.id : requestedId;
-
-  const pickableOfficers: PickableOfficer[] = isOfficer
-    ? []
-    : (await prisma.user.findMany({
-        where: { role: "ACCOUNT_OFFICER", isActive: true },
-        orderBy: { name: "asc" },
-        select: officerSelect
-      })).map((officer) => ({
-        id: officer.id,
-        name: officer.name,
-        area: officer.area?.name ?? null,
-        branch: officer.baseBranch ? `${officer.baseBranch.branchCode} - ${officer.baseBranch.branchName}` : null,
-        role: officer.privilegeTemplate?.name?.trim() || null
-      }));
+  const officerId = choice.mode === "self"
+    ? choice.officerId
+    : requestedId && (await canReadOfficer(user, requestedId)) ? requestedId : null;
 
   const selectedOfficer = officerId
     ? await prisma.user.findFirst({ where: { id: officerId, role: "ACCOUNT_OFFICER" }, select: officerSelect })
@@ -63,7 +51,9 @@ export default async function MySchedulePage({
         </p>
       </div>
 
-      {isOfficer ? null : <OfficerPicker officers={pickableOfficers} selectedId={selectedOfficer?.id ?? null} basePath="/my-schedule" />}
+      {choice.mode === "choose"
+        ? <OfficerPicker scopes={choice.scopes} officers={choice.officers} selectedId={selectedOfficer?.id ?? null} basePath="/my-schedule" subject="schedule" />
+        : null}
 
       {selectedOfficer ? (
         <OfficerLogCalendar officerId={selectedOfficer.id} officerName={selectedOfficer.name} variant="inline" />
