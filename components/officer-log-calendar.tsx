@@ -31,7 +31,19 @@ function dayKey(year: number, month: number, day: number) {
 }
 
 // The follow-up and promise-to-pay dates an officer recorded, laid out as a month calendar.
-export function OfficerLogCalendar({ officerId, officerName }: { officerId: number; officerName: string }) {
+export function OfficerLogCalendar({
+  officerId,
+  officerName,
+  variant = "link"
+}: {
+  officerId: number;
+  officerName: string;
+  // "link" is a name you click to raise the schedule over the page it sits on. "inline" drops
+  // the trigger and the overlay and puts the same calendar straight into a page, which is what
+  // My Schedule is - a whole layout rather than something stacked on another one.
+  variant?: "link" | "inline";
+}) {
+  const inline = variant === "inline";
   const [open, setOpen] = useState(false);
   const [entries, setEntries] = useState<ScheduleEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +89,7 @@ export function OfficerLogCalendar({ officerId, officerName }: { officerId: numb
   }
 
   useEffect(() => {
-    if (!open) return;
+    if (!inline && !open) return;
     const controller = new AbortController();
     setLoading(true);
     setError(null);
@@ -97,14 +109,14 @@ export function OfficerLogCalendar({ officerId, officerName }: { officerId: numb
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [officerId, open]);
+  }, [officerId, open, inline]);
 
   useEffect(() => {
-    if (!open) return;
+    if (inline || !open) return;
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [open]);
+  }, [open, inline]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, ScheduleEntry[]>();
@@ -116,6 +128,7 @@ export function OfficerLogCalendar({ officerId, officerName }: { officerId: numb
     return map;
   }, [entries]);
 
+  const showing = inline || open;
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
   const firstWeekday = new Date(year, month, 1).getDay();
@@ -126,32 +139,12 @@ export function OfficerLogCalendar({ officerId, officerName }: { officerId: numb
   const todayKey = new Date().toISOString().slice(0, 10);
   const selectedEntries = selectedDay ? byDay.get(selectedDay) ?? [] : [];
 
-  return (
-    <>
-      <button
-        type="button"
-        className="text-left font-semibold text-brand-blue hover:underline"
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          setOpen(true);
-        }}
-        title={`Follow-up and promise-to-pay schedule for ${officerName}`}
-      >
-        {officerName}
-      </button>
-      {open
-        ? createPortal(
-            <div
-              className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4"
-              role="presentation"
-              onMouseDown={() => setOpen(false)}
-            >
+  const panel = (
               <section
-                role="dialog"
-                aria-modal="true"
-                aria-label={`Schedule for ${officerName}`}
-                className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-2xl"
+                {...(inline ? {} : { role: "dialog", "aria-modal": true, "aria-label": `Schedule for ${officerName}` })}
+                className={inline
+                  ? "panel flex w-full flex-col overflow-hidden text-left"
+                  : "flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-left shadow-2xl"}
                 onMouseDown={(event) => event.stopPropagation()}
               >
                 <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4">
@@ -171,9 +164,11 @@ export function OfficerLogCalendar({ officerId, officerName }: { officerId: numb
                     <button type="button" className="btn-secondary h-9 px-3 text-xs" onClick={() => setCursor(new Date())}>
                       <CalendarDays className="h-4 w-4" />Today
                     </button>
-                    <button type="button" className="rounded-md p-2 text-slate-500 hover:bg-slate-200 hover:text-slate-900" onClick={() => setOpen(false)} aria-label="Close">
-                      <X className="h-5 w-5" />
-                    </button>
+                    {inline ? null : (
+                      <button type="button" className="rounded-md p-2 text-slate-500 hover:bg-slate-200 hover:text-slate-900" onClick={() => setOpen(false)} aria-label="Close">
+                        <X className="h-5 w-5" />
+                      </button>
+                    )}
                   </div>
                 </header>
                 <div className="border-b border-slate-200 bg-slate-50 px-5 py-2 text-xs font-semibold text-slate-600">
@@ -193,7 +188,7 @@ export function OfficerLogCalendar({ officerId, officerName }: { officerId: numb
                         {WEEKDAYS.map((weekday) => <span key={weekday} className="py-1">{weekday}</span>)}
                       </div>
                       <div className="grid grid-cols-7 gap-1">
-                        {Array.from({ length: firstWeekday }).map((_, index) => <div key={`blank-${index}`} className="min-h-24 rounded-md bg-slate-50/60" />)}
+                        {Array.from({ length: firstWeekday }).map((_, index) => <div key={`blank-${index}`} className="min-h-14 rounded-md bg-slate-50/60 sm:min-h-24" />)}
                         {Array.from({ length: daysInMonth }).map((_, index) => {
                           const day = index + 1;
                           const key = dayKey(year, month, day);
@@ -210,11 +205,17 @@ export function OfficerLogCalendar({ officerId, officerName }: { officerId: numb
                               onDrop={(event) => { event.preventDefault(); const id = Number(event.dataTransfer.getData("text/plain") || draggedId); if (id) void moveEntry(id, key); }}
                               role="button"
                               tabIndex={0}
-                              className={`min-h-24 rounded-md border p-1 text-left align-top transition ${
+                              className={`min-h-14 rounded-md border p-1 text-left align-top transition sm:min-h-24 ${
                                 dayEntries.length ? "border-blue-200 bg-blue-50/60 hover:bg-blue-100" : "border-slate-200 bg-white hover:bg-slate-50"
                               } ${isToday ? "ring-2 ring-brand-blue" : ""} ${selectedDay === key ? "ring-2 ring-brand-green" : ""} ${dropDay === key ? "border-amber-500 bg-amber-50 ring-2 ring-amber-400" : ""}`}
                             >
                               <span className={`block text-xs font-bold ${isToday ? "text-brand-blue" : "text-slate-700"}`}>{day}</span>
+                              {dayEntries.length ? (
+                                <span className="mt-0.5 flex items-center justify-center rounded bg-brand-blue px-1 py-0.5 text-[10px] font-bold leading-none text-white sm:hidden">
+                                  {dayEntries.length}
+                                </span>
+                              ) : null}
+                              <span className="hidden sm:contents">
                               {dayEntries.slice(0, 3).map((entry) => (
                                 <span
                                   key={entry.id}
@@ -229,7 +230,8 @@ export function OfficerLogCalendar({ officerId, officerName }: { officerId: numb
                                 </span>
                               ))}
                               {dayEntries.length > 3 ? <span className="mt-0.5 block text-[10px] font-bold text-brand-blue">+{dayEntries.length - 3} more</span> : null}
-                              {promised ? <span className="mt-0.5 block text-[10px] font-bold text-red-700">{money(promised)}</span> : null}
+                              </span>
+                              {promised ? <span className="mt-0.5 hidden text-[10px] font-bold text-red-700 sm:block">{money(promised)}</span> : null}
                             </div>
                           );
                         })}
@@ -272,6 +274,32 @@ export function OfficerLogCalendar({ officerId, officerName }: { officerId: numb
                   ) : null}
                 </div>
               </section>
+  );
+
+  if (inline) return panel;
+
+  return (
+    <>
+      <button
+        type="button"
+        className="text-left font-semibold text-brand-blue hover:underline"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setOpen(true);
+        }}
+        title={`Follow-up and promise-to-pay schedule for ${officerName}`}
+      >
+        {officerName}
+      </button>
+      {open
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4"
+              role="presentation"
+              onMouseDown={() => setOpen(false)}
+            >
+              {panel}
             </div>,
             document.body
           )

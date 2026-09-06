@@ -1,20 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
-import { requireApiFunction } from "@/lib/api";
+import { requireApiAnyFunction } from "@/lib/api";
+import { canAccessFunction } from "@/lib/access-control";
 import { getClientLogBranchIds } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 // The follow-up / promise-to-pay dates an officer recorded on their client logs, for the
 // calendar popup. Entries are keyed by the promised date, not by when the log was encoded.
 export async function GET(request: NextRequest) {
-  const { user, response } = await requireApiFunction("CLIENT_LOGS");
+  // My Schedule is this calendar as a layout of its own, and it is meant for Loan and Remedial
+  // Officers - who are not granted Client Logs. Without this they would be refused their own
+  // schedule by the endpoint that draws it.
+  const { user, response } = await requireApiAnyFunction(["CLIENT_LOGS", "MY_SCHEDULE"]);
   if (response) return response;
+
+  // Whoever gets here only through My Schedule reads their own and nobody else's, whatever
+  // their role - that layout shows one officer at a time and that officer is them.
+  const ownScheduleOnly = !(await canAccessFunction(user!, "CLIENT_LOGS"));
 
   const officerId = Number(request.nextUrl.searchParams.get("officerId"));
   if (!Number.isInteger(officerId) || officerId <= 0) {
     return NextResponse.json({ error: "A valid account officer is required." }, { status: 400 });
   }
-  if (user!.role === "ACCOUNT_OFFICER" && officerId !== user!.id) {
+  if ((user!.role === "ACCOUNT_OFFICER" || ownScheduleOnly) && officerId !== user!.id) {
     return NextResponse.json({ error: "You can view only your own schedule." }, { status: 403 });
   }
 
@@ -48,7 +56,7 @@ export async function GET(request: NextRequest) {
   ]);
 
   return NextResponse.json({
-    officerName: officer?.name ?? "Account Officer",
+    officerName: officer?.name ?? "Loan / Remedial Officer",
     entries: logs.map((log) => ({
       id: log.id,
       date: log.newDate!.toISOString().slice(0, 10),

@@ -25,7 +25,17 @@ function roleWord(officers: PickableOfficer[]) {
 
 // An administrator reads somebody else's book, so they have to say whose first. An officer
 // never sees this - their own name is not a choice they need to make.
-export function OfficerPicker({ officers, selectedId }: { officers: PickableOfficer[]; selectedId: number | null }) {
+export function OfficerPicker({
+  officers,
+  selectedId,
+  basePath = "/my-clients"
+}: {
+  officers: PickableOfficer[];
+  selectedId: number | null;
+  // My Clients and My Schedule both pick an officer the same way; this keeps the choice on
+  // whichever layout the reader is actually looking at.
+  basePath?: string;
+}) {
   const router = useRouter();
   const params = useSearchParams();
   const [area, setArea] = useState("");
@@ -55,7 +65,7 @@ export function OfficerPicker({ officers, selectedId }: { officers: PickableOffi
     const next = new URLSearchParams(params.toString());
     if (id) next.set("officerId", id);
     else next.delete("officerId");
-    router.push(next.toString() ? `/my-clients?${next.toString()}` : "/my-clients");
+    router.push(next.toString() ? `${basePath}?${next.toString()}` : basePath);
   }
 
   function chooseArea(value: string) {

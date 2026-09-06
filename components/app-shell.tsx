@@ -8,6 +8,7 @@ import {
   BadgeCheck,
   Building2,
   Banknote,
+  CalendarDays,
   BrainCircuit,
   ClipboardCheck,
   ClipboardList,
@@ -45,6 +46,7 @@ type NavItem = {
 const icons = {
   BadgeCheck,
   Banknote,
+  CalendarDays,
   Building2,
   BrainCircuit,
   ClipboardCheck,

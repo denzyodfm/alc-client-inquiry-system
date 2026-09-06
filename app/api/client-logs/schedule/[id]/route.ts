@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireApiFunction } from "@/lib/api";
+import { requireApiAnyFunction } from "@/lib/api";
+import { canAccessFunction } from "@/lib/access-control";
 import { auditAction } from "@/lib/audit";
 import { getClientLogBranchIds } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -7,8 +8,13 @@ import { prisma } from "@/lib/prisma";
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const { user, response } = await requireApiFunction("CLIENT_LOGS");
+  // Dragging a date in My Schedule lands here, and the officers that layout is for are not
+  // granted Client Logs. The ownership check below still decides what they may move.
+  const { user, response } = await requireApiAnyFunction(["CLIENT_LOGS", "MY_SCHEDULE"]);
   if (response) return response;
+
+  // Reaching this only through My Schedule means moving your own entries and nobody else's.
+  const ownScheduleOnly = !(await canAccessFunction(user!, "CLIENT_LOGS"));
 
   const { id } = await context.params;
   const logId = Number(id);
@@ -30,7 +36,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
   });
   if (!existing?.newDate) return NextResponse.json({ error: "Scheduled client log not found." }, { status: 404 });
-  if (user!.role === "ACCOUNT_OFFICER" && existing.encodedById !== user!.id) {
+  if ((user!.role === "ACCOUNT_OFFICER" || ownScheduleOnly) && existing.encodedById !== user!.id) {
     return NextResponse.json({ error: "You can reschedule only your own clients." }, { status: 403 });
   }
   const branchIds = await getClientLogBranchIds(user!);
