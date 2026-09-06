@@ -3,7 +3,7 @@
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { money } from "@/lib/format";
+import { dateOnly, money } from "@/lib/format";
 import { LazyLoanDetailLink } from "@/components/lazy-loan-detail-link";
 import { ClientAddressPinEditor, type ClientAddressPin } from "@/components/client-address-pin-editor";
 import { barangayOptions, municipalityOptions, provinceOptions, withCurrentValue, type LocationOption } from "@/lib/location-options";
@@ -409,7 +409,33 @@ export function BarangayLoanReport({
               {loading && !result ? <p className="px-5 py-12 text-center font-semibold text-slate-500">Loading loan details...</p> : null}
               {error ? <p className="px-5 py-12 text-center font-semibold text-red-700">{error}</p> : null}
               {result ? (
-                <table className="w-full min-w-[1900px] text-left text-xs">
+                <>
+                <div className="space-y-2 p-3 text-left sm:hidden">
+                  {visibleReportRows.map((row) => (
+                    <div key={row.id} className="rounded-lg border border-slate-200 bg-white p-3 text-xs">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span className="text-sm font-bold text-slate-950">{row.clientName}</span>
+                        <span className="text-slate-400">{row.clientNumber ?? "-"}</span>
+                      </div>
+                      <p className="mt-0.5 font-semibold text-brand-blue">{row.loanNumber}</p>
+                      <p className="mt-0.5 text-slate-500">{row.branch}{row.product ? ` · ${row.product}` : ""}</p>
+                      {row.status ? <p className="mt-0.5 font-semibold text-slate-600">{row.status}</p> : null}
+                      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-left">
+                        <div><dt className="font-semibold text-slate-500">Principal balance</dt><dd className="font-bold text-red-700">{money(row.principalBalance)}</dd></div>
+                        <div><dt className="font-semibold text-slate-500">Total balance</dt><dd className="font-bold text-red-700">{money(row.totalBalance)}</dd></div>
+                        <div><dt className="font-semibold text-slate-500">Maturity</dt><dd>{dateOnly(row.maturityAt)}</dd></div>
+                        <div><dt className="font-semibold text-slate-500">Paid</dt><dd className="text-brand-green">{money(row.paidAmount)}</dd></div>
+                      </dl>
+                      {row.contactNumber ? (
+                        <p className="mt-2"><a className="font-semibold text-brand-blue" href={`tel:${row.contactNumber}`}>{row.contactNumber}</a></p>
+                      ) : null}
+                      {row.address ? <p className="mt-1 text-slate-600">{row.address}</p> : null}
+                      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">{row.accountOfficer}</p>
+                    </div>
+                  ))}
+                  {!visibleReportRows.length ? <p className="py-8 text-center text-sm text-slate-500">No loans to show.</p> : null}
+                </div>
+                <table className="hidden w-full min-w-[1900px] text-left text-xs sm:table">
                   <thead className="sticky top-0 z-10 bg-slate-50 uppercase tracking-wide text-slate-500">
                     <tr>
                       {SORT_COLUMNS.map((column) => (
@@ -548,6 +574,7 @@ export function BarangayLoanReport({
                     {!result.rows.length ? <tr><td className="px-3 py-10 text-center font-semibold text-slate-500" colSpan={20}>No matching loans found.</td></tr> : null}
                   </tbody>
                 </table>
+                </>
               ) : null}
             </div>
             <div className="flex items-center justify-between border-t border-slate-200 px-5 py-4">

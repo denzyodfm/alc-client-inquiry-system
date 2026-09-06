@@ -96,7 +96,35 @@ export function DashboardClientLogs({ rows, canDelete = false, initialSearch = "
         </div>
       </div>
       <p className="mt-2 rounded-md bg-slate-50 px-2 py-1 font-semibold text-slate-700">Promise to pay: <span className="font-bold text-red-700">{peso(summary.ptpTotal)}</span> across {summary.ptpCount.toLocaleString("en-US")} log(s) with an amount.</p>
-    </div> : null}<div className="panel max-h-[calc(100vh-24rem)] min-h-[360px] overflow-auto"><table className="w-full min-w-[1000px] text-xs"><thead className="sticky top-0 bg-slate-50"><tr><th className="px-3 py-2 text-left">#</th><th className="px-3 py-2 text-left">Date</th><th className="px-3 py-2 text-left">Client</th><th className="px-3 py-2 text-left">Branch</th><th className="px-3 py-2 text-left">Loan / Remedial Officer</th><th className="px-3 py-2 text-left">Type</th><th className="px-3 py-2 text-left">Activity</th>{canDelete ? <th className="px-3 py-2 text-right print:hidden">Action</th> : null}</tr></thead><tbody>{visibleRows.map((row, index) => <tr key={row.id} className="border-t border-slate-100"><td className="px-3 py-2 text-slate-400">{index + 1}</td><td className="whitespace-nowrap px-3 py-2">{new Date(row.visitAt).toLocaleString("en-US")}</td><td className="px-3 py-2"><ClientLogHistory clientId={row.clientId} clientName={row.client} variant="inline" /><br /><span className="text-slate-500">{row.clientNumber ?? "-"}</span></td><td className="px-3 py-2">{row.branch}</td><td className="px-3 py-2"><OfficerLogCalendar officerId={row.accountOfficerId} officerName={row.accountOfficer} /></td><td className="px-3 py-2">{row.type.replace(/_/g, " ")}</td><td className="px-3 py-2"><b>{row.subject}</b>{row.subject ? <br /> : null}{row.notes}</td>{canDelete ? <td className="px-3 py-2 text-right print:hidden"><div className="flex justify-end gap-1"><button type="button" className="btn-secondary h-8 px-2 text-xs" onClick={() => beginEdit(row)}><Pencil className="h-3.5 w-3.5" />Edit</button><button type="button" className="inline-flex h-8 items-center gap-1 rounded-md border border-red-200 px-2 font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50" onClick={() => remove(row)} disabled={deletingId === row.id}><Trash2 className="h-3.5 w-3.5" />{deletingId === row.id ? "Deleting..." : "Delete"}</button></div></td> : null}</tr>)}{!visibleRows.length ? <tr><td colSpan={canDelete ? 8 : 7} className="p-8 text-center text-slate-500">No client logs match the filters.</td></tr> : null}</tbody></table></div>
+    </div> : null}
+<div className="space-y-2 sm:hidden">
+  {visibleRows.map((row, index) => (
+    <div key={row.id} className="panel p-3 text-xs">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="font-bold text-slate-950"><ClientLogHistory clientId={row.clientId} clientName={row.client} variant="inline" /></span>
+        <span className="text-slate-400">#{index + 1}</span>
+      </div>
+      <p className="mt-0.5 text-slate-500">{row.clientNumber ?? "-"} &middot; {row.branch}</p>
+      <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="rounded bg-slate-100 px-1.5 py-0.5 font-semibold uppercase tracking-wide text-slate-700">{row.type.replace(/_/g, " ")}</span>
+        <span className="text-slate-500">{new Date(row.visitAt).toLocaleString("en-US")}</span>
+      </p>
+      <p className="mt-1 text-slate-500">
+        <OfficerLogCalendar officerId={row.accountOfficerId} officerName={row.accountOfficer} />
+      </p>
+      {row.subject ? <p className="mt-2 font-bold text-slate-900">{row.subject}</p> : null}
+      <p className="mt-1 whitespace-pre-wrap text-slate-700">{row.notes}</p>
+      {canDelete ? (
+        <div className="mt-2 flex justify-end gap-1 print:hidden">
+          <button type="button" className="btn-secondary h-8 px-2 text-xs" onClick={() => beginEdit(row)}><Pencil className="h-3.5 w-3.5" />Edit</button>
+          <button type="button" className="inline-flex h-8 items-center gap-1 rounded-md border border-red-200 px-2 font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50" onClick={() => remove(row)} disabled={deletingId === row.id}><Trash2 className="h-3.5 w-3.5" />{deletingId === row.id ? "Deleting..." : "Delete"}</button>
+        </div>
+      ) : null}
+    </div>
+  ))}
+  {!visibleRows.length ? <p className="panel p-8 text-center text-sm text-slate-500">No client logs match the filters.</p> : null}
+</div>
+<div className="panel hidden max-h-[calc(100vh-24rem)] min-h-[360px] overflow-auto sm:block"><table className="w-full min-w-[1000px] text-xs"><thead className="sticky top-0 bg-slate-50"><tr><th className="px-3 py-2 text-left">#</th><th className="px-3 py-2 text-left">Date</th><th className="px-3 py-2 text-left">Client</th><th className="px-3 py-2 text-left">Branch</th><th className="px-3 py-2 text-left">Loan / Remedial Officer</th><th className="px-3 py-2 text-left">Type</th><th className="px-3 py-2 text-left">Activity</th>{canDelete ? <th className="px-3 py-2 text-right print:hidden">Action</th> : null}</tr></thead><tbody>{visibleRows.map((row, index) => <tr key={row.id} className="border-t border-slate-100"><td className="px-3 py-2 text-slate-400">{index + 1}</td><td className="whitespace-nowrap px-3 py-2">{new Date(row.visitAt).toLocaleString("en-US")}</td><td className="px-3 py-2"><ClientLogHistory clientId={row.clientId} clientName={row.client} variant="inline" /><br /><span className="text-slate-500">{row.clientNumber ?? "-"}</span></td><td className="px-3 py-2">{row.branch}</td><td className="px-3 py-2"><OfficerLogCalendar officerId={row.accountOfficerId} officerName={row.accountOfficer} /></td><td className="px-3 py-2">{row.type.replace(/_/g, " ")}</td><td className="px-3 py-2"><b>{row.subject}</b>{row.subject ? <br /> : null}{row.notes}</td>{canDelete ? <td className="px-3 py-2 text-right print:hidden"><div className="flex justify-end gap-1"><button type="button" className="btn-secondary h-8 px-2 text-xs" onClick={() => beginEdit(row)}><Pencil className="h-3.5 w-3.5" />Edit</button><button type="button" className="inline-flex h-8 items-center gap-1 rounded-md border border-red-200 px-2 font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50" onClick={() => remove(row)} disabled={deletingId === row.id}><Trash2 className="h-3.5 w-3.5" />{deletingId === row.id ? "Deleting..." : "Delete"}</button></div></td> : null}</tr>)}{!visibleRows.length ? <tr><td colSpan={canDelete ? 8 : 7} className="p-8 text-center text-slate-500">No client logs match the filters.</td></tr> : null}</tbody></table></div>
 
     {editingRow ? <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4 print:hidden" role="dialog" aria-modal="true" aria-label="Edit client log entry" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditingRow(null); }}>
       <form onSubmit={saveEdit} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl">

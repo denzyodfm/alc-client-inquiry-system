@@ -381,7 +381,30 @@ const ClientResultCard = memo(function ClientResultCard({
       </dl>
       <PermanentAddressEditor client={primaryClient} locationOptions={locationOptions} />
       {isExpanded ? (
-        <div className="mt-5 overflow-x-auto overflow-y-visible">
+        <>
+        <div className="mt-4 space-y-2 sm:hidden">
+          {group.loans.map((loan) => {
+            const dueToday = amountDueAsOfToday(loan);
+            return (
+              <div key={loan.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <button type="button" className="text-base font-bold text-brand-blue hover:underline" onClick={() => onSelectLoan(loan)}>
+                    <Highlight value={loan.loanNumber ?? String(loan.id)} tokens={activeSearchTokens} />
+                  </button>
+                  <span className="text-xs font-semibold text-slate-500">{loan.client.branch.branchName}</span>
+                </div>
+                <p className="mt-0.5 text-xs font-semibold text-slate-600">{loan.sourceStatusName ?? loan.status}</p>
+                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                  <div><dt className="font-semibold text-slate-500">Released</dt><dd>{dateOnly(loan.releasedAt)}</dd></div>
+                  <div><dt className="font-semibold text-slate-500">Granted</dt><dd>{money(loan.principalAmount)}</dd></div>
+                  <div><dt className="font-semibold text-slate-500">Due today</dt><dd className={dueToday ? "font-bold text-red-700" : ""}>{money(dueToday)}</dd></div>
+                  <div><dt className="font-semibold text-slate-500">Balance</dt><dd className="font-bold text-red-700">{money(loan.balance)}</dd></div>
+                </dl>
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-5 hidden overflow-x-auto overflow-y-visible sm:block">
           <table className="w-full min-w-[1240px] text-left text-sm">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
@@ -454,6 +477,7 @@ const ClientResultCard = memo(function ClientResultCard({
             </tbody>
           </table>
         </div>
+        </>
       ) : null}
     </div>
   );
