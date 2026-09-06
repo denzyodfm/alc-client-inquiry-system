@@ -148,6 +148,21 @@ if wait_for_build "$NEW_BUILD"; then
   exit 0
 fi
 
+# pm2 could not be made to start anything. On 6 Sep that left the site returning 502 until it
+# was started by hand: the script had done everything it knew and stopped, with nothing
+# listening. A site that is up unsupervised beats a site that is down, so start it directly and
+# say plainly that it needs putting back under pm2.
+if [[ -z "$(app_pid)" ]]; then
+  echo "==> pm2 will not start it; starting the app directly so the site is not left down" >&2
+  ( cd "$APP_DIR" && setsid nohup npm start > /tmp/alc-app-fallback.log 2>&1 < /dev/null & ) || true
+  if wait_for_build "$NEW_BUILD"; then
+    echo "==> Live on $NEW_BUILD (pid $(app_pid)), but NOT under pm2" >&2
+    echo "    Nothing will restart it if it stops. Clear the pm2 daemon and resurrect when you can." >&2
+    rm -rf "$PREVIOUS_DIR"
+    exit 0
+  fi
+fi
+
 echo "==> The app is not serving $NEW_BUILD; rolling back to $OLD_BUILD" >&2
 if [[ -d "$PREVIOUS_DIR" ]]; then
   rm -rf "$STAGING_DIR"
