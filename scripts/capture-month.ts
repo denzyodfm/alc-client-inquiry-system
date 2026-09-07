@@ -20,6 +20,9 @@ async function main() {
   // would write today's book under that month's date - a report labelled "as of 30 September"
   // holding figures from the 7th, which is precisely the lie this report exists to avoid. A
   // date given explicitly is a deliberate act and is allowed through.
+  // The dates below are read in UTC and the cron fires at 23:50 by the server clock. The
+  // server runs on UTC, so those are the same day. On a clock west of UTC, 23:50 local would
+  // already be the next day in UTC and this guard would refuse every month.
   if (!requested) {
     const today = new Date();
     const isLastDay = today.getUTCDate() === monthEnd(today).getUTCDate();
