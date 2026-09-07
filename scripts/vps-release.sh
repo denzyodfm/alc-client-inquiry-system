@@ -51,7 +51,10 @@ answers() {
 # The check that matters: the running process must hand out the build that is on disk. Next
 # names its asset paths after the build, so the id appears in the page it serves.
 serving_build() {
-  curl -s -m 8 "$HEALTH_URL" 2>/dev/null | grep -qF "$1"
+  # -- because a Next build id can begin with a hyphen. Without it grep reads the id as an
+  # option: "-fcCQzY8EZZz2yccjF7CB" became -f "cCQzY8EZZz2yccjF7CB", a file that does not
+  # exist, so every check failed and a perfectly good build was rolled back on 7 Sep.
+  curl -s -m 8 "$HEALTH_URL" 2>/dev/null | grep -qF -- "$1"
 }
 
 wait_for_build() {
