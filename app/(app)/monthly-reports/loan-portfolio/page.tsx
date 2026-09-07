@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { CalendarRange, Layers3 } from "lucide-react";
 import { requireFunction } from "@/lib/auth";
 import { money } from "@/lib/format";
 import { capturedYears, monthlyPortfolio } from "@/lib/monthly-portfolio";
+import { PeriodFilter } from "./period-filter";
 
 export const dynamic = "force-dynamic";
 
@@ -17,14 +17,19 @@ function count(value: number) {
 export default async function LoanPortfolioPage({
   searchParams
 }: {
-  searchParams?: Promise<{ year?: string }>;
+  searchParams?: Promise<{ year?: string; month?: string }>;
 }) {
   await requireFunction("MONTHLY_REPORTS");
   const params = await searchParams;
   const years = await capturedYears();
   const requested = Number(params?.year ?? 0) || null;
   const year = requested && years.includes(requested) ? requested : years[0] ?? new Date().getUTCFullYear();
-  const rows = years.length ? await monthlyPortfolio(year) : [];
+  const allRows = years.length ? await monthlyPortfolio(year) : [];
+  // Every month captured in this year, so the picker can offer them whether or not one is
+  // currently chosen.
+  const monthsInYear = Array.from(new Set(allRows.map((row) => row.periodEnd))).sort((a, b) => b.localeCompare(a));
+  const month = params?.month && monthsInYear.includes(params.month) ? params.month : "";
+  const rows = month ? allRows.filter((row) => row.periodEnd === month) : allRows;
 
   // Grouped by month, newest first: the report is read a month at a time, and the branches
   // within a month are what get compared.
@@ -45,22 +50,8 @@ export default async function LoanPortfolioPage({
             The book per branch as it stood at each month end. Once a month is captured these figures do not move.
           </p>
         </div>
-        {years.length > 1 ? (
-          <div className="flex flex-wrap items-center gap-1">
-            {years.map((candidate) => (
-              <Link
-                key={candidate}
-                href={`/monthly-reports/loan-portfolio?year=${candidate}`}
-                className={`rounded-md border px-3 py-1.5 text-sm font-bold transition ${
-                  candidate === year
-                    ? "border-brand-blue bg-blue-50 text-brand-blue"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-brand-blue hover:text-brand-blue"
-                }`}
-              >
-                {candidate}
-              </Link>
-            ))}
-          </div>
+        {years.length ? (
+          <PeriodFilter years={years} months={monthsInYear} year={year} month={month} />
         ) : null}
       </div>
 
