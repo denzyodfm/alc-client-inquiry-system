@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function InquiryPage() {
   const user = await requireFunction("CLIENT_INQUIRY");
   const branchIds = await getAccessibleBranchIds(user);
-  const loanScope = { ...(branchIds === null ? {} : { branchId: { in: branchIds } }), ...(user.role === "ACCOUNT_OFFICER" ? { NOT: { branch: { branchName: { contains: "ALC HO" } } } } : {}) };
+  const loanScope = { ...(branchIds === null ? {} : { branchId: { in: branchIds } }), ...(user.role === "ACCOUNT_OFFICER" ? { NOT: { AND: [{ branch: { branchName: { contains: "ALC HO" } } }, { loanProduct: { contains: "EMPLOYEE" } }] } } : {}) };
   const [locationOptions, branches, products, statuses, branchAos] = await Promise.all([prisma.locationMasterlist.findMany({
     distinct: ["province", "municipality", "barangay"],
     select: { province: true, municipality: true, barangay: true },

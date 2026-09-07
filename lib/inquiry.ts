@@ -52,7 +52,10 @@ function clientWordSearch(value: string): Prisma.ClientWhereInput {
     : { fullName: { contains: value.trim() } };
 }
 
-export async function searchClientInquiry(payload: InquiryPayload, options?: { excludeAlcHo?: boolean }) {
+// Account Officers may now look up Head Office loans, which they previously could not see at
+// all. Staff lending stays out of their reach: the employee products at HO are the branch's
+// own people, and an officer in the field has no business searching them.
+export async function searchClientInquiry(payload: InquiryPayload, options?: { hideHoEmployeeLoans?: boolean }) {
   const visibleLoanFilter = visibleSyncedLoanWhere();
   const or = [];
   const customer = payload.customer?.trim();
@@ -96,13 +99,20 @@ export async function searchClientInquiry(payload: InquiryPayload, options?: { e
     };
   }
 
-  const selectedLoanFilter: Prisma.LoanWhereInput = { ...visibleLoanFilter, ...(product && product !== "ALL" ? { loanProduct: product } : {}), ...(payload.status && payload.status !== "ALL" && Number.isInteger(status) ? { sourceStatusCode: status } : {}), ...(branchAo && branchAo !== "ALL" ? { branchAo } : {}) };
+  // Head Office employee loans are the branch's own staff. Account Officers may search HO for
+  // everything else, but not for those. Excluding them on the loan filter rather than on the
+  // client keeps a member of staff out of the results entirely, instead of listing their name
+  // with no loans beneath it.
+  const hoEmployeeLoans: Prisma.LoanWhereInput = {
+    NOT: { AND: [{ branch: { branchName: { contains: "ALC HO" } } }, { loanProduct: { contains: "EMPLOYEE" } }] }
+  };
+  const selectedLoanFilter: Prisma.LoanWhereInput = { ...visibleLoanFilter,
+    ...(options?.hideHoEmployeeLoans ? hoEmployeeLoans : {}), ...(product && product !== "ALL" ? { loanProduct: product } : {}), ...(payload.status && payload.status !== "ALL" && Number.isInteger(status) ? { sourceStatusCode: status } : {}), ...(branchAo && branchAo !== "ALL" ? { branchAo } : {}) };
   const clients = await prisma.client.findMany({
     where: {
       ...(or.length ? { OR: or } : {}),
       ...(addressTerms.length ? { AND: addressTerms.map((term) => ({ address: { contains: term } })) } : {}),
       ...(Number.isInteger(branchId) && branchId > 0 ? { branchId } : {}),
-      ...(options?.excludeAlcHo ? { NOT: { branch: { branchName: { contains: "ALC HO" } } } } : {}),
       loans: { some: selectedLoanFilter }
     },
     include: {

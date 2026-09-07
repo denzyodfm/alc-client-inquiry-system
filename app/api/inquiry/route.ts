@@ -7,6 +7,6 @@ export async function POST(request: Request) {
   if (response) return response;
 
   const payload = await request.json();
-  const result = await searchClientInquiry(payload, { excludeAlcHo: user?.role === "ACCOUNT_OFFICER" });
+  const result = await searchClientInquiry(payload, { hideHoEmployeeLoans: user?.role === "ACCOUNT_OFFICER" });
   return NextResponse.json(result);
 }
