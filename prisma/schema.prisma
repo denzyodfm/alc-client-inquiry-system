@@ -49,46 +49,46 @@ enum RemedialVisitStatus {
 }
 
 model User {
-  id           Int      @id @default(autoincrement())
-  name         String   @db.VarChar(120)
-  userCode     String?  @unique @map("user_code") @db.VarChar(40)
-  email        String   @unique @db.VarChar(160)
-  passwordHash String   @map("password_hash") @db.VarChar(255)
-  role         UserRole @default(INQUIRY_USER)
-  position     String?  @db.VarChar(120)
-  baseBranchId Int?     @map("base_branch_id")
-  privilegeTemplateId Int? @map("privilege_template_id")
-  areaId       Int?     @map("area_id")
-  areaTeamLeaderId Int? @map("area_team_leader_id")
-  branchTeamLeaderId Int? @map("branch_team_leader_id")
-  allBranches  Boolean  @default(false) @map("all_branches")
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-  branchAccess UserBranchAccess[]
-  remedialAssignments RemedialAssignment[] @relation("RemedialAssignedOfficer")
-  remedialAssignedBy RemedialAssignment[] @relation("RemedialAssignedBy")
-  remedialAreaTeamLeader RemedialAssignment[] @relation("RemedialAreaTeamLeader")
-  remedialVisitsCreated RemedialVisit[] @relation("RemedialVisitCreatedBy")
-  remedialVisitsApproved RemedialVisit[] @relation("RemedialVisitApprovedBy")
-  clientLogs   ClientLog[] @relation("ClientLogEncodedBy")
-  localPaymentPostings LocalPaymentPosting[] @relation("LocalPaymentPostedBy")
-  locationLinkRuns LocationLinkRun[] @relation("LocationLinkRunStartedBy")
-  verifiedLoans Loan[] @relation("LoanVerifiedBy")
-  verificationReturns LoanVerificationReturn[] @relation("VerificationReturnedBy")
-  verificationsUndone LoanVerificationReturn[] @relation("VerificationReturnOriginalVerifier")
-  allowlistEntries LoginIpAllowlist[] @relation("LoginIpAllowlistCreatedBy")
-  auditLogs    AuditLog[]
-  preferences  UserPreference[]
-  baseBranch   Branch?  @relation("UserBaseBranch", fields: [baseBranchId], references: [id], onDelete: SetNull)
-  privilegeTemplate PrivilegeTemplate? @relation(fields: [privilegeTemplateId], references: [id], onDelete: SetNull)
-  area         Area?    @relation("AreaMembers", fields: [areaId], references: [id], onDelete: SetNull)
-  ledAreas     Area[]   @relation("AreaTeamLeaderAreas")
-  areaTeamLeader User?  @relation("UserAreaTeamLeader", fields: [areaTeamLeaderId], references: [id], onDelete: SetNull)
-  areaTeamMembers User[] @relation("UserAreaTeamLeader")
-  branchTeamLeader User? @relation("UserBranchTeamLeader", fields: [branchTeamLeaderId], references: [id], onDelete: SetNull)
-  branchTeamMembers User[] @relation("UserBranchTeamLeader")
-  ledBranches  Branch[] @relation("BranchTeamLeaderBranches")
+  id                     Int                      @id @default(autoincrement())
+  name                   String                   @db.VarChar(120)
+  userCode               String?                  @unique @map("user_code") @db.VarChar(40)
+  email                  String                   @unique @db.VarChar(160)
+  passwordHash           String                   @map("password_hash") @db.VarChar(255)
+  role                   UserRole                 @default(INQUIRY_USER)
+  position               String?                  @db.VarChar(120)
+  baseBranchId           Int?                     @map("base_branch_id")
+  privilegeTemplateId    Int?                     @map("privilege_template_id")
+  areaId                 Int?                     @map("area_id")
+  areaTeamLeaderId       Int?                     @map("area_team_leader_id")
+  branchTeamLeaderId     Int?                     @map("branch_team_leader_id")
+  allBranches            Boolean                  @default(false) @map("all_branches")
+  isActive               Boolean                  @default(true) @map("is_active")
+  createdAt              DateTime                 @default(now()) @map("created_at")
+  updatedAt              DateTime                 @updatedAt @map("updated_at")
+  branchAccess           UserBranchAccess[]
+  remedialAssignments    RemedialAssignment[]     @relation("RemedialAssignedOfficer")
+  remedialAssignedBy     RemedialAssignment[]     @relation("RemedialAssignedBy")
+  remedialAreaTeamLeader RemedialAssignment[]     @relation("RemedialAreaTeamLeader")
+  remedialVisitsCreated  RemedialVisit[]          @relation("RemedialVisitCreatedBy")
+  remedialVisitsApproved RemedialVisit[]          @relation("RemedialVisitApprovedBy")
+  clientLogs             ClientLog[]              @relation("ClientLogEncodedBy")
+  localPaymentPostings   LocalPaymentPosting[]    @relation("LocalPaymentPostedBy")
+  locationLinkRuns       LocationLinkRun[]        @relation("LocationLinkRunStartedBy")
+  verifiedLoans          Loan[]                   @relation("LoanVerifiedBy")
+  verificationReturns    LoanVerificationReturn[] @relation("VerificationReturnedBy")
+  verificationsUndone    LoanVerificationReturn[] @relation("VerificationReturnOriginalVerifier")
+  allowlistEntries       LoginIpAllowlist[]       @relation("LoginIpAllowlistCreatedBy")
+  auditLogs              AuditLog[]
+  preferences            UserPreference[]
+  baseBranch             Branch?                  @relation("UserBaseBranch", fields: [baseBranchId], references: [id], onDelete: SetNull)
+  privilegeTemplate      PrivilegeTemplate?       @relation(fields: [privilegeTemplateId], references: [id], onDelete: SetNull)
+  area                   Area?                    @relation("AreaMembers", fields: [areaId], references: [id], onDelete: SetNull)
+  ledAreas               Area[]                   @relation("AreaTeamLeaderAreas")
+  areaTeamLeader         User?                    @relation("UserAreaTeamLeader", fields: [areaTeamLeaderId], references: [id], onDelete: SetNull)
+  areaTeamMembers        User[]                   @relation("UserAreaTeamLeader")
+  branchTeamLeader       User?                    @relation("UserBranchTeamLeader", fields: [branchTeamLeaderId], references: [id], onDelete: SetNull)
+  branchTeamMembers      User[]                   @relation("UserBranchTeamLeader")
+  ledBranches            Branch[]                 @relation("BranchTeamLeaderBranches")
 
   @@index([baseBranchId])
   @@index([privilegeTemplateId])
@@ -131,14 +131,14 @@ model AuditLog {
 }
 
 model Area {
-  id          Int      @id @default(autoincrement())
-  name        String   @unique @db.VarChar(120)
-  description String?  @db.VarChar(255)
-  areaTeamLeaderId Int? @map("area_team_leader_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  areaTeamLeader User? @relation("AreaTeamLeaderAreas", fields: [areaTeamLeaderId], references: [id], onDelete: SetNull)
-  users       User[]   @relation("AreaMembers")
+  id               Int      @id @default(autoincrement())
+  name             String   @unique @db.VarChar(120)
+  description      String?  @db.VarChar(255)
+  areaTeamLeaderId Int?     @map("area_team_leader_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  areaTeamLeader   User?    @relation("AreaTeamLeaderAreas", fields: [areaTeamLeaderId], references: [id], onDelete: SetNull)
+  users            User[]   @relation("AreaMembers")
 
   @@index([areaTeamLeaderId])
   @@map("areas")
@@ -168,66 +168,97 @@ model PrivilegePermission {
 }
 
 model Branch {
-  id                  Int          @id @default(autoincrement())
-  branchName          String       @map("branch_name") @db.VarChar(140)
-  branchCode          String       @unique @map("branch_code") @db.VarChar(40)
-  publicIp            String?      @map("public_ip") @db.VarChar(80)
-  dynamicIp           String?      @map("dynamic_ip") @db.VarChar(160)
-  dbHost              String       @map("db_host") @db.VarChar(160)
-  dbName              String       @map("db_name") @db.VarChar(120)
-  dbUser              String       @map("db_user") @db.VarChar(120)
-  encryptedDbPassword String       @map("encrypted_db_password") @db.Text
-  status              BranchStatus @default(ACTIVE)
-  branchTeamLeaderId  Int?         @map("branch_team_leader_id")
-  lastSyncAt          DateTime?    @map("last_sync_at")
-  createdAt           DateTime     @default(now()) @map("created_at")
-  updatedAt           DateTime     @updatedAt @map("updated_at")
-  clients             Client[]
-  loans               Loan[]
-  coMakers            CoMaker[]
-  payments            Payment[]
-  localPaymentPostings LocalPaymentPosting[]
+  id                    Int                        @id @default(autoincrement())
+  branchName            String                     @map("branch_name") @db.VarChar(140)
+  branchCode            String                     @unique @map("branch_code") @db.VarChar(40)
+  publicIp              String?                    @map("public_ip") @db.VarChar(80)
+  dynamicIp             String?                    @map("dynamic_ip") @db.VarChar(160)
+  dbHost                String                     @map("db_host") @db.VarChar(160)
+  dbName                String                     @map("db_name") @db.VarChar(120)
+  dbUser                String                     @map("db_user") @db.VarChar(120)
+  encryptedDbPassword   String                     @map("encrypted_db_password") @db.Text
+  status                BranchStatus               @default(ACTIVE)
+  branchTeamLeaderId    Int?                       @map("branch_team_leader_id")
+  lastSyncAt            DateTime?                  @map("last_sync_at")
+  createdAt             DateTime                   @default(now()) @map("created_at")
+  updatedAt             DateTime                   @updatedAt @map("updated_at")
+  clients               Client[]
+  loans                 Loan[]
+  coMakers              CoMaker[]
+  payments              Payment[]
+  localPaymentPostings  LocalPaymentPosting[]
   amortizationSchedules AmortizationSchedule[]
-  syncLogs            SyncLog[]
-  userAccess          UserBranchAccess[]
-  baseUsers           User[]       @relation("UserBaseBranch")
-  branchTeamLeader    User?        @relation("BranchTeamLeaderBranches", fields: [branchTeamLeaderId], references: [id], onDelete: SetNull)
-  remedialAssignments RemedialAssignment[]
-  clientLogs          ClientLog[]
+  syncLogs              SyncLog[]
+  userAccess            UserBranchAccess[]
+  baseUsers             User[]                     @relation("UserBaseBranch")
+  branchTeamLeader      User?                      @relation("BranchTeamLeaderBranches", fields: [branchTeamLeaderId], references: [id], onDelete: SetNull)
+  remedialAssignments   RemedialAssignment[]
+  clientLogs            ClientLog[]
+  monthlySnapshots      MonthlyPortfolioSnapshot[]
 
   @@index([branchTeamLeaderId])
   @@map("branches")
 }
 
+// The loan book as it stood at the end of a month, kept because it must not move afterwards.
+//
+// These figures cannot be recomputed later. Whether a client is current, delayed, past due or
+// litigated is judged against the amortisation dates that had fallen due by that date and what
+// was paid on them by then; a payment made in November changes what October would look like if
+// it were worked out again today. So each month is captured once and then left alone.
+model MonthlyPortfolioSnapshot {
+  id                 Int      @id @default(autoincrement())
+  // The last day of the month this describes. One row per branch per month.
+  periodEnd          DateTime @map("period_end") @db.Date
+  branchId           Int      @map("branch_id")
+  clients            Int      @default(0)
+  loans              Int      @default(0)
+  principal          Decimal  @default(0) @db.Decimal(18, 2)
+  currentClients     Int      @default(0) @map("current_clients")
+  currentPrincipal   Decimal  @default(0) @map("current_principal") @db.Decimal(18, 2)
+  delayedClients     Int      @default(0) @map("delayed_clients")
+  delayedPrincipal   Decimal  @default(0) @map("delayed_principal") @db.Decimal(18, 2)
+  pastDueClients     Int      @default(0) @map("past_due_clients")
+  pastDuePrincipal   Decimal  @default(0) @map("past_due_principal") @db.Decimal(18, 2)
+  litigatedClients   Int      @default(0) @map("litigated_clients")
+  litigatedPrincipal Decimal  @default(0) @map("litigated_principal") @db.Decimal(18, 2)
+  capturedAt         DateTime @default(now()) @map("captured_at")
+  branch             Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([periodEnd, branchId])
+  @@index([periodEnd])
+  @@map("monthly_portfolio_snapshots")
+}
+
 model Client {
-  id              Int       @id @default(autoincrement())
-  branchId        Int       @map("branch_id")
-  remoteId        String    @map("remote_id") @db.VarChar(80)
-  clientId        String?   @map("client_id") @db.VarChar(80)
-  fullName        String    @map("full_name") @db.VarChar(180)
-  birthdate       DateTime? @db.Date
-  contactNumber   String?   @map("contact_number") @db.VarChar(80)
-  validIdNumber   String?   @map("valid_id_number") @db.VarChar(120)
-  address         String?   @db.VarChar(255)
-  addressLatitude Decimal?  @map("address_latitude") @db.Decimal(10, 7)
-  addressLongitude Decimal? @map("address_longitude") @db.Decimal(10, 7)
-  addressAccuracy Decimal?  @map("address_accuracy") @db.Decimal(10, 2)
-  addressCoordinateSource String? @map("address_coordinate_source") @db.VarChar(80)
-  addressGeocodedAt DateTime? @map("address_geocoded_at")
-  addressCapturedBy String? @map("address_captured_by") @db.VarChar(180)
-  permanentAddress String?  @map("permanent_address") @db.VarChar(255)
-  permanentProvince String? @map("permanent_province") @db.VarChar(120)
-  permanentMunicipality String? @map("permanent_municipality") @db.VarChar(120)
-  permanentBarangay String? @map("permanent_barangay") @db.VarChar(160)
-  remoteUpdatedAt DateTime? @map("remote_updated_at")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-  branch          Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  loans           Loan[]
-  payments        Payment[]
-  localPaymentPostings LocalPaymentPosting[]
-  amortizationSchedules AmortizationSchedule[]
-  logs            ClientLog[]
+  id                      Int                    @id @default(autoincrement())
+  branchId                Int                    @map("branch_id")
+  remoteId                String                 @map("remote_id") @db.VarChar(80)
+  clientId                String?                @map("client_id") @db.VarChar(80)
+  fullName                String                 @map("full_name") @db.VarChar(180)
+  birthdate               DateTime?              @db.Date
+  contactNumber           String?                @map("contact_number") @db.VarChar(80)
+  validIdNumber           String?                @map("valid_id_number") @db.VarChar(120)
+  address                 String?                @db.VarChar(255)
+  addressLatitude         Decimal?               @map("address_latitude") @db.Decimal(10, 7)
+  addressLongitude        Decimal?               @map("address_longitude") @db.Decimal(10, 7)
+  addressAccuracy         Decimal?               @map("address_accuracy") @db.Decimal(10, 2)
+  addressCoordinateSource String?                @map("address_coordinate_source") @db.VarChar(80)
+  addressGeocodedAt       DateTime?              @map("address_geocoded_at")
+  addressCapturedBy       String?                @map("address_captured_by") @db.VarChar(180)
+  permanentAddress        String?                @map("permanent_address") @db.VarChar(255)
+  permanentProvince       String?                @map("permanent_province") @db.VarChar(120)
+  permanentMunicipality   String?                @map("permanent_municipality") @db.VarChar(120)
+  permanentBarangay       String?                @map("permanent_barangay") @db.VarChar(160)
+  remoteUpdatedAt         DateTime?              @map("remote_updated_at")
+  createdAt               DateTime               @default(now()) @map("created_at")
+  updatedAt               DateTime               @updatedAt @map("updated_at")
+  branch                  Branch                 @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  loans                   Loan[]
+  payments                Payment[]
+  localPaymentPostings    LocalPaymentPosting[]
+  amortizationSchedules   AmortizationSchedule[]
+  logs                    ClientLog[]
 
   @@unique([branchId, remoteId])
   @@index([fullName])
@@ -239,23 +270,23 @@ model Client {
 }
 
 model ClientLog {
-  id          Int      @id @default(autoincrement())
-  clientId    Int      @map("client_id")
-  branchId    Int      @map("branch_id")
-  encodedById Int      @map("encoded_by_id")
-  logType     String   @default("INQUIRY") @map("log_type") @db.VarChar(60)
-  subject     String?  @db.VarChar(180)
-  notes       String   @db.Text
-  newDate     DateTime? @map("new_date") @db.Date
+  id              Int       @id @default(autoincrement())
+  clientId        Int       @map("client_id")
+  branchId        Int       @map("branch_id")
+  encodedById     Int       @map("encoded_by_id")
+  logType         String    @default("INQUIRY") @map("log_type") @db.VarChar(60)
+  subject         String?   @db.VarChar(180)
+  notes           String    @db.Text
+  newDate         DateTime? @map("new_date") @db.Date
   originalNewDate DateTime? @map("original_new_date") @db.Date
-  rescheduledAt DateTime? @map("rescheduled_at")
-  newAmount   Decimal? @map("new_amount") @db.Decimal(14, 2)
-  visitAt     DateTime @default(now()) @map("visit_at")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  branch      Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  encodedBy   User     @relation("ClientLogEncodedBy", fields: [encodedById], references: [id], onDelete: Restrict)
+  rescheduledAt   DateTime? @map("rescheduled_at")
+  newAmount       Decimal?  @map("new_amount") @db.Decimal(14, 2)
+  visitAt         DateTime  @default(now()) @map("visit_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  client          Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  branch          Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  encodedBy       User      @relation("ClientLogEncodedBy", fields: [encodedById], references: [id], onDelete: Restrict)
 
   @@index([clientId])
   @@index([branchId])
@@ -265,51 +296,51 @@ model ClientLog {
 }
 
 model Loan {
-  id              Int        @id @default(autoincrement())
-  branchId        Int        @map("branch_id")
-  clientId        Int        @map("client_id")
-  remoteId        String     @map("remote_id") @db.VarChar(80)
-  loanNumber      String?    @map("loan_number") @db.VarChar(100)
-  loanProduct     String?    @map("loan_product") @db.VarChar(120)
-  branchAo        String?    @map("branch_ao") @db.VarChar(160)
-  principalAmount Decimal    @default(0) @map("principal_amount") @db.Decimal(14, 2)
-  interestRate    Decimal    @default(0) @map("interest_rate") @db.Decimal(8, 4)
-  interestAmount  Decimal    @default(0) @map("interest_amount") @db.Decimal(14, 2)
-  penaltyAmount   Decimal    @default(0) @map("penalty_amount") @db.Decimal(14, 2)
-  otherChargesAmount Decimal @default(0) @map("other_charges_amount") @db.Decimal(14, 2)
-  terms           String?    @db.VarChar(40)
-  paidAmount      Decimal    @default(0) @map("paid_amount") @db.Decimal(14, 2)
-  balance         Decimal    @default(0) @db.Decimal(14, 2)
-  remoteBalance   Decimal?   @map("remote_balance") @db.Decimal(14, 2)
-  status          LoanStatus @default(ACTIVE)
-  sourceStatusCode Int?      @map("source_status_code")
-  sourceStatusName String?   @map("source_status_name") @db.VarChar(80)
-  loanType2Code   Int?       @map("loan_type2_code")
-  loanType2Name   String?    @map("loan_type2_name") @db.VarChar(80)
-  loanSecurityCode String?   @map("loan_security_code") @db.VarChar(20)
-  loanSecurityName String?   @map("loan_security_name") @db.VarChar(120)
-  releasedAt      DateTime?  @map("released_at") @db.Date
-  maturityAt      DateTime?  @map("maturity_at") @db.Date
-  remoteUpdatedAt DateTime?  @map("remote_updated_at")
-  createdAt       DateTime   @default(now()) @map("created_at")
-  updatedAt       DateTime   @updatedAt @map("updated_at")
-  branch          Branch     @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  client          Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  payments        Payment[]
-  localPaymentPostings LocalPaymentPosting[]
+  id                    Int                      @id @default(autoincrement())
+  branchId              Int                      @map("branch_id")
+  clientId              Int                      @map("client_id")
+  remoteId              String                   @map("remote_id") @db.VarChar(80)
+  loanNumber            String?                  @map("loan_number") @db.VarChar(100)
+  loanProduct           String?                  @map("loan_product") @db.VarChar(120)
+  branchAo              String?                  @map("branch_ao") @db.VarChar(160)
+  principalAmount       Decimal                  @default(0) @map("principal_amount") @db.Decimal(14, 2)
+  interestRate          Decimal                  @default(0) @map("interest_rate") @db.Decimal(8, 4)
+  interestAmount        Decimal                  @default(0) @map("interest_amount") @db.Decimal(14, 2)
+  penaltyAmount         Decimal                  @default(0) @map("penalty_amount") @db.Decimal(14, 2)
+  otherChargesAmount    Decimal                  @default(0) @map("other_charges_amount") @db.Decimal(14, 2)
+  terms                 String?                  @db.VarChar(40)
+  paidAmount            Decimal                  @default(0) @map("paid_amount") @db.Decimal(14, 2)
+  balance               Decimal                  @default(0) @db.Decimal(14, 2)
+  remoteBalance         Decimal?                 @map("remote_balance") @db.Decimal(14, 2)
+  status                LoanStatus               @default(ACTIVE)
+  sourceStatusCode      Int?                     @map("source_status_code")
+  sourceStatusName      String?                  @map("source_status_name") @db.VarChar(80)
+  loanType2Code         Int?                     @map("loan_type2_code")
+  loanType2Name         String?                  @map("loan_type2_name") @db.VarChar(80)
+  loanSecurityCode      String?                  @map("loan_security_code") @db.VarChar(20)
+  loanSecurityName      String?                  @map("loan_security_name") @db.VarChar(120)
+  releasedAt            DateTime?                @map("released_at") @db.Date
+  maturityAt            DateTime?                @map("maturity_at") @db.Date
+  remoteUpdatedAt       DateTime?                @map("remote_updated_at")
+  createdAt             DateTime                 @default(now()) @map("created_at")
+  updatedAt             DateTime                 @updatedAt @map("updated_at")
+  branch                Branch                   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  client                Client                   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  payments              Payment[]
+  localPaymentPostings  LocalPaymentPosting[]
   amortizationSchedules AmortizationSchedule[]
-  coMakers        CoMaker[]
-  remedialAssignment RemedialAssignment?
-  loanVerified    Boolean    @default(false) @map("loan_verified")
-  notValidAddress Boolean    @default(false) @map("not_valid_address")
-  verifiedAt      DateTime?  @map("verified_at")
-  verifiedById    Int?       @map("verified_by_id")
-  verifiedBy      User?      @relation("LoanVerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
-  verificationReturns LoanVerificationReturn[]
-  locationMasterlistId Int? @map("location_masterlist_id")
-  locationLinked Boolean @default(false) @map("location_linked")
-  locationLinkedAt DateTime? @map("location_linked_at")
-  locationMasterlist LocationMasterlist? @relation(fields: [locationMasterlistId], references: [id], onDelete: SetNull)
+  coMakers              CoMaker[]
+  remedialAssignment    RemedialAssignment?
+  loanVerified          Boolean                  @default(false) @map("loan_verified")
+  notValidAddress       Boolean                  @default(false) @map("not_valid_address")
+  verifiedAt            DateTime?                @map("verified_at")
+  verifiedById          Int?                     @map("verified_by_id")
+  verifiedBy            User?                    @relation("LoanVerifiedBy", fields: [verifiedById], references: [id], onDelete: SetNull)
+  verificationReturns   LoanVerificationReturn[]
+  locationMasterlistId  Int?                     @map("location_masterlist_id")
+  locationLinked        Boolean                  @default(false) @map("location_linked")
+  locationLinkedAt      DateTime?                @map("location_linked_at")
+  locationMasterlist    LocationMasterlist?      @relation(fields: [locationMasterlistId], references: [id], onDelete: SetNull)
 
   @@unique([branchId, remoteId])
   @@index([balance])
@@ -346,33 +377,33 @@ model UserBranchAccess {
 }
 
 model RemedialAssignment {
-  id           Int      @id @default(autoincrement())
-  loanId       Int      @unique @map("loan_id")
-  branchId     Int      @map("branch_id")
-  assignedToId Int?     @map("assigned_to_id")
-  assignedById Int?     @map("assigned_by_id")
-  areaTeamLeaderId Int? @map("area_team_leader_id")
-  status       RemedialAssignmentStatus @default(ACTIVE)
-  zone         String?  @db.VarChar(120)
-  division     String?  @db.VarChar(120)
-  province     String?  @db.VarChar(120)
-  municipality String? @db.VarChar(120)
-  barangay     String?  @db.VarChar(120)
-  clientCondition String? @map("client_condition") @db.VarChar(20)
-  conditionApprovalStatus String? @map("condition_approval_status") @db.VarChar(20)
-  conditionReportedById Int? @map("condition_reported_by_id")
-  conditionApprovedById Int? @map("condition_approved_by_id")
-  conditionReportedAt DateTime? @map("condition_reported_at")
-  conditionApprovedAt DateTime? @map("condition_approved_at")
-  assignmentNotes String? @map("assignment_notes") @db.Text
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-  loan         Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  branch       Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  assignedTo   User?    @relation("RemedialAssignedOfficer", fields: [assignedToId], references: [id], onDelete: Restrict)
-  assignedBy   User?    @relation("RemedialAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
-  areaTeamLeader User? @relation("RemedialAreaTeamLeader", fields: [areaTeamLeaderId], references: [id], onDelete: SetNull)
-  visits       RemedialVisit[]
+  id                      Int                      @id @default(autoincrement())
+  loanId                  Int                      @unique @map("loan_id")
+  branchId                Int                      @map("branch_id")
+  assignedToId            Int?                     @map("assigned_to_id")
+  assignedById            Int?                     @map("assigned_by_id")
+  areaTeamLeaderId        Int?                     @map("area_team_leader_id")
+  status                  RemedialAssignmentStatus @default(ACTIVE)
+  zone                    String?                  @db.VarChar(120)
+  division                String?                  @db.VarChar(120)
+  province                String?                  @db.VarChar(120)
+  municipality            String?                  @db.VarChar(120)
+  barangay                String?                  @db.VarChar(120)
+  clientCondition         String?                  @map("client_condition") @db.VarChar(20)
+  conditionApprovalStatus String?                  @map("condition_approval_status") @db.VarChar(20)
+  conditionReportedById   Int?                     @map("condition_reported_by_id")
+  conditionApprovedById   Int?                     @map("condition_approved_by_id")
+  conditionReportedAt     DateTime?                @map("condition_reported_at")
+  conditionApprovedAt     DateTime?                @map("condition_approved_at")
+  assignmentNotes         String?                  @map("assignment_notes") @db.Text
+  createdAt               DateTime                 @default(now()) @map("created_at")
+  updatedAt               DateTime                 @updatedAt @map("updated_at")
+  loan                    Loan                     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  branch                  Branch                   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  assignedTo              User?                    @relation("RemedialAssignedOfficer", fields: [assignedToId], references: [id], onDelete: Restrict)
+  assignedBy              User?                    @relation("RemedialAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+  areaTeamLeader          User?                    @relation("RemedialAreaTeamLeader", fields: [areaTeamLeaderId], references: [id], onDelete: SetNull)
+  visits                  RemedialVisit[]
 
   @@index([branchId])
   @@index([assignedToId])
@@ -382,25 +413,25 @@ model RemedialAssignment {
 }
 
 model RemedialVisit {
-  id              Int      @id @default(autoincrement())
-  assignmentId    Int      @map("assignment_id")
-  scheduledDate   DateTime @map("scheduled_date") @db.Date
-  scheduleNotes   String?  @map("schedule_notes") @db.Text
-  status          RemedialVisitStatus @default(PENDING_APPROVAL)
-  visitNotes      String?  @map("visit_notes") @db.Text
-  negotiationNotes String? @map("negotiation_notes") @db.Text
-  promisedAmount  Decimal @default(0) @map("promised_amount") @db.Decimal(14, 2)
-  paidAmount      Decimal @default(0) @map("paid_amount") @db.Decimal(14, 2)
-  nextVisitDate   DateTime? @map("next_visit_date") @db.Date
-  createdById     Int?     @map("created_by_id")
-  approvedById    Int?     @map("approved_by_id")
-  approvedAt      DateTime? @map("approved_at")
-  completedAt     DateTime? @map("completed_at")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-  assignment      RemedialAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  createdBy       User? @relation("RemedialVisitCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  approvedBy      User? @relation("RemedialVisitApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  id               Int                 @id @default(autoincrement())
+  assignmentId     Int                 @map("assignment_id")
+  scheduledDate    DateTime            @map("scheduled_date") @db.Date
+  scheduleNotes    String?             @map("schedule_notes") @db.Text
+  status           RemedialVisitStatus @default(PENDING_APPROVAL)
+  visitNotes       String?             @map("visit_notes") @db.Text
+  negotiationNotes String?             @map("negotiation_notes") @db.Text
+  promisedAmount   Decimal             @default(0) @map("promised_amount") @db.Decimal(14, 2)
+  paidAmount       Decimal             @default(0) @map("paid_amount") @db.Decimal(14, 2)
+  nextVisitDate    DateTime?           @map("next_visit_date") @db.Date
+  createdById      Int?                @map("created_by_id")
+  approvedById     Int?                @map("approved_by_id")
+  approvedAt       DateTime?           @map("approved_at")
+  completedAt      DateTime?           @map("completed_at")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+  assignment       RemedialAssignment  @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  createdBy        User?               @relation("RemedialVisitCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  approvedBy       User?               @relation("RemedialVisitApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
 
   @@index([assignmentId])
   @@index([scheduledDate])
@@ -409,19 +440,19 @@ model RemedialVisit {
 }
 
 model CoMaker {
-  id              Int      @id @default(autoincrement())
-  branchId        Int      @map("branch_id")
-  loanId          Int      @map("loan_id")
-  remoteId        String   @map("remote_id") @db.VarChar(140)
-  name            String   @db.VarChar(180)
-  clientRemoteId  String?  @map("client_remote_id") @db.VarChar(80)
-  contactNumber   String?  @map("contact_number") @db.VarChar(80)
-  validIdNumber   String?  @map("valid_id_number") @db.VarChar(120)
-  address         String?  @db.VarChar(255)
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-  branch          Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  loan            Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  id             Int      @id @default(autoincrement())
+  branchId       Int      @map("branch_id")
+  loanId         Int      @map("loan_id")
+  remoteId       String   @map("remote_id") @db.VarChar(140)
+  name           String   @db.VarChar(180)
+  clientRemoteId String?  @map("client_remote_id") @db.VarChar(80)
+  contactNumber  String?  @map("contact_number") @db.VarChar(80)
+  validIdNumber  String?  @map("valid_id_number") @db.VarChar(120)
+  address        String?  @db.VarChar(255)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  branch         Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  loan           Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
 
   @@unique([branchId, remoteId])
   @@index([name])
@@ -432,27 +463,27 @@ model CoMaker {
 }
 
 model AmortizationSchedule {
-  id                Int      @id @default(autoincrement())
-  branchId          Int      @map("branch_id")
-  clientId          Int?     @map("client_id")
-  loanId            Int      @map("loan_id")
-  remoteId          String   @map("remote_id") @db.VarChar(80)
-  amortNo           Int      @map("amort_no")
-  amortDate         DateTime? @map("amort_date") @db.Date
-  principalBalance  Decimal  @default(0) @map("principal_balance") @db.Decimal(14, 2)
-  interestBalance   Decimal  @default(0) @map("interest_balance") @db.Decimal(14, 2)
-  principalAmort    Decimal  @default(0) @map("principal_amort") @db.Decimal(14, 2)
-  interestAmort     Decimal  @default(0) @map("interest_amort") @db.Decimal(14, 2)
-  totalAmort        Decimal  @default(0) @map("total_amort") @db.Decimal(14, 2)
-  paidPrincipal     Decimal  @default(0) @map("paid_principal") @db.Decimal(14, 2)
-  paidInterest      Decimal  @default(0) @map("paid_interest") @db.Decimal(14, 2)
-  paidTotal         Decimal  @default(0) @map("paid_total") @db.Decimal(14, 2)
-  paidStatus        Int?     @map("paid_status")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-  branch            Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  client            Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  loan              Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  id               Int       @id @default(autoincrement())
+  branchId         Int       @map("branch_id")
+  clientId         Int?      @map("client_id")
+  loanId           Int       @map("loan_id")
+  remoteId         String    @map("remote_id") @db.VarChar(80)
+  amortNo          Int       @map("amort_no")
+  amortDate        DateTime? @map("amort_date") @db.Date
+  principalBalance Decimal   @default(0) @map("principal_balance") @db.Decimal(14, 2)
+  interestBalance  Decimal   @default(0) @map("interest_balance") @db.Decimal(14, 2)
+  principalAmort   Decimal   @default(0) @map("principal_amort") @db.Decimal(14, 2)
+  interestAmort    Decimal   @default(0) @map("interest_amort") @db.Decimal(14, 2)
+  totalAmort       Decimal   @default(0) @map("total_amort") @db.Decimal(14, 2)
+  paidPrincipal    Decimal   @default(0) @map("paid_principal") @db.Decimal(14, 2)
+  paidInterest     Decimal   @default(0) @map("paid_interest") @db.Decimal(14, 2)
+  paidTotal        Decimal   @default(0) @map("paid_total") @db.Decimal(14, 2)
+  paidStatus       Int?      @map("paid_status")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  branch           Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  client           Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  loan             Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
 
   @@unique([branchId, remoteId])
   @@index([clientId])
@@ -551,46 +582,46 @@ model LoanVerificationReturn {
 }
 
 model SyncLog {
-  id             Int        @id @default(autoincrement())
-  branchId       Int?       @map("branch_id")
-  status         SyncStatus
-  startedAt      DateTime   @default(now()) @map("started_at")
-  finishedAt     DateTime?  @map("finished_at")
-  clientsPulled  Int        @default(0) @map("clients_pulled")
-  loansPulled    Int        @default(0) @map("loans_pulled")
-  paymentsPulled Int        @default(0) @map("payments_pulled")
-  branchesCompleted Int     @default(0) @map("branches_completed")
-  branchesFailed    Int     @default(0) @map("branches_failed")
-  message        String?    @db.Text
-  branch         Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  id                Int        @id @default(autoincrement())
+  branchId          Int?       @map("branch_id")
+  status            SyncStatus
+  startedAt         DateTime   @default(now()) @map("started_at")
+  finishedAt        DateTime?  @map("finished_at")
+  clientsPulled     Int        @default(0) @map("clients_pulled")
+  loansPulled       Int        @default(0) @map("loans_pulled")
+  paymentsPulled    Int        @default(0) @map("payments_pulled")
+  branchesCompleted Int        @default(0) @map("branches_completed")
+  branchesFailed    Int        @default(0) @map("branches_failed")
+  message           String?    @db.Text
+  branch            Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@index([startedAt])
   @@map("sync_logs")
 }
 
 model LocationMasterlist {
-  id               Int      @id @default(autoincrement())
-  province         String   @db.VarChar(120)
-  municipality     String   @db.VarChar(120)
-  barangay         String   @db.VarChar(160)
-  zone             String?  @db.VarChar(120)
-  region           String?  @db.VarChar(120)
-  numberOfClients  Int?     @map("number_of_clients")
-  portfolio        Decimal? @db.Decimal(16, 2)
-  current          Int?
-  delayed          Int?
-  pastDue          Int?     @map("past_due")
-  litigated        Int?
-  latitude         Decimal? @db.Decimal(10, 7)
-  longitude        Decimal? @db.Decimal(10, 7)
+  id                  Int                  @id @default(autoincrement())
+  province            String               @db.VarChar(120)
+  municipality        String               @db.VarChar(120)
+  barangay            String               @db.VarChar(160)
+  zone                String?              @db.VarChar(120)
+  region              String?              @db.VarChar(120)
+  numberOfClients     Int?                 @map("number_of_clients")
+  portfolio           Decimal?             @db.Decimal(16, 2)
+  current             Int?
+  delayed             Int?
+  pastDue             Int?                 @map("past_due")
+  litigated           Int?
+  latitude            Decimal?             @db.Decimal(10, 7)
+  longitude           Decimal?             @db.Decimal(10, 7)
   coordinatePrecision CoordinatePrecision? @map("coordinate_precision")
-  coordinateSource String? @map("coordinate_source") @db.VarChar(120)
-  geocodedAt       DateTime? @map("geocoded_at")
-  geocodeError     String? @map("geocode_error") @db.Text
-  retryAfter       DateTime? @map("retry_after")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
-  loans            Loan[]
+  coordinateSource    String?              @map("coordinate_source") @db.VarChar(120)
+  geocodedAt          DateTime?            @map("geocoded_at")
+  geocodeError        String?              @map("geocode_error") @db.Text
+  retryAfter          DateTime?            @map("retry_after")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  loans               Loan[]
 
   @@unique([province, municipality, barangay])
   @@index([province, municipality, barangay])
@@ -605,17 +636,17 @@ enum CoordinatePrecision {
 }
 
 model LocationLinkRun {
-  id            Int      @id @default(autoincrement())
-  trigger       String   @db.VarChar(20)
-  status        String   @db.VarChar(20)
-  startedById   Int?     @map("started_by_id")
-  startedAt     DateTime @default(now()) @map("started_at")
-  finishedAt    DateTime? @map("finished_at")
-  loansScanned  Int      @default(0) @map("loans_scanned")
-  loansLinked   Int      @default(0) @map("loans_linked")
-  loansUnmatched Int     @default(0) @map("loans_unmatched")
-  message       String?  @db.Text
-  startedBy     User?    @relation("LocationLinkRunStartedBy", fields: [startedById], references: [id], onDelete: SetNull)
+  id             Int       @id @default(autoincrement())
+  trigger        String    @db.VarChar(20)
+  status         String    @db.VarChar(20)
+  startedById    Int?      @map("started_by_id")
+  startedAt      DateTime  @default(now()) @map("started_at")
+  finishedAt     DateTime? @map("finished_at")
+  loansScanned   Int       @default(0) @map("loans_scanned")
+  loansLinked    Int       @default(0) @map("loans_linked")
+  loansUnmatched Int       @default(0) @map("loans_unmatched")
+  message        String?   @db.Text
+  startedBy      User?     @relation("LocationLinkRunStartedBy", fields: [startedById], references: [id], onDelete: SetNull)
 
   @@index([startedAt])
   @@index([status])

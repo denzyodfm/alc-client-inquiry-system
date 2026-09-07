@@ -22,6 +22,7 @@ export const APP_FUNCTIONS = [
   { key: "CLIENT_CONDITION", label: "Client Condition", description: "Manage client condition records" },
   { key: "MY_CLIENTS", label: "My Clients", description: "An officer's own clients, grouped by location" },
   { key: "MY_SCHEDULE", label: "My Schedule", description: "An officer's follow-up and promise-to-pay calendar" },
+  { key: "MONTHLY_REPORTS", label: "Monthly Reports", description: "Month-end reports that do not change once captured" },
   { key: "SYNC_LOGS", label: "Sync Logs", description: "View branch synchronization history" },
   { key: "USER_MANAGEMENT", label: "User Management", description: "Create and manage authorized user accounts" },
   { key: "SETTINGS_ACCESS", label: "Settings and Access Control", description: "Manage branches, privileges, and access matrix" }
