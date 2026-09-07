@@ -21,14 +21,29 @@ export default async function LoanPortfolioPage({
 }) {
   await requireFunction("MONTHLY_REPORTS");
   const params = await searchParams;
-  const years = await capturedYears();
+  const captured = await capturedYears();
+  // Offer every year the business has been running in this report, not only the ones already
+  // captured - otherwise a month with no data cannot even be asked for, and the reader is left
+  // unable to tell the difference between "not captured" and "not offered".
+  const thisYear = new Date().getUTCFullYear();
+  const years = Array.from(new Set([...captured, thisYear])).sort((a, b) => b - a);
   const requested = Number(params?.year ?? 0) || null;
-  const year = requested && years.includes(requested) ? requested : years[0] ?? new Date().getUTCFullYear();
+  const year = requested && years.includes(requested) ? requested : years[0] ?? thisYear;
   const allRows = years.length ? await monthlyPortfolio(year) : [];
   // Every month captured in this year, so the picker can offer them whether or not one is
   // currently chosen.
-  const monthsInYear = Array.from(new Set(allRows.map((row) => row.periodEnd))).sort((a, b) => b.localeCompare(a));
+  const capturedMonths = new Set(allRows.map((row) => row.periodEnd));
+  // Every month of the year that has already ended or is ending, whether captured or not. A
+  // month that holds nothing can still be selected, and then says why it is empty.
+  const now = new Date();
+  const monthsInYear = Array.from({ length: 12 }, (_, index) => {
+    const end = new Date(Date.UTC(year, index + 1, 0));
+    return end.toISOString().slice(0, 10);
+  })
+    .filter((periodEnd) => new Date(`${periodEnd}T00:00:00Z`) <= new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)))
+    .sort((a, b) => b.localeCompare(a));
   const month = params?.month && monthsInYear.includes(params.month) ? params.month : "";
+  const monthIsEmpty = Boolean(month) && !capturedMonths.has(month);
   const rows = month ? allRows.filter((row) => row.periodEnd === month) : allRows;
 
   // Grouped by month, newest first: the report is read a month at a time, and the branches
@@ -51,11 +66,23 @@ export default async function LoanPortfolioPage({
           </p>
         </div>
         {years.length ? (
-          <PeriodFilter years={years} months={monthsInYear} year={year} month={month} />
+          <PeriodFilter years={years} months={monthsInYear} captured={[...capturedMonths]} year={year} month={month} />
         ) : null}
       </div>
 
-      {!years.length ? (
+      {monthIsEmpty ? (
+        <div className="panel p-10 text-center">
+          <Layers3 className="mx-auto h-8 w-8 text-slate-300" />
+          <p className="mt-3 text-sm font-semibold text-slate-700">
+            {MONTHS[Number(month.slice(5, 7)) - 1]} {month.slice(0, 4)} was never captured.
+          </p>
+          <p className="mx-auto mt-1 max-w-2xl text-sm text-slate-500">
+            This report began after that month ended, and a past month cannot be worked out from today&rsquo;s data
+            &mdash; the figures depend on what had been paid by that date, and later payments change it. Months are
+            captured automatically from now on, on the last day of each.
+          </p>
+        </div>
+      ) : !allRows.length ? (
         <div className="panel p-10 text-center">
           <Layers3 className="mx-auto h-8 w-8 text-slate-300" />
           <p className="mt-3 text-sm font-semibold text-slate-700">No month has been captured yet.</p>

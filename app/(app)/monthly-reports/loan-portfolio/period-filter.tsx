@@ -10,12 +10,15 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 export function PeriodFilter({
   years,
   months,
+  captured,
   year,
   month
 }: {
   years: number[];
-  // "2026-09-30" for each month captured in the chosen year.
+  // Every month of the chosen year that has ended, captured or not.
   months: string[];
+  // Which of those actually hold figures.
+  captured: string[];
   year: number;
   month: string;
 }) {
@@ -48,12 +51,12 @@ export function PeriodFilter({
           className="field mt-1 h-10 min-w-44"
           value={month}
           onChange={(event) => go(year, event.target.value)}
-          disabled={!months.length}
         >
-          <option value="">{months.length ? `All months (${months.length})` : "No months captured"}</option>
+          <option value="">All captured months ({captured.length})</option>
           {months.map((candidate) => (
             <option key={candidate} value={candidate}>
-              {MONTHS[Number(candidate.slice(5, 7)) - 1]} {candidate.slice(0, 4)} &mdash; as of {candidate}
+              {MONTHS[Number(candidate.slice(5, 7)) - 1]} {candidate.slice(0, 4)}
+              {captured.includes(candidate) ? "" : " — not captured"}
             </option>
           ))}
         </select>
