@@ -6,7 +6,7 @@ import { AuditTracker } from "@/components/audit-tracker";
 import { canAccessAnyFunction, canAccessFunction, type AppFunctionKey } from "@/lib/access-control";
 import { getFooterBranding } from "@/lib/footer-branding";
 
-type IconName = "Gauge" | "Banknote" | "Search" | "ClipboardCheck" | "ClipboardList" | "FileClock" | "Hourglass" | "Percent" | "ReceiptText" | "UserRoundCheck" | "MapPinned" | "Tag" | "History" | "Users" | "Settings" | "MapPin" | "KeyRound" | "BadgeCheck" | "MapPinOff" | "UserRound" | "CalendarDays" | "CalendarRange" | "Layers3";
+type IconName = "Gauge" | "Banknote" | "Search" | "ClipboardCheck" | "ClipboardList" | "FileClock" | "Hourglass" | "Percent" | "ReceiptText" | "UserRoundCheck" | "MapPinned" | "Tag" | "History" | "Users" | "Settings" | "MapPin" | "KeyRound" | "BadgeCheck" | "MapPinOff" | "UserRound" | "CalendarDays" | "CalendarRange" | "Layers3" | "TrendingUp";
 type NavConfig = { href?: string; label: string; icon: IconName; functionKey?: AppFunctionKey; functionKeys?: AppFunctionKey[]; adminOnly?: boolean; children?: NavConfig[] };
 
 const nav: NavConfig[] = [
@@ -40,7 +40,8 @@ const nav: NavConfig[] = [
   // Rediscounting is an administrator report, so it is gated on the role rather than on a
   // privilege that could be granted to someone else.
   { label: "Monthly Reports", icon: "CalendarRange", children: [
-    { href: "/monthly-reports/loan-portfolio", label: "Loan Portfolio", icon: "Layers3", functionKey: "MONTHLY_REPORTS" }
+    { href: "/monthly-reports/loan-portfolio", label: "Loan Portfolio", icon: "Layers3", functionKey: "MONTHLY_REPORTS" },
+    { href: "/monthly-reports/portfolio-trend", label: "Portfolio Trend", icon: "TrendingUp", functionKey: "MONTHLY_REPORTS" }
   ] },
   { href: "/verified-loans", label: "Verified Loans", icon: "BadgeCheck", functionKey: "VERIFIED_LOANS" },
   { href: "/rediscounting", label: "Rediscounting", icon: "Percent", adminOnly: true },

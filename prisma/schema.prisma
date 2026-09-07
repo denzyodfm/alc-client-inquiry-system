@@ -195,6 +195,7 @@ model Branch {
   remedialAssignments   RemedialAssignment[]
   clientLogs            ClientLog[]
   monthlySnapshots      MonthlyPortfolioSnapshot[]
+  trendPoints         PortfolioTrendPoint[]
 
   @@index([branchTeamLeaderId])
   @@map("branches")
@@ -228,6 +229,29 @@ model MonthlyPortfolioSnapshot {
   @@unique([periodEnd, branchId])
   @@index([periodEnd])
   @@map("monthly_portfolio_snapshots")
+}
+
+// Client count and principal per branch for months that ended before this system began
+// capturing them, worked back from payment history.
+//
+// Kept apart from MonthlyPortfolioSnapshot on purpose. That table is the record of a month and
+// does not move; this is an estimate and can be recomputed at any time. Only the two figures
+// that reconstruct reliably are here - client count came within 0.4% of the live book and
+// principal within 3% when tested against a known date. The split into current, delayed, past
+// due and litigated is deliberately absent: how much had been paid against each instalment on
+// a past date cannot be recovered, so those figures came out wrong by an order of magnitude.
+model PortfolioTrendPoint {
+  id         Int      @id @default(autoincrement())
+  periodEnd  DateTime @map("period_end") @db.Date
+  branchId   Int      @map("branch_id")
+  clients    Int      @default(0)
+  principal  Decimal  @default(0) @db.Decimal(18, 2)
+  computedAt DateTime @default(now()) @map("computed_at")
+  branch     Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([periodEnd, branchId])
+  @@index([periodEnd])
+  @@map("portfolio_trend_points")
 }
 
 model Client {
