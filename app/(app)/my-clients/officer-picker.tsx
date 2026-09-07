@@ -13,12 +13,18 @@ export function OfficerPicker({
   scopes,
   officers,
   selectedId,
+  selectedAll = false,
+  allowAll = false,
   basePath = "/my-clients",
   subject = "clients"
 }: {
   scopes: OfficerScope[];
   officers: ScopedOfficer[];
   selectedId: number | null;
+  selectedAll?: boolean;
+  // My Clients can total a whole area or branch. My Schedule cannot: a calendar is one
+  // person's day, and the schedule it draws is fetched for a single officer.
+  allowAll?: boolean;
   basePath?: string;
   subject?: string;
 }) {
@@ -44,8 +50,13 @@ export function OfficerPicker({
 
   function choose(id: string) {
     const next = new URLSearchParams(params.toString());
-    if (id) next.set("officerId", id);
-    else next.delete("officerId");
+    if (id) {
+      next.set("officerId", id);
+      next.set("scope", scopeId);
+    } else {
+      next.delete("officerId");
+      next.delete("scope");
+    }
     router.push(next.toString() ? `${basePath}?${next.toString()}` : basePath);
   }
 
@@ -109,13 +120,16 @@ export function OfficerPicker({
           {word}
           <select
             className="field mt-1 loc-caps"
-            value={selectedId ? String(selectedId) : ""}
+            value={selectedAll ? "all" : selectedId ? String(selectedId) : ""}
             onChange={(event) => choose(event.target.value)}
             disabled={!scopeId}
           >
             <option value="">
               {scopeId ? `Select ${article} ${word.toLocaleLowerCase("en")}` : "Choose an area or branch first"}
             </option>
+            {allowAll && scopeId && matches.length > 1 ? (
+              <option value="all">[ ALL ] {matches.length} {word.toLocaleLowerCase("en")}(s)</option>
+            ) : null}
             {matches.map((officer) => (
               <option key={officer.id} value={officer.id}>{officer.name}</option>
             ))}

@@ -114,6 +114,33 @@ export async function officerChoiceFor(user: { id: number; role: UserRole }): Pr
   return { mode: "choose", scopes, officers: officers.filter((officer) => officer.scopeIds.length) };
 }
 
+// Resolves what the address bar asked for into the officers whose loans may actually be read.
+// "all" totals a whole area or branch; a number is one officer. Either way the answer is
+// filtered by what the reader is allowed to see, so a guessed id or scope yields nothing.
+export async function resolveOfficerIds(
+  user: { id: number; role: UserRole },
+  requested: { officerId?: string; scope?: string }
+): Promise<{ officerIds: number[]; scopeLabel: string | null; isAll: boolean }> {
+  if (user.role === "ACCOUNT_OFFICER") return { officerIds: [user.id], scopeLabel: null, isAll: false };
+
+  const choice = await officerChoiceFor(user);
+  if (choice.mode !== "choose") return { officerIds: [], scopeLabel: null, isAll: false };
+
+  const wantsAll = (requested.officerId ?? "") === "all";
+  if (wantsAll) {
+    const scope = choice.scopes.find((candidate) => candidate.id === requested.scope);
+    if (!scope) return { officerIds: [], scopeLabel: null, isAll: false };
+    const ids = choice.officers.filter((officer) => officer.scopeIds.includes(scope.id)).map((officer) => officer.id);
+    return { officerIds: ids, scopeLabel: scope.label, isAll: true };
+  }
+
+  const id = Number(requested.officerId ?? 0) || null;
+  if (!id) return { officerIds: [], scopeLabel: null, isAll: false };
+  return choice.officers.some((officer) => officer.id === id)
+    ? { officerIds: [id], scopeLabel: null, isAll: false }
+    : { officerIds: [], scopeLabel: null, isAll: false };
+}
+
 // Whether this reader may open that officer's book at all. The pages ask before querying, so a
 // guessed id in the address bar returns nothing rather than somebody else's clients.
 export async function canReadOfficer(user: { id: number; role: UserRole }, officerId: number) {
