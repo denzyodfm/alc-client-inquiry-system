@@ -90,11 +90,24 @@ export default async function LoanPortfolioPage({
             }),
             { clients: 0, principal: 0, current: 0, currentPrincipal: 0, delayed: 0, delayedPrincipal: 0, pastDue: 0, pastDuePrincipal: 0, litigated: 0, litigatedPrincipal: 0 }
           );
+          // A row dated the last day of its month is that month's close. Anything else is a
+          // reading taken partway through, and has to say so - otherwise it reads as the
+          // month's record while holding figures from the middle of it.
+          const asOf = new Date(`${periodEnd}T00:00:00Z`);
+          const lastDay = new Date(Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth() + 1, 0)).getUTCDate();
+          const isClose = asOf.getUTCDate() === lastDay;
           const label = `${MONTHS[Number(periodEnd.slice(5, 7)) - 1]} ${periodEnd.slice(0, 4)}`;
           return (
             <section key={periodEnd} className="panel overflow-hidden">
               <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-200 px-5 py-4">
-                <h3 className="text-lg font-bold text-slate-950">{label}</h3>
+                <h3 className="flex flex-wrap items-center gap-2 text-lg font-bold text-slate-950">
+                  {label}
+                  {isClose ? null : (
+                    <span className="rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+                      Interim &mdash; month not yet closed
+                    </span>
+                  )}
+                </h3>
                 <p className="text-xs font-semibold text-slate-500">
                   as of {periodEnd} &middot; {monthRows.length} branch(es) &middot; {totals.clients.toLocaleString("en-US")} client(s) &middot; {money(totals.principal)}
                 </p>
