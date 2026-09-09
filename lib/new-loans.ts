@@ -215,7 +215,10 @@ export async function assignableOfficerWhere(assignerId: number): Promise<Prisma
       }
     : scope === "AREA_TL"
       ? {
-          privilegeTemplate: { is: { name: "Remedial Officer" } },
+          // Tagging hands a new loan to whoever will carry it, and an area holds both kinds of
+          // officer, so an Area TL picks from both. Restricting this to Remedial Officers left
+          // an Area TL unable to tag a loan to a Loan Officer sitting in their own area.
+          privilegeTemplate: { is: { name: { in: ["Loan Officer", "Remedial Officer"] } } },
           OR: [
             { areaTeamLeaderId: assignerId },
             { area: { is: { areaTeamLeaderId: assignerId } } }
