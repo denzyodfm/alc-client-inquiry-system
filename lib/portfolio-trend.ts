@@ -87,6 +87,11 @@ export async function reconstructAt(asOf: string) {
       ? fromSchedule
       : Math.max(0, Number(loan.principalAmount) - (paid ?? 0));
 
+    // Same rule the live report uses: no principal outstanding, no portfolio and no active
+    // borrower. Without it a month's client count includes people who had already repaid by
+    // then, which is what made the trend disagree with the Loan Portfolio it plots.
+    if (principal <= 0) continue;
+
     const bucket = perBranch.get(loan.branchId) ?? { clients: new Set<number>(), principal: 0 };
     bucket.clients.add(loan.clientId);
     bucket.principal += principal;

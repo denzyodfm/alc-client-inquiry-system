@@ -75,12 +75,19 @@ export async function computePortfolioNow(): Promise<MonthlyRow[]> {
   }>();
 
   for (const loan of loans) {
+    const fact = facts.get(loan.id);
+    const principal = principalOf(loan, fact);
+    // Loan portfolio means principal outstanding, so a loan that owes no principal is not part
+    // of it and its borrower is not an active one. Counting them made the client column read
+    // as "everyone who has ever borrowed": 11,718 clients against a book of 5,341, the balance
+    // of them holding nothing but loans they had already repaid. It never moved the money -
+    // those loans are worth zero - only the counts, and the status columns they were sorted
+    // into.
+    if (principal <= 0) continue;
     const bucket = perBranch.get(loan.branchId) ?? {
       clients: new Set<number>(), loans: 0, principal: 0,
       category: new Map<number, LocationClientCategory>(), principalByClient: new Map<number, number>()
     };
-    const fact = facts.get(loan.id);
-    const principal = principalOf(loan, fact);
     const category = effectiveLocationCategory(loan, todayKey, fact?.hasUnpaidDue ?? false);
     bucket.clients.add(loan.clientId);
     bucket.loans += 1;
