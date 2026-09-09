@@ -41,8 +41,11 @@ export async function GET(request: NextRequest) {
         logType: true,
         subject: true,
         notes: true,
+        isPtp: true,
         newDate: true,
         newAmount: true,
+        collectionDate: true,
+        collectionAmount: true,
         visitAt: true,
         branch: { select: { branchName: true, branchCode: true } },
         encodedBy: { select: { name: true } }
@@ -66,8 +69,11 @@ export async function GET(request: NextRequest) {
       logType: log.logType,
       subject: log.subject,
       notes: log.notes,
+      isPtp: log.isPtp,
       newDate: log.newDate ? log.newDate.toISOString().slice(0, 10) : null,
       newAmount: log.newAmount ? Number(log.newAmount) : null,
+      collectionDate: log.collectionDate ? log.collectionDate.toISOString().slice(0, 10) : null,
+      collectionAmount: log.collectionAmount ? Number(log.collectionAmount) : null,
       visitAt: log.visitAt.toISOString(),
       branch: `${log.branch.branchCode} - ${log.branch.branchName}`,
       encodedBy: log.encodedBy.name

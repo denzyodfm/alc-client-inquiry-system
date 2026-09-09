@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { FileClock } from "lucide-react";
 import { ClientLogsWorkspace } from "@/components/client-logs-workspace";
+import { mergeClientLogTypes } from "@/lib/client-log-types";
 import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { employeeLoanFilterFor } from "@/lib/employee-loans";
 import { visibleSyncedLoanWhere } from "@/lib/loan-filters";
@@ -100,6 +101,14 @@ export default async function ClientLogsPage({
     orderBy: { branchName: "asc" },
     select: { id: true, branchName: true, branchCode: true }
   });
+  // Types an office added itself, so they stay on offer once the first log using one is saved.
+  // Deliberately not branch-scoped: it is a vocabulary of labels, not customer data.
+  const usedLogTypes = await prisma.clientLog.findMany({
+    distinct: ["logType"],
+    select: { logType: true },
+    orderBy: { logType: "asc" },
+    take: 200
+  });
   return (
     <div className="space-y-6">
       <div>
@@ -129,6 +138,7 @@ export default async function ClientLogsPage({
         branches={branches}
         selectedClientId={selectedClientId}
         currentUserName={user.name}
+        logTypes={mergeClientLogTypes(usedLogTypes.map((row) => row.logType))}
       />
     </div>
   );

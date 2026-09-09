@@ -10,8 +10,11 @@ type LogRow = {
   logType: string;
   subject: string | null;
   notes: string;
+  isPtp: boolean;
   newDate: string | null;
   newAmount: number | null;
+  collectionDate: string | null;
+  collectionAmount: number | null;
   visitAt: string;
   branch: string;
   encodedBy: string;
@@ -81,6 +84,7 @@ export function ClientLogHistory({
   }, [open]);
 
   const promised = (logs ?? []).reduce((sum, log) => sum + (log.newAmount ?? 0), 0);
+  const collected = (logs ?? []).reduce((sum, log) => sum + (log.collectionAmount ?? 0), 0);
 
   return (
     <>
@@ -125,6 +129,7 @@ export function ClientLogHistory({
                       <p className="text-right text-xs font-semibold text-slate-600">
                         {logs.length.toLocaleString("en-US")} log(s)
                         <span className="block font-bold text-red-700">{money(promised)} promised</span>
+                        {collected ? <span className="block font-bold text-brand-green">{money(collected)} collected</span> : null}
                       </p>
                     ) : null}
                     <button type="button" className="rounded-md p-2 text-slate-500 hover:bg-slate-200 hover:text-slate-900" onClick={() => setOpen(false)} aria-label="Close">
@@ -140,7 +145,7 @@ export function ClientLogHistory({
                       <thead className="sticky top-0 z-10 bg-slate-50 uppercase tracking-wide text-slate-500">
                         <tr>
                           <th className="px-3 py-2">#</th><th className="px-3 py-2">Date</th><th className="px-3 py-2">Type</th>
-                          <th className="px-3 py-2">Activity</th><th className="px-3 py-2">Promised</th>
+                          <th className="px-3 py-2">Activity</th><th className="px-3 py-2">Promised</th><th className="px-3 py-2">Collected</th>
                           <th className="px-3 py-2">Branch</th><th className="px-3 py-2">Encoded by</th>
                         </tr>
                       </thead>
@@ -155,14 +160,18 @@ export function ClientLogHistory({
                               <span className="whitespace-normal text-slate-600">{log.notes}</span>
                             </td>
                             <td className="whitespace-nowrap px-3 py-2">
-                              <span className="block font-semibold text-slate-700">{dateOnly(log.newDate)}</span>
+                              <span className="block font-semibold text-slate-700">{dateOnly(log.newDate)}{log.isPtp ? <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] font-bold uppercase text-amber-800">PTP</span> : null}</span>
                               <span className="block font-bold text-red-700">{log.newAmount ? money(log.newAmount) : "-"}</span>
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-2">
+                              <span className="block font-semibold text-slate-700">{dateOnly(log.collectionDate)}</span>
+                              <span className="block font-bold text-brand-green">{log.collectionAmount ? money(log.collectionAmount) : "-"}</span>
                             </td>
                             <td className="whitespace-nowrap px-3 py-2">{log.branch}</td>
                             <td className="whitespace-nowrap px-3 py-2">{log.encodedBy}</td>
                           </tr>
                         ))}
-                        {!logs.length ? <tr><td colSpan={7} className="p-10 text-center font-semibold text-slate-500">No client logs recorded yet.</td></tr> : null}
+                        {!logs.length ? <tr><td colSpan={8} className="p-10 text-center font-semibold text-slate-500">No client logs recorded yet.</td></tr> : null}
                       </tbody>
                     </table>
                   ) : null}

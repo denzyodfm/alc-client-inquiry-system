@@ -306,6 +306,11 @@ model ClientLog {
   originalNewDate DateTime? @map("original_new_date") @db.Date
   rescheduledAt   DateTime? @map("rescheduled_at")
   newAmount       Decimal?  @map("new_amount") @db.Decimal(14, 2)
+  // Set when the encoder ticks Promise to pay, which is what newDate/newAmount then hold. Logs
+  // recorded before the checkbox existed keep it false and still read as a plain new date.
+  isPtp           Boolean   @default(false) @map("is_ptp")
+  collectionDate  DateTime? @map("collection_date") @db.Date
+  collectionAmount Decimal? @map("collection_amount") @db.Decimal(14, 2)
   visitAt         DateTime  @default(now()) @map("visit_at")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")

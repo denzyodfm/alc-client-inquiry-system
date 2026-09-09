@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, Save, Search, X } from "lucide-react";
+import { type ClientLogTypeOption, normalizeClientLogType } from "@/lib/client-log-types";
 
 type ClientOption = {
   id: number;
@@ -16,13 +17,17 @@ type ClientOption = {
 
 type Filters = { branchId: string; addressArea: string; addressDetail: string };
 
+// Sentinel for the "add a type of your own" row in the Type dropdown. Not a storable value.
+const ADD_TYPE = "__ADD_TYPE__";
+
 export function ClientLogsWorkspace({
   clients,
   searchText,
   filters,
   branches,
   selectedClientId,
-  currentUserName
+  currentUserName,
+  logTypes
 }: {
   clients: ClientOption[];
   searchText: string;
@@ -30,6 +35,7 @@ export function ClientLogsWorkspace({
   branches: { id: number; branchName: string; branchCode: string }[];
   selectedClientId: number | null;
   currentUserName: string;
+  logTypes: ClientLogTypeOption[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -39,8 +45,13 @@ export function ClientLogsWorkspace({
   const [logType, setLogType] = useState("INQUIRY");
   const [subject, setSubject] = useState("");
   const [notes, setNotes] = useState("");
+  const [customType, setCustomType] = useState("");
+  const [isPtp, setIsPtp] = useState(false);
+  const [isCollection, setIsCollection] = useState(false);
   const [newDate, setNewDate] = useState("");
   const [newAmount, setNewAmount] = useState("");
+  const [collectionDate, setCollectionDate] = useState("");
+  const [collectionAmount, setCollectionAmount] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -68,20 +79,44 @@ export function ClientLogsWorkspace({
     event.preventDefault();
     setMessage(null);
     setError(null);
+    const resolvedType = logType === ADD_TYPE ? normalizeClientLogType(customType) : logType;
+    if (!resolvedType) {
+      setError("Please name the new type.");
+      return;
+    }
     const response = await fetch("/api/client-logs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clientId: Number(clientId), logType, subject, notes, newDate, newAmount })
+      body: JSON.stringify({
+        clientId: Number(clientId),
+        logType: resolvedType,
+        subject,
+        notes,
+        isPtp,
+        newDate: isPtp ? newDate : "",
+        newAmount: isPtp ? newAmount : "",
+        isCollection,
+        collectionDate,
+        collectionAmount
+      })
     });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
       setError(payload.error ?? "Unable to save client log.");
       return;
     }
+    // The type stays selected for the next entry; a newly added one is now in the list the
+    // refresh brings back, so the sentinel has to give way to the value it created.
+    if (logType === ADD_TYPE) setLogType(resolvedType);
+    setCustomType("");
     setSubject("");
     setNotes("");
+    setIsPtp(false);
+    setIsCollection(false);
     setNewDate("");
     setNewAmount("");
+    setCollectionDate("");
+    setCollectionAmount("");
     setEntryOpen(false);
     setMessage("Client log saved.");
     startTransition(() => router.refresh());
@@ -129,12 +164,24 @@ export function ClientLogsWorkspace({
         <form onSubmit={submit} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl">
           <div className="mb-5 flex items-start justify-between gap-3"><div><p className="text-sm font-semibold uppercase tracking-wide text-brand-green">New client log</p><h3 className="mt-1 text-xl font-bold text-slate-950">{selectedClient.fullName}</h3><p className="text-sm text-slate-500">Encoded by {currentUserName}. Entry time is recorded automatically.</p></div><button type="button" className="rounded-md p-2 text-slate-500 hover:bg-slate-100" onClick={() => setEntryOpen(false)} aria-label="Close"><X className="h-5 w-5" /></button></div>
           {error ? <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</div> : null}
-          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Type</span><select className="field" value={logType} onChange={(event) => setLogType(event.target.value)}><option value="INQUIRY">Inquiry</option><option value="REQUEST">Request</option><option value="VISIT">Branch Visit</option><option value="COMPLAINT">Complaint</option><option value="FOLLOW_UP">Follow-up</option><option value="OTHER">Other</option></select></label>
+          <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Type</span><select className="field" value={logType} onChange={(event) => setLogType(event.target.value)}>{logTypes.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}<option value={ADD_TYPE}>+ Add a new type...</option></select></label>
+          {logType === ADD_TYPE ? <label className="mt-3 block"><span className="mb-2 block text-sm font-semibold text-slate-700">New type name</span><input className="field" value={customType} onChange={(event) => setCustomType(event.target.value)} placeholder="Example: Home visit" required /><span className="mt-1 block text-xs text-slate-500">Saved with this log and offered in the list from then on.</span></label> : null}
           <label className="mt-3 block"><span className="mb-2 block text-sm font-semibold text-slate-700">Subject</span><input className="field" value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Short title or purpose" /></label>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">New date <span className="font-normal text-slate-400">(optional)</span></span><div className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><input type="date" className="field pl-10" value={newDate} onChange={(event) => setNewDate(event.target.value)} /></div></label>
-            <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">New amount <span className="font-normal text-slate-400">(optional)</span></span><input type="number" min="0" step="0.01" className="field" value={newAmount} onChange={(event) => setNewAmount(event.target.value)} placeholder="0.00" /></label>
-          </div>
+          <fieldset className="mt-3 rounded-md border border-slate-200 px-3 py-2">
+            <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Payment outcome</legend>
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue" checked={isPtp} onChange={(event) => setIsPtp(event.target.checked)} />PTP (promise to pay)</label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue" checked={isCollection} onChange={(event) => setIsCollection(event.target.checked)} />Collection</label>
+            </div>
+          </fieldset>
+          {isPtp ? <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">PTP date</span><div className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><input type="date" className="field pl-10" value={newDate} onChange={(event) => setNewDate(event.target.value)} required /></div></label>
+            <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">PTP amount</span><input type="number" min="0" step="0.01" className="field" value={newAmount} onChange={(event) => setNewAmount(event.target.value)} placeholder="0.00" required /></label>
+          </div> : null}
+          {isCollection ? <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Collection date</span><div className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><input type="date" className="field pl-10" value={collectionDate} onChange={(event) => setCollectionDate(event.target.value)} required /></div></label>
+            <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Collection amount</span><input type="number" min="0" step="0.01" className="field" value={collectionAmount} onChange={(event) => setCollectionAmount(event.target.value)} placeholder="0.00" required /></label>
+          </div> : null}
           <label className="mt-3 block"><span className="mb-2 block text-sm font-semibold text-slate-700">Customer inquiry / request / notes</span><textarea className="min-h-36 w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-sm outline-none transition focus:border-brand-blue focus:ring-2 focus:ring-blue-100" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Type what the customer asked, requested, or discussed during the visit." required /></label>
           <div className="mt-5 flex justify-end gap-3"><button type="button" className="btn-secondary" onClick={() => setEntryOpen(false)}>Cancel</button><button className="btn-primary" disabled={isPending || !notes.trim()}><Save className="h-4 w-4" />Save Client Log</button></div>
         </form>

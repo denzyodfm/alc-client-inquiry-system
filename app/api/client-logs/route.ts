@@ -6,6 +6,8 @@ import { employeeLoanFilterFor } from "@/lib/employee-loans";
 import { visibleSyncedLoanWhere } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 import { auditAction } from "@/lib/audit";
+import { parseClientLogAmountFields } from "@/lib/client-logs";
+import { normalizeClientLogType } from "@/lib/client-log-types";
 
 function visibleClientLoanFilter(): Prisma.LoanWhereInput {
   return visibleSyncedLoanWhere();
@@ -23,13 +25,10 @@ export async function POST(request: Request) {
 
   const payload = await request.json().catch(() => null);
   const clientId = Number(payload?.clientId ?? 0);
-  const logType = String(payload?.logType ?? "INQUIRY").trim().slice(0, 60) || "INQUIRY";
+  const logType = normalizeClientLogType(String(payload?.logType ?? "INQUIRY")) || "INQUIRY";
   const subject = String(payload?.subject ?? "").trim().slice(0, 180);
   const notes = String(payload?.notes ?? "").trim();
-  const newDateText = String(payload?.newDate ?? "").trim();
-  const newDate = newDateText ? new Date(`${newDateText}T00:00:00.000Z`) : null;
-  const newAmountText = String(payload?.newAmount ?? "").trim();
-  const newAmount = newAmountText ? Number(newAmountText) : null;
+  const amounts = parseClientLogAmountFields(payload);
   const branchIds = user.role === "ACCOUNT_OFFICER" ? null : await getAccessibleBranchIds(user);
 
   if (!clientId) {
@@ -39,8 +38,7 @@ export async function POST(request: Request) {
   if (!notes) {
     return NextResponse.json({ error: "Please enter the customer inquiry, request, or notes." }, { status: 400 });
   }
-  if (newDate && Number.isNaN(newDate.getTime())) return NextResponse.json({ error: "Please enter a valid new date." }, { status: 400 });
-  if (newAmount !== null && (!Number.isFinite(newAmount) || newAmount < 0)) return NextResponse.json({ error: "Please enter a valid new amount." }, { status: 400 });
+  if ("error" in amounts) return NextResponse.json({ error: amounts.error }, { status: 400 });
 
   // Matches the search on the page: ALC HO is open to officers, staff loans are not, and a
   // client reachable only through a staff loan cannot be logged against.
@@ -66,8 +64,11 @@ export async function POST(request: Request) {
       logType,
       subject: subject || null,
       notes,
-      newDate,
-      newAmount
+      isPtp: amounts.isPtp,
+      newDate: amounts.newDate,
+      newAmount: amounts.newAmount,
+      collectionDate: amounts.collectionDate,
+      collectionAmount: amounts.collectionAmount
     }
   });
 
