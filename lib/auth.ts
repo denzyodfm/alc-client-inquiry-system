@@ -126,8 +126,26 @@ export function canAssignRemedial(role: UserRole) {
   return canApproveRemedial(role);
 }
 
+export function hasOrganizationWideBranchAccess(
+  user: Pick<SessionUser, "role" | "allBranches" | "position">,
+  privilegeName?: string | null
+) {
+  if (user.role === "ADMIN" || user.allBranches) return true;
+  const names = [user.position, privilegeName]
+    .map((value) => value?.trim().toLocaleLowerCase("en"));
+  return names.includes("ho tl");
+}
+
 export async function getAccessibleBranchIds(user: SessionUser) {
-  if (user.role === "ADMIN" || user.allBranches) return null;
+  if (hasOrganizationWideBranchAccess(user)) return null;
+
+  if (user.privilegeTemplateId) {
+    const privilege = await prisma.privilegeTemplate.findUnique({
+      where: { id: user.privilegeTemplateId },
+      select: { name: true }
+    });
+    if (hasOrganizationWideBranchAccess(user, privilege?.name)) return null;
+  }
 
   const access = await prisma.userBranchAccess.findMany({
     where: { userId: user.id },

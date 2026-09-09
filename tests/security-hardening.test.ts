@@ -3,7 +3,7 @@ import test from "node:test";
 import { branchIdentityScope, branchRecordScope } from "../lib/branch-scope";
 import { checkLoginRateLimit, clearLoginFailures, loginRateLimitPolicy, recordLoginFailure, resetLoginRateLimitsForTests } from "../lib/login-rate-limit";
 import { sessionSecret } from "../lib/session-security";
-import { createSessionToken, verifySessionToken } from "../lib/auth";
+import { createSessionToken, hasOrganizationWideBranchAccess, verifySessionToken } from "../lib/auth";
 import { addressMatches, isAddressAllowed, isValidAllowlistAddress } from "../lib/login-ip-allowlist";
 
 test("production refuses a missing or short session secret", () => {
@@ -24,6 +24,13 @@ test("sessions expire server-side and reject legacy payloads without an expiry",
     if (originalSecret === undefined) delete process.env.SESSION_SECRET;
     else process.env.SESSION_SECRET = originalSecret;
   }
+});
+
+test("HO TL receives organization-wide branch scope", () => {
+  const user = { role: "INQUIRY_USER" as const, allBranches: false, position: null };
+  assert.equal(hasOrganizationWideBranchAccess(user, "HO TL"), true);
+  assert.equal(hasOrganizationWideBranchAccess({ ...user, position: " ho tl " }), true);
+  assert.equal(hasOrganizationWideBranchAccess(user, "Branch TL"), false);
 });
 
 test("login attempts are blocked after the configured failure threshold", () => {
