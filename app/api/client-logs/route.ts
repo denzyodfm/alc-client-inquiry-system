@@ -6,8 +6,6 @@ import { visibleSyncedLoanWhere } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 import { auditAction } from "@/lib/audit";
 
-const CLIENT_LOG_ROLES = ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"] as const;
-
 function visibleClientLoanFilter(): Prisma.LoanWhereInput {
   return visibleSyncedLoanWhere();
 }
