@@ -812,7 +812,10 @@ export default async function LocationMasterlistPage() {
       officers: [...(pivotOfficersByLeader.get(leaderKey) ?? [])].sort((a, b) => a.name.localeCompare(b.name))
     }))
     .sort((a, b) => leaderRank(a.kind) - leaderRank(b.kind) || a.name.localeCompare(b.name));
-  const officerPivot = teamLeaderPivot.flatMap((leader) => leader.officers).sort((a, b) => a.name.localeCompare(b.name));
+  const officerPivot = teamLeaderPivot
+    .flatMap((leader) => leader.officers)
+    .filter((officer) => (officer.metrics.numberOfClients ?? 0) > 0 || (officer.metrics.portfolio ?? 0) > 0)
+    .sort((a, b) => a.name.localeCompare(b.name));
   const pivotOfficerCount = officerPivot.length;
   const accountOfficerTotal = accumulatedMetrics(metricsByAssignedOverall.get("assigned"));
   const unassignedTotal = accumulatedMetrics(metricsByOfficer.get("unassigned"));
@@ -860,6 +863,9 @@ export default async function LocationMasterlistPage() {
           </p>
           <p className="mt-1 text-xs text-slate-500">
             As of {todayKey}: Past Due means maturity is before today with a remaining balance. Delayed means an amortization due on or before today is not fully paid. Litigated is tracked separately.
+          </p>
+          <p className="mt-2 rounded-md bg-blue-50 px-3 py-2 text-xs font-semibold text-slate-600">
+            Client totals differ by design: this Location Grand Total includes both assigned and unassigned linked clients. Officer-based totals include assigned clients only. Each grand total counts a client once within that pivot.
           </p>
         </div>
         <div className="text-sm">
@@ -1121,7 +1127,7 @@ export default async function LocationMasterlistPage() {
           <h3 className="text-lg font-bold text-slate-950">Officer Portfolio by Location</h3>
           <p className="mt-1 text-sm text-slate-600">
             Loan and Remedial Officers are the top level. Open an officer for their province, then city/municipality, then barangay.
-            Counts and principal balances follow loans to their new location as soon as the officer assignment changes.
+            Counts and principal balances follow loans to their new location as soon as the officer assignment changes. Officers with no assigned portfolio are omitted.
           </p>
         </div>
         <div className="overflow-x-auto text-sm">
