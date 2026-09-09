@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { setSession } from "@/lib/auth";
 import { requestIp, writeAudit } from "@/lib/audit";
-import { checkLoginRateLimit, clearLoginFailures, recordLoginFailure } from "@/lib/login-rate-limit";
+import { checkLoginRateLimit, checkPersistentLoginRateLimit, clearLoginFailures, recordLoginFailure } from "@/lib/login-rate-limit";
 import { isLoginAllowedFrom } from "@/lib/login-ip-allowlist";
 
 // Keep nonexistent accounts on the same expensive password-verification path as real users.
@@ -36,10 +36,11 @@ export async function POST(request: Request) {
   }
 
   const rateLimit = checkLoginRateLimit(email, ipAddress);
-  if (!rateLimit.allowed) {
+  const persistentRateLimit = await checkPersistentLoginRateLimit(email, ipAddress);
+  if (!rateLimit.allowed || !persistentRateLimit.allowed) {
     return NextResponse.json(
       { error: "Too many failed sign-in attempts. Please try again later." },
-      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
+      { status: 429, headers: { "Retry-After": String(Math.max(rateLimit.retryAfterSeconds, persistentRateLimit.retryAfterSeconds)) } }
     );
   }
 
@@ -71,7 +72,8 @@ export async function POST(request: Request) {
     position: user.position,
     baseBranchId: user.baseBranchId,
     allBranches: user.allBranches,
-    privilegeTemplateId: user.privilegeTemplateId
+    privilegeTemplateId: user.privilegeTemplateId,
+    sessionVersion: user.sessionVersion
   });
   await writeAudit({ userId: user.id, userName: user.name, userEmail: user.email, role: user.role, action: "LOGIN", module: "Authentication", details: "Signed in successfully", ipAddress });
 

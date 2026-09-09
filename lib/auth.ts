@@ -15,6 +15,7 @@ export type SessionUser = {
   baseBranchId?: number | null;
   allBranches?: boolean;
   privilegeTemplateId?: number | null;
+  sessionVersion: number;
 };
 
 const COOKIE_NAME = "alc_session";
@@ -28,21 +29,32 @@ function sign(payload: string) {
 }
 
 function shouldUseSecureSessionCookie() {
-  return process.env.SESSION_COOKIE_SECURE === "true";
+  return process.env.NODE_ENV === "production" || process.env.SESSION_COOKIE_SECURE === "true";
 }
 
+const SESSION_TTL_SECONDS = 60 * 60 * 10;
+
+type SessionPayload = SessionUser & { issuedAt: number; expiresAt: number };
+
 export function createSessionToken(user: SessionUser) {
-  const payload = Buffer.from(JSON.stringify(user), "utf8").toString("base64url");
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const payload = Buffer.from(JSON.stringify({ ...user, issuedAt, expiresAt: issuedAt + SESSION_TTL_SECONDS }), "utf8").toString("base64url");
   return `${payload}.${sign(payload)}`;
 }
 
-export function verifySessionToken(token?: string): SessionUser | null {
+export function verifySessionToken(token?: string, now = Math.floor(Date.now() / 1000)): SessionPayload | null {
   if (!token) return null;
   const [payload, signature] = token.split(".");
-  if (!payload || !signature || sign(payload) !== signature) return null;
+  if (!payload || !signature) return null;
+  const expected = Buffer.from(sign(payload));
+  const supplied = Buffer.from(signature);
+  if (expected.length !== supplied.length || !crypto.timingSafeEqual(expected, supplied)) return null;
 
   try {
-    return JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as SessionUser;
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as SessionPayload;
+    if (!Number.isInteger(parsed.issuedAt) || !Number.isInteger(parsed.expiresAt) || parsed.expiresAt <= now || parsed.issuedAt > now + 60) return null;
+    if (!Number.isInteger(parsed.sessionVersion) || parsed.sessionVersion < 0) return null;
+    return parsed;
   } catch {
     return null;
   }
@@ -55,7 +67,7 @@ export async function setSession(user: SessionUser) {
     sameSite: "lax",
     secure: shouldUseSecureSessionCookie(),
     path: "/",
-    maxAge: 60 * 60 * 10
+    maxAge: SESSION_TTL_SECONDS
   });
 }
 
@@ -71,10 +83,10 @@ export async function getSessionUser() {
 
   const user = await prisma.user.findFirst({
     where: { id: session.id, isActive: true },
-    select: { id: true, name: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, privilegeTemplateId: true }
+    select: { id: true, name: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, privilegeTemplateId: true, sessionVersion: true }
   });
 
-  return user;
+  return user?.sessionVersion === session.sessionVersion ? user : null;
 }
 
 export async function requireUser(roles?: UserRole[]) {

@@ -1,3 +1,5 @@
+import { prisma } from "@/lib/prisma";
+
 type LoginAttempt = {
   failures: number[];
   blockedUntil: number | null;
@@ -48,4 +50,31 @@ export function clearLoginFailures(email: unknown, ipAddress: string | null) {
 
 export function resetLoginRateLimitsForTests() {
   attempts.clear();
+}
+
+// The in-memory limiter handles bursts without a database round-trip after every failure. This
+// second check survives restarts and works across multiple app processes by using the audit trail.
+export async function checkPersistentLoginRateLimit(email: unknown, ipAddress: string | null, now = Date.now()) {
+  const normalizedEmail = typeof email === "string" ? email.trim().toLocaleLowerCase("en") : "unknown";
+  const windowStart = new Date(now - loginRateLimitPolicy.failureWindowMs);
+  const identity = { userEmail: normalizedEmail, ipAddress };
+  const lastSuccess = await prisma.auditLog.findFirst({
+    where: { ...identity, action: "LOGIN", createdAt: { gte: windowStart } },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true }
+  });
+  const failures = await prisma.auditLog.findMany({
+    where: {
+      ...identity,
+      action: "LOGIN_FAILED",
+      createdAt: { gt: lastSuccess?.createdAt ?? windowStart }
+    },
+    orderBy: { createdAt: "desc" },
+    take: loginRateLimitPolicy.maximumFailures,
+    select: { createdAt: true }
+  });
+  if (failures.length < loginRateLimitPolicy.maximumFailures) return { allowed: true, retryAfterSeconds: 0 };
+  const blockedUntil = failures[0].createdAt.getTime() + loginRateLimitPolicy.blockDurationMs;
+  const retryAfterSeconds = Math.max(0, Math.ceil((blockedUntil - now) / 1000));
+  return { allowed: retryAfterSeconds === 0, retryAfterSeconds };
 }

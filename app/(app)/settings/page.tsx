@@ -4,10 +4,11 @@ import { requireUser, getAccessibleBranchIds } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
 import { getMidnightSyncSchedule } from "@/lib/midnight-sync-scheduler";
 import { prisma } from "@/lib/prisma";
-import { APP_FUNCTIONS, canAccessFunction } from "@/lib/access-control";
+import { APP_FUNCTIONS, FUNCTION_GROUPS, canAccessFunction } from "@/lib/access-control";
 import { BranchManager } from "@/components/branch-manager";
 import { PrivilegeManager } from "@/components/privilege-manager";
 import { AccessControlMatrix } from "@/components/access-control-matrix";
+import { AppFunctionalities } from "@/components/app-functionalities";
 import { AreaManager } from "@/components/area-manager";
 import { UserManager } from "@/components/user-manager";
 import { SyncLogsTable } from "@/components/sync-logs-table";
@@ -28,7 +29,7 @@ import { listBranchTeamLeaders } from "@/lib/branch-team-leaders";
 
 export const dynamic = "force-dynamic";
 
-type Tab = "general" | "branches" | "areas" | "privileges" | "matrix" | "users" | "admin-users" | "sync-logs" | "system-logs" | "change-log" | "change-password";
+type Tab = "general" | "branches" | "areas" | "privileges" | "matrix" | "app-functions" | "users" | "admin-users" | "sync-logs" | "system-logs" | "change-log" | "change-password";
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const currentUser = await requireUser();
@@ -45,6 +46,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     { key: "areas", label: "Areas", allowed: canSettings },
     { key: "privileges", label: "Privileges", allowed: canSettings },
     { key: "matrix", label: "Access Matrix", allowed: canSettings },
+    // Sits with the access tabs rather than being open to everyone: it spells out which privilege
+    // holds each function, which is the access model itself and not something every account needs.
+    { key: "app-functions", label: "App Functionalities", allowed: canSettings },
     { key: "users", label: "Users", allowed: canUsers },
     { key: "admin-users", label: "Admin Users", allowed: currentUser.role === "ADMIN" },
     { key: "sync-logs", label: "Sync Logs", allowed: canSyncLogs },
@@ -125,6 +129,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     {activeTab === "areas" ? <AreaManager initialAreas={JSON.parse(JSON.stringify(areas))} teamLeaders={teamLeaderOptions} /> : null}
     {activeTab === "privileges" ? <PrivilegeManager initialPrivileges={JSON.parse(JSON.stringify(privileges))} /> : null}
     {activeTab === "matrix" ? <AccessControlMatrix privileges={JSON.parse(JSON.stringify(privileges))} functions={APP_FUNCTIONS.map((item) => ({ ...item }))} /> : null}
+    {activeTab === "app-functions" ? <AppFunctionalities
+      groups={FUNCTION_GROUPS.map((group) => ({ ...group }))}
+      functions={APP_FUNCTIONS.map(({ key, label, explanation, group }) => ({ key, label, explanation, group }))}
+      holders={Object.fromEntries(APP_FUNCTIONS.map((item) => [
+        item.key,
+        privileges.filter((privilege) => privilege.permissions.some((permission) => permission.functionKey === item.key)).map((privilege) => privilege.name)
+      ]))}
+    /> : null}
     {activeTab === "users" ? <UserManager initialUsers={appUserRows} branches={userBranchOptions} currentUserRole={currentUser.role} canGrantAllBranches={isAdmin || accessibleBranchIds === null} privileges={privilegeOptions} areas={areaOptions} teamLeaders={teamLeaderOptions} branchTeamLeaders={branchTeamLeaderOptions} /> : null}
     {activeTab === "admin-users" ? <div className="space-y-2">
       <p className="text-xs text-slate-500">Accounts with full access to every app function. Administrator accounts are protected: they cannot be deactivated or deleted, and new ones are created directly in the database.</p>

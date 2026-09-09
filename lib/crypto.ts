@@ -3,7 +3,11 @@ import crypto from "node:crypto";
 const ALGORITHM = "aes-256-gcm";
 
 function key() {
-  return crypto.createHash("sha256").update(process.env.SYNC_ENCRYPTION_KEY || "development-sync-key").digest();
+  const configured = process.env.SYNC_ENCRYPTION_KEY?.trim();
+  if (process.env.NODE_ENV === "production" && (!configured || configured.length < 32)) {
+    throw new Error("SYNC_ENCRYPTION_KEY must be configured with at least 32 characters in production.");
+  }
+  return crypto.createHash("sha256").update(configured || "development-sync-key").digest();
 }
 
 export function encryptSecret(value: string) {

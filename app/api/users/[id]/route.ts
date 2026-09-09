@@ -145,7 +145,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           areaId,
           areaTeamLeaderId,
           branchTeamLeaderId,
-          ...(passwordHash ? { passwordHash } : {})
+          ...(passwordHash ? { passwordHash, sessionVersion: { increment: 1 } } : {})
         },
         select: { id: true, name: true, userCode: true, email: true, role: true, position: true, baseBranchId: true, allBranches: true, isActive: true }
       });

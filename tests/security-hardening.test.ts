@@ -3,12 +3,27 @@ import test from "node:test";
 import { branchIdentityScope, branchRecordScope } from "../lib/branch-scope";
 import { checkLoginRateLimit, clearLoginFailures, loginRateLimitPolicy, recordLoginFailure, resetLoginRateLimitsForTests } from "../lib/login-rate-limit";
 import { sessionSecret } from "../lib/session-security";
+import { createSessionToken, verifySessionToken } from "../lib/auth";
 import { addressMatches, isAddressAllowed, isValidAllowlistAddress } from "../lib/login-ip-allowlist";
 
 test("production refuses a missing or short session secret", () => {
   assert.throws(() => sessionSecret({ NODE_ENV: "production" }), /SESSION_SECRET/);
   assert.throws(() => sessionSecret({ NODE_ENV: "production", SESSION_SECRET: "short" }), /at least 32/);
   assert.equal(sessionSecret({ NODE_ENV: "production", SESSION_SECRET: "x".repeat(32) }), "x".repeat(32));
+});
+
+test("sessions expire server-side and reject legacy payloads without an expiry", () => {
+  const originalSecret = process.env.SESSION_SECRET;
+  process.env.SESSION_SECRET = "test-session-secret-that-is-long-enough";
+  try {
+    const token = createSessionToken({ id: 1, name: "Test", email: "test@example.com", role: "ADMIN", sessionVersion: 2 });
+    const session = verifySessionToken(token);
+    assert.equal(session?.sessionVersion, 2);
+    assert.equal(verifySessionToken(token, session!.expiresAt), null);
+  } finally {
+    if (originalSecret === undefined) delete process.env.SESSION_SECRET;
+    else process.env.SESSION_SECRET = originalSecret;
+  }
 });
 
 test("login attempts are blocked after the configured failure threshold", () => {

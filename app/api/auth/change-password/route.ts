@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 
   await prisma.user.update({
     where: { id: user!.id },
-    data: { passwordHash: await bcrypt.hash(newPassword, 12) }
+    data: { passwordHash: await bcrypt.hash(newPassword, 12), sessionVersion: { increment: 1 } }
   });
 
   await auditAction(request, user!, "PASSWORD_CHANGE", "Authentication", "Changed their own password");
