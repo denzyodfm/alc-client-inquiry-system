@@ -4,6 +4,7 @@ import { LoanResultsTable, type LoanResultRow } from "@/components/loan-results-
 import { LoanResultsSummary } from "@/components/loan-results-summary";
 import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { inactiveStatus12Where } from "@/lib/loan-filters";
+import { employeeLoanFilterFor } from "@/lib/employee-loans";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -115,10 +116,9 @@ export default async function LoansPage({
       : accountOfficerBranchIds.length
         ? { branchId: { in: accountOfficerBranchIds } }
         : { branchId: -1 };
-  const accountOfficerHoFilter: Prisma.LoanWhereInput =
-    user.role === "ACCOUNT_OFFICER"
-      ? { NOT: { branch: { branchName: { contains: "ALC HO" } } } }
-      : {};
+  // Officers used to lose the whole of ALC HO here. They keep it now, as on Client Inquiry and
+  // Client Logs, and lose only the staff loans within it.
+  const accountOfficerHoFilter: Prisma.LoanWhereInput = await employeeLoanFilterFor(user);
   const requestedBranchNumber = requestedBranchId === "ALL" ? null : Number(requestedBranchId);
   const selectedBranchAllowed =
     requestedBranchNumber === null ||
@@ -180,8 +180,7 @@ export default async function LoansPage({
     hasSearch ? prisma.loan.count({ where }) : Promise.resolve(0),
     prisma.branch.findMany({
       where: {
-        ...(accountOfficerBranchIds === null ? {} : { id: { in: accountOfficerBranchIds } }),
-        ...(user.role === "ACCOUNT_OFFICER" ? { NOT: { branchName: { contains: "ALC HO" } } } : {})
+        ...(accountOfficerBranchIds === null ? {} : { id: { in: accountOfficerBranchIds } })
       },
       select: { id: true, branchName: true, branchCode: true },
       orderBy: { branchName: "asc" }

@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { excludeEmployeeLoanWhere } from "@/lib/employee-loans";
 import { visibleSyncedLoanWhere } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 
@@ -53,9 +54,8 @@ function clientWordSearch(value: string): Prisma.ClientWhereInput {
 }
 
 // Account Officers may now look up Head Office loans, which they previously could not see at
-// all. Staff lending stays out of their reach: the employee products at HO are the branch's
-// own people, and an officer in the field has no business searching them.
-export async function searchClientInquiry(payload: InquiryPayload, options?: { hideHoEmployeeLoans?: boolean }) {
+// all. Staff lending stays out of their reach: see lib/employee-loans.ts for who may see it.
+export async function searchClientInquiry(payload: InquiryPayload, options?: { hideEmployeeLoans?: boolean }) {
   const visibleLoanFilter = visibleSyncedLoanWhere();
   const or = [];
   const customer = payload.customer?.trim();
@@ -99,15 +99,10 @@ export async function searchClientInquiry(payload: InquiryPayload, options?: { h
     };
   }
 
-  // Head Office employee loans are the branch's own staff. Account Officers may search HO for
-  // everything else, but not for those. Excluding them on the loan filter rather than on the
-  // client keeps a member of staff out of the results entirely, instead of listing their name
-  // with no loans beneath it.
-  const hoEmployeeLoans: Prisma.LoanWhereInput = {
-    NOT: { AND: [{ branch: { branchName: { contains: "ALC HO" } } }, { loanProduct: { contains: "EMPLOYEE" } }] }
-  };
+  // Excluding staff loans on the loan filter rather than on the client keeps a member of staff
+  // out of the results entirely, instead of listing their name with no loans beneath it.
   const selectedLoanFilter: Prisma.LoanWhereInput = { ...visibleLoanFilter,
-    ...(options?.hideHoEmployeeLoans ? hoEmployeeLoans : {}), ...(product && product !== "ALL" ? { loanProduct: product } : {}), ...(payload.status && payload.status !== "ALL" && Number.isInteger(status) ? { sourceStatusCode: status } : {}), ...(branchAo && branchAo !== "ALL" ? { branchAo } : {}) };
+    ...(options?.hideEmployeeLoans ? excludeEmployeeLoanWhere() : {}), ...(product && product !== "ALL" ? { loanProduct: product } : {}), ...(payload.status && payload.status !== "ALL" && Number.isInteger(status) ? { sourceStatusCode: status } : {}), ...(branchAo && branchAo !== "ALL" ? { branchAo } : {}) };
   const clients = await prisma.client.findMany({
     where: {
       ...(or.length ? { OR: or } : {}),

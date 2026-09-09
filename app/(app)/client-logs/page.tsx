@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { FileClock } from "lucide-react";
 import { ClientLogsWorkspace } from "@/components/client-logs-workspace";
 import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
+import { employeeLoanFilterFor } from "@/lib/employee-loans";
 import { visibleSyncedLoanWhere } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 
@@ -61,15 +62,15 @@ export default async function ClientLogsPage({
   const accessibleBranchIds = await getAccessibleBranchIds(user);
   const searchBranchIds = user.role === "ACCOUNT_OFFICER" ? null : accessibleBranchIds;
   const clientBranchFilter = branchAccessWhere(searchBranchIds);
-  const clientInquiryScope: Prisma.ClientWhereInput = {
-    AND: [
-      clientBranchFilter,
-      ...(user.role === "ACCOUNT_OFFICER" ? [{ NOT: { branch: { branchName: { contains: "ALC HO" } } } }] : [])
-    ]
-  };
+  const clientInquiryScope: Prisma.ClientWhereInput = { AND: [clientBranchFilter] };
+  // Officers see ALC HO here, the same as in Client Inquiry. What they do not see is a staff
+  // loan, and because a client is only listed when some loan of theirs matches, a client whose
+  // only loan is a staff loan drops out of the search with it.
+  const employeeLoanFilter = await employeeLoanFilterFor(user);
   const loanFilter: Prisma.LoanWhereInput = {
     AND: [
       visibleLoanFilter,
+      employeeLoanFilter,
       ...(selectedBranchId ? [{ branchId: selectedBranchId }] : [])
     ]
   };

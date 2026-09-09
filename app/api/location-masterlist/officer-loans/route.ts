@@ -2,6 +2,7 @@ import type { Prisma, UserRole } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { requireApiAnyFunction, requireApiFunction } from "@/lib/api";
+import { employeeLoanFilterFor } from "@/lib/employee-loans";
 import { canAccessFunction } from "@/lib/access-control";
 import { canAccessBranch, getAccessibleBranchIds } from "@/lib/auth";
 import { clientOutstandingLoanIds } from "@/lib/client-loan-group";
@@ -188,6 +189,7 @@ export async function GET(request: NextRequest) {
   const where: Prisma.LoanWhereInput = {
     AND: [
       branchWhere,
+      await employeeLoanFilterFor(user!),
       accountTaggingSearchWhere({}),
       { locationLinked: true, locationMasterlistId: { not: null } },
       locationWhere,
@@ -417,8 +419,8 @@ export async function POST(request: NextRequest) {
   }
 
   const [loan, officer] = await Promise.all([
-    prisma.loan.findUnique({
-      where: { id: loanId },
+    prisma.loan.findFirst({
+      where: { AND: [{ id: loanId }, await employeeLoanFilterFor(user!)] },
       select: { id: true, branchId: true, clientId: true, remedialAssignment: { select: { id: true } } }
     }),
     prisma.user.findFirst({

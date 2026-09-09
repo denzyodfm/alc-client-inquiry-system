@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/api";
+import { canSeeEmployeeLoans } from "@/lib/employee-loans";
 import { canAccessBranch } from "@/lib/auth";
 import { toLoanDetail } from "@/lib/loan-detail";
 import { prisma } from "@/lib/prisma";
@@ -34,6 +35,13 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   // only for loans in branches the reader is allowed to see.
   if (!(await canAccessBranch(user!, loan.branchId))) {
     return NextResponse.json({ error: "This loan is outside your assigned branches." }, { status: 403 });
+  }
+
+  // Branch scoping alone does not hold here: everyone is currently set to all branches, so a
+  // staff loan would open for anyone who had its id. This window is reachable from every list,
+  // which makes it the one place the rule has to be restated.
+  if (/employee/i.test(loan.loanProduct ?? "") && !(await canSeeEmployeeLoans(user!))) {
+    return NextResponse.json({ error: "Loan not found." }, { status: 404 });
   }
 
   return NextResponse.json({ loan: toLoanDetail(loan) });

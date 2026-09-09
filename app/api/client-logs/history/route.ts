@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { requireApiUser } from "@/lib/api";
 import { canAccessAnyFunction } from "@/lib/access-control";
 import { getClientLogBranchIds } from "@/lib/auth";
+import { employeeClientFilterFor } from "@/lib/employee-loans";
 import { prisma } from "@/lib/prisma";
 
 // Every log recorded for one client, newest first. Used by the client log popup on
@@ -24,8 +25,11 @@ export async function GET(request: NextRequest) {
   };
 
   const [client, logs] = await Promise.all([
-    prisma.client.findUnique({
-      where: { id: clientId },
+    // Looked up by id alone until now, which let anyone who could reach this route read any
+    // client's name and contact details. It is at least closed to staff-loan clients for those
+    // not allowed to see them; the branch scope below still governs the logs themselves.
+    prisma.client.findFirst({
+      where: { AND: [{ id: clientId }, await employeeClientFilterFor(user!)] },
       select: { id: true, fullName: true, clientId: true, contactNumber: true, address: true, branch: { select: { branchName: true, branchCode: true } } }
     }),
     prisma.clientLog.findMany({

@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { getAccessibleBranchIds, type SessionUser } from "@/lib/auth";
+import { employeeLoanFilterFor } from "@/lib/employee-loans";
 import { visibleSyncedLoanWhere } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 import { principalBalanceByLoan, principalBalanceOf } from "@/lib/principal-balance";
@@ -28,10 +29,13 @@ export function invalidAddressLoanWhere(): Prisma.LoanWhereInput {
   };
 }
 
-export async function verificationBranchScope(user: SessionUser): Promise<Prisma.LoanWhereInput> {
+// Everything a viewer may see here: their branches, less any staff loan they are not allowed
+// to see. Every query in this file goes through it, so the two rules cannot drift apart.
+export async function verificationViewerScope(user: SessionUser): Promise<Prisma.LoanWhereInput> {
   const branchIds = await getAccessibleBranchIds(user);
-  if (branchIds === null) return {};
-  return branchIds.length ? { branchId: { in: branchIds } } : { branchId: -1 };
+  const employeeFilter = await employeeLoanFilterFor(user);
+  if (branchIds === null) return employeeFilter;
+  return { AND: [branchIds.length ? { branchId: { in: branchIds } } : { branchId: -1 }, employeeFilter] };
 }
 
 // Principal balance is what the schedule still owes on principal, capped at the loan's own
@@ -59,7 +63,7 @@ const LOAN_SELECT = {
 // cards therefore always come from the same rows.
 export async function verificationBranchSummary(user: SessionUser, verified: boolean) {
   const loans = await prisma.loan.findMany({
-    where: { AND: [verifiableLoanWhere(verified), await verificationBranchScope(user)] },
+    where: { AND: [verifiableLoanWhere(verified), await verificationViewerScope(user)] },
     select: LOAN_SELECT
   });
   const scheduled = await principalBalanceByLoan(loans.map((loan) => loan.id));
@@ -129,7 +133,7 @@ function withPercent(cohort: VerificationCohort): VerificationCohort {
 }
 
 export async function verificationBranchProgress(user: SessionUser) {
-  const scope = await verificationBranchScope(user);
+  const scope = await verificationViewerScope(user);
   const baselineDate = await verificationBaselineDate();
   // Anything created up to the end of the baseline day is backlog; later arrivals are new.
   const baselineCutoff = new Date(baselineDate);
@@ -222,7 +226,7 @@ export async function verificationBranchProgress(user: SessionUser) {
 // re-tagging any one of them now clears the whole client anyway.
 export async function invalidAddressBranchSummary(user: SessionUser) {
   const loans = await prisma.loan.findMany({
-    where: { AND: [invalidAddressLoanWhere(), await verificationBranchScope(user)] },
+    where: { AND: [invalidAddressLoanWhere(), await verificationViewerScope(user)] },
     select: LOAN_SELECT
   });
   const scheduled = await principalBalanceByLoan(loans.map((loan) => loan.id));
@@ -314,7 +318,7 @@ export async function verificationLoanRows({
   const where: Prisma.LoanWhereInput = {
     AND: [
       verifiableLoanWhere(verified),
-      await verificationBranchScope(user),
+      await verificationViewerScope(user),
       branchId ? { branchId } : {},
       ...terms.map((term) => ({
         OR: [
@@ -382,7 +386,7 @@ export async function verificationLoanRows({
 // rather than kept as its own running total, so it can never disagree with them.
 export async function verificationReport(user: SessionUser) {
   const loans = await prisma.loan.findMany({
-    where: { AND: [verifiableLoanWhere(true), await verificationBranchScope(user)] },
+    where: { AND: [verifiableLoanWhere(true), await verificationViewerScope(user)] },
     select: {
       ...LOAN_SELECT,
       verifiedAt: true,

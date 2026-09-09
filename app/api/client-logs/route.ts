@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { getAccessibleBranchIds } from "@/lib/auth";
 import { requireApiFunction } from "@/lib/api";
+import { employeeLoanFilterFor } from "@/lib/employee-loans";
 import { visibleSyncedLoanWhere } from "@/lib/loan-filters";
 import { prisma } from "@/lib/prisma";
 import { auditAction } from "@/lib/audit";
@@ -41,12 +42,14 @@ export async function POST(request: Request) {
   if (newDate && Number.isNaN(newDate.getTime())) return NextResponse.json({ error: "Please enter a valid new date." }, { status: 400 });
   if (newAmount !== null && (!Number.isFinite(newAmount) || newAmount < 0)) return NextResponse.json({ error: "Please enter a valid new amount." }, { status: 400 });
 
+  // Matches the search on the page: ALC HO is open to officers, staff loans are not, and a
+  // client reachable only through a staff loan cannot be logged against.
+  const employeeLoanFilter = await employeeLoanFilterFor(user);
   const client = await prisma.client.findFirst({
     where: {
       id: clientId,
       ...branchAccessWhere(branchIds),
-      ...(user.role === "ACCOUNT_OFFICER" ? { NOT: { branch: { branchName: { contains: "ALC HO" } } } } : {}),
-      loans: { some: visibleClientLoanFilter() }
+      loans: { some: { AND: [visibleClientLoanFilter(), employeeLoanFilter] } }
     },
     select: { id: true, branchId: true, fullName: true, clientId: true }
   });

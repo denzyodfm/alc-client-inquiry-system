@@ -2,13 +2,16 @@ import { InquiryForm } from "@/components/inquiry-form";
 import { prisma } from "@/lib/prisma";
 import { requireFunction } from "@/lib/auth";
 import { getAccessibleBranchIds } from "@/lib/auth";
+import { employeeLoanFilterFor } from "@/lib/employee-loans";
 
 export const dynamic = "force-dynamic";
 
 export default async function InquiryPage() {
   const user = await requireFunction("CLIENT_INQUIRY");
   const branchIds = await getAccessibleBranchIds(user);
-  const loanScope = { ...(branchIds === null ? {} : { branchId: { in: branchIds } }), ...(user.role === "ACCOUNT_OFFICER" ? { NOT: { AND: [{ branch: { branchName: { contains: "ALC HO" } } }, { loanProduct: { contains: "EMPLOYEE" } }] } } : {}) };
+  // Scopes the Product, Status and Branch AO dropdowns as well as the search, so a staff-only
+  // product never appears as an option to someone who cannot search it.
+  const loanScope = { ...(branchIds === null ? {} : { branchId: { in: branchIds } }), ...(await employeeLoanFilterFor(user)) };
   const [locationOptions, branches, products, statuses, branchAos] = await Promise.all([prisma.locationMasterlist.findMany({
     distinct: ["province", "municipality", "barangay"],
     select: { province: true, municipality: true, barangay: true },

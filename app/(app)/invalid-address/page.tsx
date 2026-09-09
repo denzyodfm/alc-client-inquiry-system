@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Building2, MapPinOff, Search } from "lucide-react";
 import { InvalidAddressWorkspace, type InvalidAddressRow } from "@/components/invalid-address-workspace";
 import { requireFunction } from "@/lib/auth";
-import { invalidAddressBranchSummary, invalidAddressLoanWhere, loanPrincipalBalance, verificationBranchScope } from "@/lib/loan-verification";
+import { invalidAddressBranchSummary, invalidAddressLoanWhere, loanPrincipalBalance, verificationViewerScope } from "@/lib/loan-verification";
 import { money } from "@/lib/format";
 import { principalBalanceByLoan } from "@/lib/principal-balance";
 import { prisma } from "@/lib/prisma";
@@ -41,7 +41,7 @@ export default async function InvalidAddressPage({
   const where = {
     AND: [
       invalidAddressLoanWhere(),
-      await verificationBranchScope(user),
+      await verificationViewerScope(user),
       selectedBranchId ? { branchId: selectedBranchId } : {},
       ...terms.map((term) => ({
         OR: [

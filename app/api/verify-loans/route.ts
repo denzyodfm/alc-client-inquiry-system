@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireApiFunction } from "@/lib/api";
+import { employeeLoanFilterFor } from "@/lib/employee-loans";
 import { auditAction } from "@/lib/audit";
 import { canAccessBranch } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -18,8 +19,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "A valid loan is required." }, { status: 400 });
   }
 
-  const loan = await prisma.loan.findUnique({
-    where: { id: loanId },
+  const loan = await prisma.loan.findFirst({
+    where: { AND: [{ id: loanId }, await employeeLoanFilterFor(user!)] },
     select: {
       id: true,
       branchId: true,

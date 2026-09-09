@@ -7,6 +7,7 @@ import { PaymentReportFilter } from "@/components/payment-report-filter";
 import { PrintReportButton } from "@/components/print-report-button";
 import { ScopedPrintButton } from "@/components/scoped-print-button";
 import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
+import { employeePaymentFilterFor } from "@/lib/employee-loans";
 import { dateOnly, dateTime, money } from "@/lib/format";
 import { numberValue } from "@/lib/loan-amounts";
 import { toLoanDetail } from "@/lib/loan-detail";
@@ -173,7 +174,7 @@ export default async function PaymentReportsPage({
   const periodFilter: Prisma.PaymentWhereInput = { paidAt: { gte: start, lt: end } };
   const productFilter: Prisma.PaymentWhereInput = selectedProduct === "ALL" ? {} : { loan: { loanProduct: selectedProduct } };
   const where: Prisma.PaymentWhereInput = {
-    AND: [branchAccessFilter, branchFilter, periodFilter, productFilter, paymentSearchWhere(searchText)]
+    AND: [branchAccessFilter, await employeePaymentFilterFor(user), branchFilter, periodFilter, productFilter, paymentSearchWhere(searchText)]
   };
 
   const [totalAggregate, branchSummaryGroups, uniqueClientGroups, uniqueLoanGroups, branches, productOptions] = await Promise.all([

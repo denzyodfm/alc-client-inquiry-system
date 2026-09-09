@@ -4,6 +4,7 @@ import { AlertTriangle, Building2, Hourglass, Layers3, UserRound } from "lucide-
 import { AgingDetailReport, type AgingDetailRow } from "@/components/aging-detail-report";
 import { AgingReportFilter } from "@/components/aging-report-filter";
 import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
+import { employeeLoanFilterFor } from "@/lib/employee-loans";
 import { numberValue } from "@/lib/loan-amounts";
 import { manilaDateKey } from "@/lib/location-loan-aging";
 import { amountDueFrom, contractAmountFrom, paidTotalFrom, scheduleFactsByLoan, type LoanScheduleFacts } from "@/lib/principal-balance";
@@ -189,10 +190,11 @@ export default async function AgingReportPage({
     accessibleBranchIds === null ||
     accessibleBranchIds.includes(requestedBranchNumber);
   const selectedBranchId = selectedBranchAllowed ? requestedBranchId : "ALL";
+  const viewerLoanFilter = await employeeLoanFilterFor(user);
   const branchFilter: Prisma.LoanWhereInput = selectedBranchId === "ALL" ? {} : { branchId: Number(selectedBranchId) };
   const productFilter: Prisma.LoanWhereInput = selectedProduct === "ALL" ? {} : { loanProduct: selectedProduct };
   const where: Prisma.LoanWhereInput = {
-    AND: [pastDueLoanWhere(), branchAccessFilter, branchFilter, productFilter, agingSearchWhere(searchText)]
+    AND: [pastDueLoanWhere(), branchAccessFilter, viewerLoanFilter, branchFilter, productFilter, agingSearchWhere(searchText)]
   };
 
   const [allLoans, branches, productOptions] = await Promise.all([
@@ -212,7 +214,7 @@ export default async function AgingReportPage({
     }),
     prisma.loan.findMany({
       distinct: ["loanProduct"],
-      where: { AND: [pastDueLoanWhere(), branchAccessFilter, { loanProduct: { not: null } }] },
+      where: { AND: [pastDueLoanWhere(), branchAccessFilter, viewerLoanFilter, { loanProduct: { not: null } }] },
       select: { loanProduct: true },
       orderBy: { loanProduct: "asc" }
     })

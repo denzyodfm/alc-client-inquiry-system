@@ -6,6 +6,7 @@ import { LocationReportLoanList } from "@/components/location-report-loan-row";
 import { PrintReportButton } from "@/components/print-report-button";
 import { accountTaggingHref, accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { canAssignRemedial, getAccessibleBranchIds, requireFunction } from "@/lib/auth";
+import { employeeLoanFilterFor } from "@/lib/employee-loans";
 import { money } from "@/lib/format";
 import { manilaDateKey } from "@/lib/location-loan-aging";
 import { interestBalanceFrom, scheduleFactsByLoan, type LoanScheduleFacts } from "@/lib/principal-balance";
@@ -189,8 +190,8 @@ export default async function AccountTaggingPage({
   const pageSize = 100;
   const accessibleBranchIds =
     user.role === "ACCOUNT_OFFICER" && viewTagging ? null : await getAccessibleBranchIds(user);
-  const branchAccessFilter: Prisma.LoanWhereInput =
-    accessibleBranchIds === null ? {} : accessibleBranchIds.length ? { branchId: { in: accessibleBranchIds } } : { branchId: -1 };
+  // Branch scope and the staff-loan rule travel together, so every query below carries both.
+  const branchAccessFilter: Prisma.LoanWhereInput = { AND: [accessibleBranchIds === null ? {} : accessibleBranchIds.length ? { branchId: { in: accessibleBranchIds } } : { branchId: -1 }, await employeeLoanFilterFor(user)] };
   const requestedBranchNumber = requestedBranchId === "ALL" ? null : Number(requestedBranchId);
   const selectedBranchAllowed =
     requestedBranchNumber === null ||

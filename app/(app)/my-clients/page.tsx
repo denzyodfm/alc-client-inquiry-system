@@ -4,6 +4,7 @@ import { BarangayLoanReport } from "@/components/officer-barangay-loans";
 import { ReorderableRows } from "@/components/reorderable-rows";
 import { accountTaggingSearchWhere } from "@/lib/account-tagging";
 import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
+import { employeeLoanFilterFor } from "@/lib/employee-loans";
 import { money as pesos } from "@/lib/format";
 import { effectiveLocationCategory, manilaDateKey, type LocationClientCategory } from "@/lib/location-loan-aging";
 import { scheduleFactsByLoan, type LoanScheduleFacts } from "@/lib/principal-balance";
@@ -152,6 +153,7 @@ export default async function MyClientsPage({
         where: {
           AND: [
             branchWhere,
+            await employeeLoanFilterFor(user),
             accountTaggingSearchWhere({}),
             { locationLinked: true, locationMasterlistId: { not: null } },
             { remedialAssignment: { is: { status: "ACTIVE", assignedToId: { in: officerIds } } } }

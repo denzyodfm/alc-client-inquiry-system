@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { AlertTriangle, ShieldCheck, UserRoundCheck } from "lucide-react";
 import { dateOnly, money } from "@/lib/format";
 import { inactiveStatus12Where } from "@/lib/loan-filters";
+import { employeeLoanFilterFor } from "@/lib/employee-loans";
 import { prisma } from "@/lib/prisma";
 import { CoMakerSearchForm } from "@/components/co-maker-search-form";
 import { CoMakerMonitoringList, type CoMakerGroupData } from "@/components/co-maker-monitoring-list";
@@ -182,7 +183,7 @@ export default async function CoMakersPage({
 }: {
   searchParams?: Promise<{ q?: string; page?: string }>;
 }) {
-  await requireFunction("CO_MAKERS");
+  const user = await requireFunction("CO_MAKERS");
   const params = await searchParams;
   const searchText = params?.q?.trim() ?? "";
   const searchTokens = searchText.split(/[,\s]+/).map((token) => token.trim()).filter(Boolean);
@@ -205,7 +206,8 @@ export default async function CoMakersPage({
   const where: Prisma.CoMakerWhereInput = {
     AND: [
       coMakerSearchWhere,
-      { loan: inactiveStatus12Where() }
+      { loan: inactiveStatus12Where() },
+      { loan: await employeeLoanFilterFor(user) }
     ]
   };
 

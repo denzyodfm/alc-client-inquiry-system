@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireApiFunction } from "@/lib/api";
+import { canSeeEmployeeLoans } from "@/lib/employee-loans";
 import { searchClientInquiry } from "@/lib/inquiry";
 
 export async function POST(request: Request) {
@@ -7,6 +8,6 @@ export async function POST(request: Request) {
   if (response) return response;
 
   const payload = await request.json();
-  const result = await searchClientInquiry(payload, { hideHoEmployeeLoans: user?.role === "ACCOUNT_OFFICER" });
+  const result = await searchClientInquiry(payload, { hideEmployeeLoans: !(user && (await canSeeEmployeeLoans(user))) });
   return NextResponse.json(result);
 }

@@ -5,6 +5,7 @@ import { CurrentDetailReport, type CurrentDetailRow } from "@/components/current
 import { CurrentLoansFilter } from "@/components/current-loans-filter";
 import { getAccessibleBranchIds, requireFunction } from "@/lib/auth";
 import { inactiveStatus12Where } from "@/lib/loan-filters";
+import { employeeLoanFilterFor } from "@/lib/employee-loans";
 import { numberValue } from "@/lib/loan-amounts";
 import { manilaDateKey } from "@/lib/location-loan-aging";
 import { amountDueFrom, paidTotalFrom, scheduleFactsByLoan, type LoanScheduleFacts } from "@/lib/principal-balance";
@@ -98,11 +99,12 @@ export default async function CurrentLoansPage({
     sourceStatusName: { not: null },
     NOT: [{ loanNumber: "" }, { sourceStatusCode: 12 }]
   };
+  const viewerLoanFilter = await employeeLoanFilterFor(user);
   const currentLoanFilter: Prisma.LoanWhereInput = {
     OR: [{ sourceStatusCode: 0 }, { sourceStatusName: { contains: "Current" } }]
   };
   const where: Prisma.LoanWhereInput = {
-    AND: [inactiveStatus12Where(), hasLoanDetailsFilter, currentLoanFilter, accountOfficerBranchFilter],
+    AND: [inactiveStatus12Where(), hasLoanDetailsFilter, currentLoanFilter, accountOfficerBranchFilter, viewerLoanFilter],
     ...(selectedBranchId === "ALL" ? {} : { branchId: Number(selectedBranchId) }),
     ...(selectedProduct === "ALL" ? {} : { loanProduct: selectedProduct }),
     ...(searchText
@@ -131,7 +133,7 @@ export default async function CurrentLoansPage({
     prisma.loan.findMany({
       distinct: ["loanProduct"],
       where: {
-        AND: [inactiveStatus12Where(), hasLoanDetailsFilter, currentLoanFilter, accountOfficerBranchFilter],
+        AND: [inactiveStatus12Where(), hasLoanDetailsFilter, currentLoanFilter, accountOfficerBranchFilter, viewerLoanFilter],
         loanProduct: { not: null }
       },
       select: { loanProduct: true },

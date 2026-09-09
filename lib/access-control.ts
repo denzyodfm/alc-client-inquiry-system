@@ -25,6 +25,7 @@ export const APP_FUNCTIONS = [
   { key: "MONTHLY_REPORTS", label: "Monthly Reports", description: "Month-end reports that do not change once captured" },
   { key: "SYNC_LOGS", label: "Sync Logs", description: "View branch synchronization history" },
   { key: "USER_MANAGEMENT", label: "User Management", description: "Create and manage authorized user accounts" },
+  { key: "EMPLOYEE_LOANS", label: "Employee Loans", description: "See staff employee loans in searches, client lists, and loan details" },
   { key: "SETTINGS_ACCESS", label: "Settings and Access Control", description: "Manage branches, privileges, and access matrix" }
 ] as const;
 

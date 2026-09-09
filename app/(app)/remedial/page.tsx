@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { AlertTriangle, CalendarDays, ClipboardList } from "lucide-react";
 import { requireFunction, canApproveRemedial, canAssignRemedial, getAccessibleBranchIds } from "@/lib/auth";
+import { employeeLoanFilterFor } from "@/lib/employee-loans";
 import { branchScopeWhere, remedialEligibleLoanWhere, remedialLoanSearchWhere, remedialOfficerOptions, REMEDIAL_ROLES } from "@/lib/remedial";
 import { prisma } from "@/lib/prisma";
 import { amountDueAsOfToday, numberValue, scheduleIsPaid, schedulePaidTotal } from "@/lib/loan-amounts";
@@ -163,7 +164,7 @@ export default async function RemedialPage({
   const branchFilter: Prisma.LoanWhereInput =
     selectedBranchNumber && selectedBranchAllowed ? { branchId: selectedBranchNumber } : {};
   const productFilter: Prisma.LoanWhereInput = selectedProduct === "ALL" ? {} : { loanProduct: selectedProduct };
-  const visibilityFilter: Prisma.LoanWhereInput = await branchScopeWhere(user);
+  const visibilityFilter: Prisma.LoanWhereInput = { AND: [await branchScopeWhere(user), await employeeLoanFilterFor(user)] };
   const where: Prisma.LoanWhereInput = {
     AND: [
       remedialEligibleLoanWhere(),
