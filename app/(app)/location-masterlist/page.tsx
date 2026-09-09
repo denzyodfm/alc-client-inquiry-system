@@ -1014,6 +1014,7 @@ export default async function LocationMasterlistPage() {
           <p className="mt-1 text-sm text-slate-600">
             Area Team Leaders and Branch Team Leaders sit side by side. Open a team leader for its officers, then an officer for the province, city/municipality, and barangay of their assigned loans.
             Click an officer&apos;s client count for the loan details, or the Location button for their province, city/municipality, and barangay. Every level can be dragged into the order you prefer. The total counts each client only once across all officers.
+            Loans nobody is handling yet sit in the amber row at the top; they belong to no officer, so they stay out of the officer total below.
           </p>
         </div>
         <div className="text-sm">
@@ -1024,6 +1025,9 @@ export default async function LocationMasterlistPage() {
             <StatusHeader label="Past Due" /><StatusHeader label="Litigated" />
           </div>
           <div className="divide-y divide-slate-200">
+            {unassignedProvinceList.length ? (
+              <UnassignedLocationRows provinces={unassignedProvinceList} total={unassignedTotal} />
+            ) : null}
             <ReorderableRows
               ids={teamLeaderPivot.map((leader) => leader.key)}
               storageKey="officer-pivot-leader-order"
@@ -1128,6 +1132,7 @@ export default async function LocationMasterlistPage() {
           <p className="mt-1 text-sm text-slate-600">
             Loan and Remedial Officers are the top level. Open an officer for their province, then city/municipality, then barangay.
             Counts and principal balances follow loans to their new location as soon as the officer assignment changes. Officers with no assigned portfolio are omitted.
+            Loans nobody is handling yet sit in the amber row at the top; they belong to no officer, so they stay out of the officer total below.
           </p>
         </div>
         <div className="overflow-x-auto text-sm">
@@ -1137,6 +1142,9 @@ export default async function LocationMasterlistPage() {
             <StatusHeader label="Delayed" /><StatusHeader label="Past Due" /><StatusHeader label="Litigated" />
           </div>
           <div className="min-w-[1100px] divide-y divide-slate-200">
+            {unassignedProvinceList.length ? (
+              <UnassignedLocationRows provinces={unassignedProvinceList} total={unassignedTotal} />
+            ) : null}
             <ReorderableRows ids={officerPivot.map((officer) => String(officer.id))} storageKey="officer-location-first-order" defaultOrderLabel="officer name order">
               {officerPivot.map((officer) => (
                 <details key={officer.id} className="group/officer-location">
