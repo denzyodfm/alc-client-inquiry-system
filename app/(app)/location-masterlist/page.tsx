@@ -367,7 +367,7 @@ export default async function LocationMasterlistPage() {
   const accessibleBranchIds = user.role === "ACCOUNT_OFFICER" ? null : await getAccessibleBranchIds(user);
   const branchWhere: Prisma.LoanWhereInput =
     accessibleBranchIds === null ? {} : accessibleBranchIds.length ? { branchId: { in: accessibleBranchIds } } : { branchId: -1 };
-  const [locations, loans, eligibleLoanCount, unlinkedLoanCount, recentLinkRuns, officerAreaRows, pivotOfficerRows] = await Promise.all([
+  const [locations, loans, unlinkedTaggedLoans, unlinkedLoanCount, recentLinkRuns, officerAreaRows, pivotOfficerRows] = await Promise.all([
     prisma.locationMasterlist.findMany({
       orderBy: [{ province: "asc" }, { municipality: "asc" }, { barangay: "asc" }]
     }),
@@ -411,22 +411,26 @@ export default async function LocationMasterlistPage() {
         }
       }
     }),
-    prisma.loan.count({
+    // The tagged loans this pivot cannot place: same filters as the query above, with the
+    // barangay link inverted. Fetched rather than counted so the portfolio sitting outside the
+    // pivot can be named, which is the figure that makes this total differ from the book.
+    prisma.loan.findMany({
       where: {
         AND: [
           branchWhere,
           accountTaggingSearchWhere({}),
+          { OR: [{ locationLinked: false }, { locationMasterlistId: null }] },
           {
             remedialAssignment: {
               is: {
                 status: "ACTIVE",
-                ...(user.role === "ACCOUNT_OFFICER" ? { assignedToId: user.id } : {}),
-                barangay: { not: null }
+                ...(user.role === "ACCOUNT_OFFICER" ? { assignedToId: user.id } : {})
               }
             }
           }
         ]
-      }
+      },
+      select: { id: true, balance: true, principalAmount: true }
     }),
     user.role === "ADMIN"
       ? prisma.loan.count({ where: { OR: [{ locationLinked: false }, { locationMasterlistId: null }] } })
@@ -623,7 +627,16 @@ export default async function LocationMasterlistPage() {
   const todayKey = manilaDateKey(new Date());
   // One grouped statement answers the schedule questions for every loan on the page, so the
   // ~60,000 instalment rows behind them never enter this process.
-  const scheduleFacts = await scheduleFactsByLoan(loans.map((loan) => loan.id), todayKey);
+  const scheduleFacts = await scheduleFactsByLoan(
+    [...loans.map((loan) => loan.id), ...unlinkedTaggedLoans.map((loan) => loan.id)],
+    todayKey
+  );
+  // What the pivot holds, plus what it had to leave out, is the whole tagged book - so the two
+  // add up to the denominator below rather than being counted by a separate rule.
+  const unplacedPrincipal = unlinkedTaggedLoans.reduce(
+    (sum, loan) => sum + outstandingPrincipalBalance(loan, scheduleFacts.get(loan.id)),
+    0
+  );
   const matchedLoanCount = loans.length;
   for (const loan of loans) {
     const assignment = loan.remedialAssignment;
@@ -859,7 +872,8 @@ export default async function LocationMasterlistPage() {
         <div className="border-b border-slate-200 p-5">
           <h3 className="text-lg font-bold text-slate-950">Location Pivot</h3>
           <p className="mt-1 text-sm text-slate-600">
-            {reportedBarangayCount.toLocaleString("en-US")} barangay location(s) with loans, linked to {matchedLoanCount.toLocaleString("en-US")} of {eligibleLoanCount.toLocaleString("en-US")} tagged outstanding loan(s).
+            {reportedBarangayCount.toLocaleString("en-US")} barangay location(s) with loans, linked to {matchedLoanCount.toLocaleString("en-US")} of {(matchedLoanCount + unlinkedTaggedLoans.length).toLocaleString("en-US")} tagged outstanding loan(s).
+            {unlinkedTaggedLoans.length ? ` The other ${unlinkedTaggedLoans.length.toLocaleString("en-US")}, holding ${money(unplacedPrincipal)}, have no barangay link yet and are absent from every total on this page.` : ""}
           </p>
           <p className="mt-1 text-xs text-slate-500">
             As of {todayKey}: Past Due means maturity is before today with a remaining balance. Delayed means an amortization due on or before today is not fully paid. Litigated is tracked separately.
