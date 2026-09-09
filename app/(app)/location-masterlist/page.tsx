@@ -359,7 +359,7 @@ function money(value: number | null) {
   return value.toLocaleString("en-US", { style: "currency", currency: "PHP" });
 }
 
-const locationRowGrid = "grid grid-cols-[minmax(150px,1.7fr)_repeat(8,minmax(0,1fr))] items-start gap-x-2";
+const locationRowGrid = "grid grid-cols-[minmax(150px,1.7fr)_repeat(6,minmax(0,1fr))] items-start gap-x-2";
 const officerRowGrid = "grid grid-cols-[minmax(150px,1.7fr)_repeat(6,minmax(0,1fr))] items-start gap-x-2";
 
 export default async function LocationMasterlistPage() {
@@ -725,6 +725,33 @@ export default async function LocationMasterlistPage() {
     provinces.set(location.province, province);
   }
   const provinceList = Array.from(provinces.values()).sort(byPortfolioDesc);
+  const unassignedProvinceList: ProvinceNode[] = provinceList.flatMap((province) => {
+    const provinceKey = normalizedProvince(province.name);
+    const provinceAccumulator = metricsByProvinceOfficer.get(`${provinceKey}\u0000unassigned`);
+    if (!provinceAccumulator) return [];
+    const municipalities = new Map<string, MunicipalityNode>();
+    for (const municipality of province.municipalities.values()) {
+      const municipalityKey = `${provinceKey}\u0000${normalizedMunicipality(municipality.name)}`;
+      const municipalityAccumulator = metricsByMunicipalityOfficer.get(`${municipalityKey}\u0000unassigned`);
+      if (!municipalityAccumulator) continue;
+      const barangays = municipality.barangays.flatMap((barangay) => {
+        const barangayAccumulator = metricsByLocationOfficer.get(`${locationKey(province.name, municipality.name, barangay.name)}\u0000unassigned`);
+        return barangayAccumulator ? [{ ...barangay, metrics: accumulatedMetrics(barangayAccumulator), officers: [] }] : [];
+      });
+      municipalities.set(municipality.name, {
+        ...municipality,
+        metrics: accumulatedMetrics(municipalityAccumulator),
+        officers: [],
+        barangays
+      });
+    }
+    return [{
+      ...province,
+      metrics: accumulatedMetrics(provinceAccumulator),
+      officers: [],
+      municipalities
+    }];
+  }).sort(byPortfolioDesc);
   const reportedBarangayCount = provinceList.reduce(
     (total, province) => total + Array.from(province.municipalities.values()).reduce((sum, municipality) => sum + municipality.barangays.length, 0),
     0
@@ -785,8 +812,10 @@ export default async function LocationMasterlistPage() {
       officers: [...(pivotOfficersByLeader.get(leaderKey) ?? [])].sort((a, b) => a.name.localeCompare(b.name))
     }))
     .sort((a, b) => leaderRank(a.kind) - leaderRank(b.kind) || a.name.localeCompare(b.name));
-  const pivotOfficerCount = teamLeaderPivot.reduce((sum, leader) => sum + leader.officers.length, 0);
+  const officerPivot = teamLeaderPivot.flatMap((leader) => leader.officers).sort((a, b) => a.name.localeCompare(b.name));
+  const pivotOfficerCount = officerPivot.length;
   const accountOfficerTotal = accumulatedMetrics(metricsByAssignedOverall.get("assigned"));
+  const unassignedTotal = accumulatedMetrics(metricsByOfficer.get("unassigned"));
   const areaTeamLeaderSummary: SummaryRow[] = Array.from(areaTeamLeaderNames.entries())
     .map(([key, name]) => ({ key, name, metrics: accumulatedMetrics(metricsByAreaTeamLeader.get(key)) }))
     .sort(byPortfolioDesc);
@@ -836,11 +865,14 @@ export default async function LocationMasterlistPage() {
         <div className="text-sm">
           <div className={`${locationRowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 shadow-sm`}>
             <span>Location</span><span className="text-right">No. of Clients</span>
-            <span className="text-right">With Loan / Remedial Officer</span><span className="text-right">Without Loan / Remedial Officer</span><span className="text-right">Portfolio</span>
+            <span className="text-right">Portfolio</span>
             <StatusHeader label="Current" /><StatusHeader label="Delayed" />
             <StatusHeader label="Past Due" /><StatusHeader label="Litigated" />
           </div>
           <div>
+            {unassignedProvinceList.length ? (
+              <UnassignedLocationRows provinces={unassignedProvinceList} total={unassignedTotal} />
+            ) : null}
             <ReorderableRows
               ids={provinceList.map((province) => province.name)}
               storageKey="location-pivot-province-order"
@@ -863,7 +895,6 @@ export default async function LocationMasterlistPage() {
                   <MetricCells
                     metrics={province.metrics}
                     showClients={false}
-                    showWithAccountOfficer
                     reportScope={{ province: province.name, locationName: `Location Pivot — ${province.name}` }}
                   />
                 </summary>
@@ -897,7 +928,6 @@ export default async function LocationMasterlistPage() {
                         <MetricCells
                           metrics={municipality.metrics}
                           showClients={false}
-                          showWithAccountOfficer
                           reportScope={{ province: province.name, municipality: municipality.name, locationName: `Location Pivot — ${municipality.name}, ${province.name}` }}
                         />
                       </summary>
@@ -925,7 +955,6 @@ export default async function LocationMasterlistPage() {
                               <MetricCells
                                 metrics={barangay.metrics}
                                 showClients={false}
-                                showWithAccountOfficer
                                 reportScope={{ locationId: barangay.id, locationName: `Location Pivot — ${barangay.name}, ${municipality.name}, ${province.name}` }}
                               />
                             </summary>
@@ -939,7 +968,6 @@ export default async function LocationMasterlistPage() {
                                   </span>
                                   <MetricCells
                                     metrics={officer.metrics}
-                                    showWithAccountOfficer
                                     reportScope={officer.key === "unassigned" ? undefined : {
                                       officerId: Number(officer.key),
                                       officerName: officer.name,
@@ -968,7 +996,7 @@ export default async function LocationMasterlistPage() {
           </div>
           {provinceList.length ? (
             <div className={`${locationRowGrid} border-t-2 border-slate-300 bg-slate-50 px-4 py-3 font-extrabold text-slate-950`}>
-              <span>Grand Total</span><MetricCells metrics={grandTotal} showWithAccountOfficer />
+              <span>Grand Total</span><MetricCells metrics={grandTotal} />
             </div>
           ) : null}
         </div>
@@ -1088,6 +1116,48 @@ export default async function LocationMasterlistPage() {
         </div>
       </section>
 
+      <section className="panel overflow-hidden">
+        <div className="border-b border-slate-200 p-5">
+          <h3 className="text-lg font-bold text-slate-950">Officer Portfolio by Location</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Loan and Remedial Officers are the top level. Open an officer for their province, then city/municipality, then barangay.
+            Counts and principal balances follow loans to their new location as soon as the officer assignment changes.
+          </p>
+        </div>
+        <div className="overflow-x-auto text-sm">
+          <div className={`${officerRowGrid} min-w-[1100px] bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 shadow-sm`}>
+            <span>Loan / Remedial Officer</span><span className="text-right">No. of Clients</span>
+            <span className="text-right">Portfolio</span><StatusHeader label="Current" />
+            <StatusHeader label="Delayed" /><StatusHeader label="Past Due" /><StatusHeader label="Litigated" />
+          </div>
+          <div className="min-w-[1100px] divide-y divide-slate-200">
+            <ReorderableRows ids={officerPivot.map((officer) => String(officer.id))} storageKey="officer-location-first-order" defaultOrderLabel="officer name order">
+              {officerPivot.map((officer) => (
+                <details key={officer.id} className="group/officer-location">
+                  <summary className={`${officerRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/officer-location:bg-blue-100`}>
+                    <span className="flex items-start font-semibold text-slate-800 before:mr-2 before:mt-1 before:inline-block before:content-['▶'] group-open/officer-location:before:rotate-90">
+                      <span className="min-w-0">
+                        <span className="block">{officer.name}</span>
+                        <span className="mt-0.5 block text-[10px] font-bold uppercase tracking-wide text-brand-blue">{officer.privilege}</span>
+                      </span>
+                    </span>
+                    <MetricCells metrics={officer.metrics} reportScope={{ officerId: officer.id, officerName: officer.name, locationName: `${officer.name} — All Assigned Locations` }} />
+                  </summary>
+                  <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
+                    <OfficerInlineLocationRows officerId={officer.id} officerName={officer.name} />
+                  </div>
+                </details>
+              ))}
+            </ReorderableRows>
+            {!officerPivot.length ? <p className="px-4 py-8 text-center font-semibold text-slate-500">No assigned Loan or Remedial Officer portfolio.</p> : null}
+          </div>
+          {officerPivot.length ? <div className={`${officerRowGrid} min-w-[1100px] border-t-2 border-slate-300 bg-slate-50 px-4 py-3 font-extrabold text-slate-950`}>
+            <span>All Loan / Remedial Officers</span>
+            <MetricCells metrics={accountOfficerTotal} reportScope={{ assignedOnly: true, locationName: "All Loan / Remedial Officers — All Assigned Locations" }} />
+          </div> : null}
+        </div>
+      </section>
+
       <AssignmentSummaryTable
         title="Zone Summary"
         label="Zone"
@@ -1141,6 +1211,51 @@ export default async function LocationMasterlistPage() {
   );
 }
 
+function UnassignedLocationRows({ provinces, total }: { provinces: ProvinceNode[]; total: Metrics }) {
+  return (
+    <details className="group/unassigned border-b border-amber-200 bg-amber-50/40">
+      <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-amber-50 group-open/unassigned:bg-amber-100`}>
+        <span className="font-extrabold text-amber-900 before:mr-2 before:inline-block before:content-['▶'] group-open/unassigned:before:rotate-90">
+          Without Loan / Remedial Officer
+        </span>
+        <MetricCells metrics={total} reportScope={{ unassignedOnly: true, locationName: "Without Loan / Remedial Officer — All Locations" }} />
+      </summary>
+      <div className="border-t border-amber-200 bg-white pl-6">
+        {provinces.map((province) => (
+          <details key={province.name} className="group/unassigned-province border-b border-slate-100 last:border-b-0">
+            <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/unassigned-province:bg-blue-100`}>
+              <span className="font-bold text-slate-900 before:mr-2 before:inline-block before:content-['▶'] group-open/unassigned-province:before:rotate-90">
+                <span className="mr-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">Province</span>{province.name}
+              </span>
+              <MetricCells metrics={province.metrics} reportScope={{ province: province.name, unassignedOnly: true, locationName: `Unassigned — ${province.name}` }} />
+            </summary>
+            <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
+              {Array.from(province.municipalities.values()).sort(byPortfolioDesc).map((municipality) => (
+                <details key={municipality.name} className="group/unassigned-city border-b border-slate-100 last:border-b-0">
+                  <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/unassigned-city:bg-blue-100`}>
+                    <span className="font-semibold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/unassigned-city:before:rotate-90">
+                      <span className="mr-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">City / Municipality</span>{municipality.name}
+                    </span>
+                    <MetricCells metrics={municipality.metrics} reportScope={{ province: province.name, municipality: municipality.name, unassignedOnly: true, locationName: `Unassigned — ${municipality.name}, ${province.name}` }} />
+                  </summary>
+                  <div className="border-t border-slate-100 bg-white pl-6">
+                    {[...municipality.barangays].sort(byPortfolioDesc).map((barangay) => (
+                      <div key={barangay.id} className={`${locationRowGrid} selected-report-row border-b border-slate-100 px-4 py-3 last:border-b-0`}>
+                        <span className="text-slate-700"><span className="mr-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">Barangay</span>{barangay.name}</span>
+                        <MetricCells metrics={barangay.metrics} reportScope={{ locationId: barangay.id, unassignedOnly: true, locationName: `Unassigned — ${barangay.name}, ${municipality.name}, ${province.name}` }} />
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </details>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 type ClientReportScope = {
   officerId?: number;
   officerIds?: number[];
@@ -1151,6 +1266,7 @@ type ClientReportScope = {
   province?: string;
   municipality?: string;
   assignedOnly?: boolean;
+  unassignedOnly?: boolean;
   locationName: string;
 };
 
