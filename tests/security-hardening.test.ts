@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readsWholeOrganizationFrom } from "../lib/officer-scope";
 import test from "node:test";
 import { branchIdentityScope, branchRecordScope } from "../lib/branch-scope";
 import { checkLoginRateLimit, clearLoginFailures, loginRateLimitPolicy, recordLoginFailure, resetLoginRateLimitsForTests } from "../lib/login-rate-limit";
@@ -90,4 +91,17 @@ test("a /32 matches one host and a /0 matches everything", () => {
   assert.equal(addressMatches("10.0.0.5", "10.0.0.5/32"), true);
   assert.equal(addressMatches("10.0.0.6", "10.0.0.5/32"), false);
   assert.equal(addressMatches("10.0.0.6", "0.0.0.0/0"), true);
+});
+
+// Who the My Schedule / My Clients picker lets a reader choose from. The all-branches flag is
+// set on every team leader on the books - it says which branches' data they may read - so
+// mistaking it for "answers for the whole company" would hand each of them every officer in
+// the organisation instead of the one team they lead.
+test("only an administrator or HO TL picks from every area and branch", () => {
+  assert.equal(readsWholeOrganizationFrom("ADMIN", null), true);
+  assert.equal(readsWholeOrganizationFrom("CREDIT_COMMITTEE", "HO TL"), true, "carried by position");
+  assert.equal(readsWholeOrganizationFrom("INQUIRY_USER", null, " ho tl "), true, "or by privilege template");
+  assert.equal(readsWholeOrganizationFrom("AREA_TEAM_LEADER", "Area TL"), false);
+  assert.equal(readsWholeOrganizationFrom("INQUIRY_USER", "Branch TL"), false);
+  assert.equal(readsWholeOrganizationFrom("ACCOUNT_OFFICER", null), false);
 });

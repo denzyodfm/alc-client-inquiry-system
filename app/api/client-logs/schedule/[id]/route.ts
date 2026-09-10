@@ -3,6 +3,7 @@ import { requireApiAnyFunction } from "@/lib/api";
 import { canAccessFunction } from "@/lib/access-control";
 import { auditAction } from "@/lib/audit";
 import { getClientLogBranchIds } from "@/lib/auth";
+import { manilaDateKey } from "@/lib/location-loan-aging";
 import { prisma } from "@/lib/prisma";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -26,6 +27,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const targetDate = new Date(`${dateText}T00:00:00.000Z`);
   if (Number.isNaN(targetDate.getTime()) || targetDate.toISOString().slice(0, 10) !== dateText) {
     return NextResponse.json({ error: "Please choose a valid calendar date." }, { status: 400 });
+  }
+  // Rescheduling a promise to pay means naming the day the client will pay, which is today at
+  // the earliest. A day already gone cannot be visited.
+  if (dateText < manilaDateKey()) {
+    return NextResponse.json({ error: "A PTP date cannot be moved into the past. Choose today or a later date." }, { status: 400 });
   }
 
   const existing = await prisma.clientLog.findUnique({

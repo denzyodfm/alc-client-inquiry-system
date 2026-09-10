@@ -13,10 +13,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!Number.isInteger(logId) || logId <= 0) return NextResponse.json({ error: "Invalid client log." }, { status: 400 });
   const logType = normalizeClientLogType(String(body?.type ?? "")); const subject = String(body?.subject ?? "").trim().slice(0, 180); const notes = String(body?.notes ?? "").trim();
   if (!logType || !notes) return NextResponse.json({ error: "Activity type and notes are required." }, { status: 400 });
-  const amounts = parseClientLogAmountFields(body);
-  if ("error" in amounts) return NextResponse.json({ error: amounts.error }, { status: 400 });
-  const existing = await prisma.clientLog.findUnique({ where: { id: logId }, select: { client: { select: { fullName: true, clientId: true } } } });
+  const existing = await prisma.clientLog.findUnique({ where: { id: logId }, select: { newDate: true, client: { select: { fullName: true, clientId: true } } } });
   if (!existing) return NextResponse.json({ error: "Client log not found." }, { status: 404 });
+  // The date already on the log is allowed to stay even once it has passed, so an old log can
+  // still have its notes corrected without being forced onto a new PTP date.
+  const amounts = parseClientLogAmountFields(body, { previousNewDate: existing.newDate });
+  if ("error" in amounts) return NextResponse.json({ error: amounts.error }, { status: 400 });
   await prisma.clientLog.update({ where: { id: logId }, data: { logType, subject: subject || null, notes, isPtp: amounts.isPtp, newDate: amounts.newDate, newAmount: amounts.newAmount, collectionDate: amounts.collectionDate, collectionAmount: amounts.collectionAmount } });
   await auditAction(request, user, "CLIENT_LOG_EDIT", "Client Logs", `Edited log ${logId} for ${existing.client.fullName} (${existing.client.clientId ?? "no client number"})`);
   return NextResponse.json({ ok: true });

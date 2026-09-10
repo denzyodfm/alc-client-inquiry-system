@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, Save, Search, X } from "lucide-react";
 import { type ClientLogTypeOption, normalizeClientLogType } from "@/lib/client-log-types";
+import { manilaDateKey } from "@/lib/location-loan-aging";
 
 type ClientOption = {
   id: number;
@@ -171,15 +172,15 @@ export function ClientLogsWorkspace({
             <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Payment outcome</legend>
             <div className="flex flex-wrap gap-4">
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue" checked={isPtp} onChange={(event) => setIsPtp(event.target.checked)} />PTP (promise to pay)</label>
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue" checked={isCollection} onChange={(event) => setIsCollection(event.target.checked)} />Collection</label>
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-brand-blue focus:ring-brand-blue" checked={isCollection} onChange={(event) => { setIsCollection(event.target.checked); if (event.target.checked && !collectionDate) setCollectionDate(manilaDateKey()); }} />Collection</label>
             </div>
           </fieldset>
           {isPtp ? <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">PTP date</span><div className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><input type="date" className="field pl-10" value={newDate} onChange={(event) => setNewDate(event.target.value)} required /></div></label>
+            <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">PTP date</span><div className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><input type="date" className="field pl-10" value={newDate} min={manilaDateKey()} onChange={(event) => setNewDate(event.target.value)} required /></div><span className="mt-1 block text-xs text-slate-500">Today or later. Puts the client on the officer's schedule for this date.</span></label>
             <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">PTP amount</span><input type="number" min="0" step="0.01" className="field" value={newAmount} onChange={(event) => setNewAmount(event.target.value)} placeholder="0.00" required /></label>
           </div> : null}
           {isCollection ? <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Collection date</span><div className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><input type="date" className="field pl-10" value={collectionDate} onChange={(event) => setCollectionDate(event.target.value)} required /></div></label>
+            <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Collection date</span><div className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><input type="date" className="field pl-10" value={collectionDate} max={manilaDateKey()} onChange={(event) => setCollectionDate(event.target.value)} required /></div><span className="mt-1 block text-xs text-slate-500">When the money was received. This does not schedule a visit.</span></label>
             <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">Collection amount</span><input type="number" min="0" step="0.01" className="field" value={collectionAmount} onChange={(event) => setCollectionAmount(event.target.value)} placeholder="0.00" required /></label>
           </div> : null}
           <label className="mt-3 block"><span className="mb-2 block text-sm font-semibold text-slate-700">Customer inquiry / request / notes</span><textarea className="min-h-36 w-full rounded-md border border-slate-200 bg-white px-3 py-3 text-sm outline-none transition focus:border-brand-blue focus:ring-2 focus:ring-blue-100" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Type what the customer asked, requested, or discussed during the visit." required /></label>

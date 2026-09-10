@@ -30,8 +30,14 @@ export function OfficerPicker({
 }) {
   const router = useRouter();
   const params = useSearchParams();
-  // A team leader has one place, so there is nothing to decide and it starts chosen.
-  const [scopeId, setScopeId] = useState(scopes.length === 1 ? scopes[0].id : "");
+  // A team leader has one place, so there is nothing to decide and it starts chosen. A reader
+  // with many - HO TL, or an administrator - starts on whatever the address bar already names,
+  // so opening a link or refreshing the page does not empty the officer list underneath them.
+  const [scopeId, setScopeId] = useState(() => {
+    const fromUrl = params.get("scope") ?? "";
+    if (fromUrl && scopes.some((candidate) => candidate.id === fromUrl)) return fromUrl;
+    return scopes.length === 1 ? scopes[0].id : "";
+  });
 
   const scope = scopes.find((candidate) => candidate.id === scopeId) ?? null;
   const matches = useMemo(

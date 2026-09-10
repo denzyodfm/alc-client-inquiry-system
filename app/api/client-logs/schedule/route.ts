@@ -49,7 +49,22 @@ export async function GET(request: NextRequest) {
         rescheduledAt: true,
         newAmount: true,
         visitAt: true,
-        client: { select: { fullName: true, clientId: true } },
+        // A client log points at a client, not a loan, so the structured address is taken from
+        // whichever of their loans has been linked to a location. One is enough: a client's
+        // loans are booked against the same household.
+        client: {
+          select: {
+            fullName: true,
+            clientId: true,
+            address: true,
+            loans: {
+              where: { locationMasterlistId: { not: null } },
+              select: { locationMasterlist: { select: { province: true, municipality: true, barangay: true } } },
+              orderBy: { balance: "desc" },
+              take: 1
+            }
+          }
+        },
         branch: { select: { branchName: true, branchCode: true } }
       }
     })
@@ -69,6 +84,10 @@ export async function GET(request: NextRequest) {
       loggedAt: log.visitAt.toISOString(),
       clientName: log.client.fullName,
       clientNumber: log.client.clientId,
+      province: log.client.loans[0]?.locationMasterlist?.province ?? null,
+      municipality: log.client.loans[0]?.locationMasterlist?.municipality ?? null,
+      barangay: log.client.loans[0]?.locationMasterlist?.barangay ?? null,
+      address: log.client.address,
       branch: `${log.branch.branchCode} - ${log.branch.branchName}`
     }))
   });
