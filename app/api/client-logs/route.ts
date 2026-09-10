@@ -42,18 +42,42 @@ export async function POST(request: Request) {
 
   // Matches the search on the page: ALC HO is open to officers, staff loans are not, and a
   // client reachable only through a staff loan cannot be logged against.
+  //
+  // The three gates are checked one at a time rather than as a single findFirst. They used to
+  // share one "not found or has no visible loan" answer, which told nobody - not the encoder
+  // in front of the form, and not whoever they reported it to - which of them had closed. A
+  // customer sitting in the list and refusing to save is a bug report with nothing in it.
   const employeeLoanFilter = await employeeLoanFilterFor(user);
   const client = await prisma.client.findFirst({
-    where: {
-      id: clientId,
-      ...branchAccessWhere(branchIds),
-      loans: { some: { AND: [visibleClientLoanFilter(), employeeLoanFilter] } }
-    },
-    select: { id: true, branchId: true, fullName: true, clientId: true }
+    where: { id: clientId },
+    select: {
+      id: true, branchId: true, fullName: true, clientId: true,
+      branch: { select: { branchCode: true, branchName: true } }
+    }
   });
 
   if (!client) {
-    return NextResponse.json({ error: "Selected customer was not found or has no visible active/valid loan record." }, { status: 404 });
+    return NextResponse.json({ error: "That customer no longer exists. Search for them again." }, { status: 404 });
+  }
+
+  // Phrased as the reschedule route phrases it, because it is the same rule.
+  if (branchIds !== null && !branchIds.includes(client.branchId)) {
+    return NextResponse.json(
+      { error: `${client.fullName} is booked at ${client.branch.branchCode} - ${client.branch.branchName}, which is outside your assigned branches.` },
+      { status: 403 }
+    );
+  }
+
+  const visibleLoans = await prisma.loan.count({
+    where: { clientId: client.id, AND: [visibleClientLoanFilter(), employeeLoanFilter] }
+  });
+  if (!visibleLoans) {
+    const anyLoans = await prisma.loan.count({ where: { clientId: client.id } });
+    return NextResponse.json({
+      error: anyLoans
+        ? `${client.fullName} holds ${anyLoans} loan record(s), but none of them is an active, synced loan this account may see. A staff loan needs the Employee Loans privilege; a loan that is inactive, not yet open, or fully settled cannot be logged against.`
+        : `${client.fullName} has no loan records, so there is nothing to log against.`
+    }, { status: 404 });
   }
 
   const log = await prisma.clientLog.create({
