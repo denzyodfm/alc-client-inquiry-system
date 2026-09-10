@@ -29,6 +29,9 @@ type LoanRow = {
   paidAmount: number;
   totalBalance: number;
   remoteBalance: number | null;
+  // Who the branch's own system has against the loan, which is not necessarily who this app
+  // tagged it to. Reading them side by side is how a mis-tagged loan is spotted.
+  branchAo: string;
   accountOfficer: string;
   assignedOfficerId: number | null;
   address: string | null;
@@ -81,7 +84,7 @@ export type LoanReportScope = {
 type SortKey =
   | "clientName" | "contactNumber" | "loanNumber" | "branch" | "product" | "releasedAt" | "maturityAt" | "status"
   | "originalPrincipal" | "principalBalance" | "interest" | "penalty" | "otherCharges" | "paidAmount"
-  | "totalBalance" | "remoteBalance" | "address";
+  | "totalBalance" | "remoteBalance" | "branchAo" | "address";
 
 // Sorting runs on the server so it covers every page, not just the rows on screen.
 const SORT_COLUMNS: Array<{ key: SortKey; label: string; align?: "right"; title?: string }> = [
@@ -101,6 +104,7 @@ const SORT_COLUMNS: Array<{ key: SortKey; label: string; align?: "right"; title?
   { key: "paidAmount", label: "Paid", align: "right" },
   { key: "totalBalance", label: "Total Balance", align: "right", title: "Sum of the amortization schedule's total due minus principal and interest paid so far. May differ from Remote Balance, the branch's live figure." },
   { key: "remoteBalance", label: "Remote Balance", align: "right", title: "The branch's own live balance, pulled directly from the source database" },
+  { key: "branchAo", label: "Branch AO", title: "The account officer the branch's own system holds against this loan. Compare it with the officer the loan is tagged to here." },
   { key: "address", label: "Address" }
 ];
 
@@ -435,7 +439,7 @@ export function BarangayLoanReport({
                   ))}
                   {!visibleReportRows.length ? <p className="py-8 text-center text-sm text-slate-500">No loans to show.</p> : null}
                 </div>
-                <table className="hidden w-full min-w-[1900px] text-left text-xs sm:table">
+                <table className="hidden w-full min-w-[2040px] text-left text-xs sm:table">
                   <thead className="sticky top-0 z-10 bg-slate-50 uppercase tracking-wide text-slate-500">
                     <tr>
                       {SORT_COLUMNS.map((column) => (
@@ -493,6 +497,7 @@ export function BarangayLoanReport({
                         ) : (
                           <MoneyCell value={row.remoteBalance} tone={row.remoteBalance === 0 && row.totalBalance > 0 ? "flag" : "default"} />
                         )}
+                        <td className="whitespace-nowrap px-3 py-3">{row.branchAo}</td>
                         <td className="max-w-sm whitespace-normal px-3 py-3"><div className="flex items-start gap-2"><span className="min-w-0 flex-1">{row.address || "-"}</span><ClientAddressPinEditor compact clientId={row.clientId} clientName={row.clientName} address={row.address} initialPin={savedPins[row.clientId] ?? { latitude: row.addressLatitude, longitude: row.addressLongitude, accuracy: row.addressAccuracy }} onSaved={(pin) => setSavedPins((current) => ({ ...current, [row.clientId]: pin }))} /></div></td>
                         <td className="px-3 py-3 text-center">
                           <label className="inline-flex cursor-pointer items-center justify-center gap-2" title="Send this loan to Taggings > Invalid Address for re-tagging">
@@ -571,7 +576,7 @@ export function BarangayLoanReport({
                       </tr>
                       );
                     })}
-                    {!result.rows.length ? <tr><td className="px-3 py-10 text-center font-semibold text-slate-500" colSpan={20}>No matching loans found.</td></tr> : null}
+                    {!result.rows.length ? <tr><td className="px-3 py-10 text-center font-semibold text-slate-500" colSpan={21}>No matching loans found.</td></tr> : null}
                   </tbody>
                 </table>
                 </>

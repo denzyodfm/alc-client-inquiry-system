@@ -52,7 +52,7 @@ function money(value: number) {
 const SORT_KEYS = [
   "clientName", "clientNumber", "contactNumber", "loanNumber", "branch", "product", "releasedAt", "maturityAt",
   "status", "originalPrincipal", "principalBalance", "interest", "penalty", "otherCharges", "paidAmount",
-  "totalBalance", "remoteBalance", "address", "accountOfficer"
+  "totalBalance", "remoteBalance", "branchAo", "address", "accountOfficer"
 ] as const;
 type SortKey = (typeof SORT_KEYS)[number];
 
@@ -207,6 +207,7 @@ export async function GET(request: NextRequest) {
       remoteId: true,
       loanNumber: true,
       loanProduct: true,
+      branchAo: true,
       releasedAt: true,
       maturityAt: true,
       sourceStatusName: true,
@@ -268,6 +269,9 @@ export async function GET(request: NextRequest) {
     otherCharges: Number(loan.otherChargesAmount),
     paidAmount: Number(loan.paidAmount),
     totalBalance: Number(loan.balance),
+    // The account officer the branch's own system has against the loan. Kept separate from
+    // accountOfficer, which is who this app tagged it to: comparing the two is the point.
+    branchAo: loan.branchAo?.trim() ? loan.branchAo.trim().toLocaleUpperCase("en") : "-",
     remoteBalance: loan.remoteBalance === null ? null : Number(loan.remoteBalance),
     accountOfficer: (loan.remedialAssignment?.assignedTo?.name ?? "UNASSIGNED").toLocaleUpperCase("en"),
     assignedOfficerId: loan.remedialAssignment?.assignedToId ?? null,
@@ -325,6 +329,7 @@ export async function GET(request: NextRequest) {
       <td class="number">${money(row.interest)}</td><td class="number">${money(row.penalty)}</td>
       <td class="number">${money(row.otherCharges)}</td><td class="number">${money(row.paidAmount)}</td>
       <td class="number">${money(row.totalBalance)}</td><td class="number">${row.remoteBalance === null ? "-" : money(row.remoteBalance)}</td>
+      <td>${escapeHtml(row.branchAo)}</td>
       <td>${escapeHtml(row.address || "-")}</td>
       <td>${escapeHtml(row.accountOfficer)}</td>
     </tr>`;
@@ -336,7 +341,7 @@ export async function GET(request: NextRequest) {
       <th>No.</th><th>Client</th><th>Client ID</th><th>Contact</th><th>Loan</th><th>Branch</th><th>Product</th>
       <th>Released</th><th>Maturity</th><th>Status</th><th>Original Principal</th><th>Principal Balance</th>
       <th>Interest</th><th>Penalty</th><th>Other Charges</th><th>Paid</th><th>Total Balance</th><th>Remote Balance</th>
-      <th>Address</th><th>Account Officer</th></tr></thead><tbody>${body}</tbody></table>
+      <th>Branch AO</th><th>Address</th><th>Account Officer</th></tr></thead><tbody>${body}</tbody></table>
       ${format === "print" ? "<script>window.addEventListener('load',()=>window.print())</script>" : ""}</body></html>`;
     return new NextResponse(html, {
       headers: {
