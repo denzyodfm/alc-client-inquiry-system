@@ -169,6 +169,7 @@ export function BarangayLoanReport({
   const [savedPins, setSavedPins] = useState<Record<number, ClientAddressPin>>({});
   const [addressFlags, setAddressFlags] = useState<Record<number, boolean>>({});
   const [flaggingId, setFlaggingId] = useState<number | null>(null);
+  const [savingLocationId, setSavingLocationId] = useState<number | null>(null);
   // Location picked per row, seeded blank: the report shows loans from many places at once,
   // so there is no single current value to start from.
   const [rowLocation, setRowLocation] = useState<Record<number, { province: string; municipality: string; barangay: string }>>({});
@@ -274,6 +275,37 @@ export function BarangayLoanReport({
       setError(requestError instanceof Error ? requestError.message : "Unable to assign the Loan / Remedial Officer.");
     } finally {
       setSavingLoanId(null);
+    }
+  }
+
+  // Settles a loan's location on its own, leaving whoever works it alone. The Assign button in
+  // the officer column can do this as well, but it sits in a different column of a table wide
+  // enough to scroll, and reads as the officer's action - so choosing a place and looking for
+  // the way to save it found nothing.
+  async function saveLocationOnly(row: LoanRow) {
+    const place = locationFor(row);
+    if (!(place.province && place.municipality && place.barangay)) {
+      setError("Choose a province, city/municipality and barangay.");
+      return;
+    }
+    setSavingLocationId(row.id);
+    setError(null);
+    try {
+      const response = await fetch("/api/location-masterlist/officer-loans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // assignedToId 0 means "leave the officer as they are", which the route reads as a
+        // location-only write.
+        body: JSON.stringify({ loanId: row.id, assignedToId: 0, ...place })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error ?? "Unable to save the location.");
+      setReload((value) => value + 1);
+      router.refresh();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Unable to save the location.");
+    } finally {
+      setSavingLocationId(null);
     }
   }
 
@@ -439,7 +471,7 @@ export function BarangayLoanReport({
                   ))}
                   {!visibleReportRows.length ? <p className="py-8 text-center text-sm text-slate-500">No loans to show.</p> : null}
                 </div>
-                <table className="hidden w-full min-w-[2040px] text-left text-xs sm:table">
+                <table className="hidden w-full min-w-[2110px] text-left text-xs sm:table">
                   <thead className="sticky top-0 z-10 bg-slate-50 uppercase tracking-wide text-slate-500">
                     <tr>
                       {SORT_COLUMNS.map((column) => (
@@ -462,7 +494,7 @@ export function BarangayLoanReport({
                         </th>
                       ))}
                       <th className="px-3 py-3 text-center">Not Valid Address</th>
-                      <th className="min-w-[420px] px-3 py-3">Assign Location</th>
+                      <th className="min-w-[490px] px-3 py-3">Assign Location</th>
                       <th className="min-w-[260px] px-3 py-3">Loan / Remedial Officer / Action</th>
                     </tr>
                   </thead>
@@ -516,7 +548,7 @@ export function BarangayLoanReport({
                         </td>
                         <td className="px-3 py-3">
                           {result.canFlagAddress ? (
-                            <div className="flex min-w-[400px] gap-1">
+                            <div className="flex min-w-[470px] gap-1">
                               <select
                                 className="loc-caps field h-9 min-w-0 flex-1 py-1 text-xs"
                                 aria-label={`Province for ${row.clientName}`}
@@ -546,6 +578,15 @@ export function BarangayLoanReport({
                                 <option value="">Barangay</option>
                                 {barangayOptions(result.locations, locationFor(row).province, locationFor(row).municipality).map((option) => <option key={option} value={option}>{option}</option>)}
                               </select>
+                              <button
+                                className="btn-primary h-9 shrink-0 px-3 text-xs"
+                                type="button"
+                                disabled={savingLocationId === row.id || !(locationFor(row).province && locationFor(row).municipality && locationFor(row).barangay)}
+                                onClick={() => saveLocationOnly(row)}
+                                title="Save this location now. Whoever works the loan is left as it is."
+                              >
+                                {savingLocationId === row.id ? "Saving..." : "Save"}
+                              </button>
                             </div>
                           ) : <span className="text-slate-400">-</span>}
                         </td>
