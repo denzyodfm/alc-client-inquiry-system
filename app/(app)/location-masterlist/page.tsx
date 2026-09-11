@@ -18,7 +18,9 @@ import { OfficerBranchSummary } from "@/components/officer-branch-summary";
 import { OfficerLocationSummary } from "@/components/officer-location-summary";
 import { OfficerInlineLocationRows } from "@/components/officer-inline-location-rows";
 import { AccountOfficerSummary, type AccountOfficerSummaryRow } from "./account-officer-summary";
-import { AssignmentSummaryTable, type SummaryRow } from "@/components/assignment-summary-table";
+// The Zone Summary this used to draw is no longer shown. Its rows are still worked out below,
+// which costs almost nothing and makes putting the table back a one-line change.
+import { type SummaryRow } from "@/components/assignment-summary-table";
 import { ReorderableRows } from "@/components/reorderable-rows";
 
 export const dynamic = "force-dynamic";
@@ -1334,17 +1336,6 @@ export default async function LocationMasterlistPage() {
           </div> : null}
         </div>
       </section>
-
-      <AssignmentSummaryTable
-        title="Zone Summary"
-        label="Zone"
-        childLabel="District"
-        storageKey="zone-summary-order"
-        rows={zoneSummary}
-        total={accountOfficerTotal}
-        totalScope={{ assignedOnly: true, locationName: "Zone Summary — All Zones" }}
-        description="Assigned outstanding-loan portfolio summarized by Zone. Open a zone for its districts, which use the Division value recorded in Account Tagging."
-      />
 
       <section className="panel overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-5">
