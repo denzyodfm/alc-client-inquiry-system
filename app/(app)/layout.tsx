@@ -32,10 +32,19 @@ const nav: NavConfig[] = [
   { label: "Taggings", icon: "Tag", children: [
     { href: "/account-tagging", label: "Account Tagging", icon: "Tag", functionKey: "ACCOUNT_TAGGING" },
     { href: "/new-loans", label: "New Loans", icon: "ClipboardCheck", functionKey: "ACCOUNT_TAGGING" },
-    { href: "/location-masterlist", label: "Location Masterlist", icon: "MapPinned", functionKey: "LOCATION_MASTERLIST" },
     { href: "/verify-address", label: "Verify Address", icon: "MapPin", functionKey: "VERIFY_ADDRESS" },
     { href: "/verify-loans", label: "Verify Loans", icon: "ClipboardCheck", functionKey: "VERIFY_LOANS" },
     { href: "/invalid-address", label: "Invalid Address", icon: "MapPinOff", functionKey: "INVALID_ADDRESS" }
+  ] },
+  // Each pivot is its own route now: they read the same loans but answer different questions,
+  // and stacking all of them on one page meant scrolling past thousands of rows to reach the
+  // one being asked for.
+  { label: "Location Masterlist", icon: "MapPinned", children: [
+    { href: "/location-masterlist/location", label: "Location Pivot", icon: "MapPinned", functionKey: "LOCATION_MASTERLIST" },
+    { href: "/location-masterlist/branch", label: "Branch Pivot", icon: "Layers3", functionKey: "LOCATION_MASTERLIST" },
+    { href: "/location-masterlist/officer", label: "Officer Location Pivot", icon: "UserRound", functionKey: "LOCATION_MASTERLIST" },
+    { href: "/location-masterlist/portfolio", label: "Officer Portfolio", icon: "ClipboardList", functionKey: "LOCATION_MASTERLIST" },
+    { href: "/location-masterlist/linking-log", label: "Location Linking Log", icon: "History", functionKey: "LOCATION_MASTERLIST" }
   ] },
   // Rediscounting is an administrator report, so it is gated on the role rather than on a
   // privilege that could be granted to someone else.
