@@ -550,7 +550,14 @@ export function BarangayLoanReport({
                           ) : <span className="text-slate-400">-</span>}
                         </td>
                         <td className="px-3 py-3">
-                          {result.canAssignOfficer ? (
+                          {result.canAssignOfficer ? (() => {
+                            // A location can be settled before anyone is chosen to work the
+                            // loan: the officer follows later, and the button says which of
+                            // the two it is about to do.
+                            const place = locationFor(row);
+                            const hasWholeLocation = Boolean(place.province && place.municipality && place.barangay);
+                            const officerChosen = Boolean(selectedOfficers[row.id] ?? row.assignedOfficerId);
+                            return (
                             <div className="flex min-w-[250px] items-center gap-2">
                               <select
                                 className="field h-9 min-w-0 flex-1 py-1 text-xs"
@@ -565,13 +572,15 @@ export function BarangayLoanReport({
                               <button
                                 className="btn-primary h-9 px-3 text-xs"
                                 type="button"
-                                disabled={savingLoanId === row.id || !(selectedOfficers[row.id] ?? row.assignedOfficerId)}
+                                disabled={savingLoanId === row.id || (!officerChosen && !hasWholeLocation)}
                                 onClick={() => assignOfficer(row)}
+                                title={officerChosen ? undefined : hasWholeLocation ? "Save this location now and assign an officer later" : "Choose an officer, or a complete province, city/municipality and barangay"}
                               >
-                                {savingLoanId === row.id ? "Assigning..." : "Assign"}
+                                {savingLoanId === row.id ? "Assigning..." : officerChosen ? "Assign" : "Assign Location"}
                               </button>
                             </div>
-                          ) : <span className="font-semibold">{row.accountOfficer}</span>}
+                            );
+                          })() : <span className="font-semibold">{row.accountOfficer}</span>}
                         </td>
                       </tr>
                       );

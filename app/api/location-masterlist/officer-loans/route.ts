@@ -7,6 +7,7 @@ import { canAccessFunction } from "@/lib/access-control";
 import { canAccessBranch, getAccessibleBranchIds } from "@/lib/auth";
 import { clientOutstandingLoanIds } from "@/lib/client-loan-group";
 import { officerAccountFamily } from "@/lib/officer-account";
+import { readsWholeOrganizationFrom } from "@/lib/officer-scope";
 import {
   effectiveLocationCategory,
   higherRiskLocationCategory,
@@ -14,6 +15,22 @@ import {
   type LocationClientCategory
 } from "@/lib/location-loan-aging";
 import { prisma } from "@/lib/prisma";
+
+// Who may hand a loan to a Loan / Remedial Officer, or settle its location before anyone has
+// been chosen to work it: an Area TL over their own area, HO TL over the whole book, and an
+// administrator. Read once and enforced in both directions - the GET tells the page whether to
+// draw the control, and the POST refuses the write regardless of what the page drew, which it
+// previously did not do at all.
+async function canAssignRemedialOfficer(user: { role: UserRole; position?: string | null; privilegeTemplateId?: number | null }) {
+  if (user.role === "ADMIN" || user.role === "AREA_TEAM_LEADER") return true;
+  if (readsWholeOrganizationFrom(user.role, user.position)) return true;
+  if (!user.privilegeTemplateId) return false;
+  const privilege = await prisma.privilegeTemplate.findUnique({
+    where: { id: user.privilegeTemplateId },
+    select: { name: true }
+  });
+  return readsWholeOrganizationFrom(user.role, privilege?.name);
+}
 
 const PAGE_SIZE = 25;
 const allowedRoles: UserRole[] = ["ADMIN", "INQUIRY_USER", "AUDITOR", "ACCOUNT_OFFICER", "AREA_TEAM_LEADER", "CREDIT_COMMITTEE"];
@@ -140,7 +157,8 @@ export async function GET(request: NextRequest) {
     || (branchId !== null && (!Number.isInteger(branchId) || branchId <= 0))
     // A province narrows the report on its own, with municipality narrowing it further. The
     // Location Pivot's province and city rows scope this way and were rejected without it.
-    || (!locationId && !officerId && !officerIds.length && !assignedOnly && !unassignedOnly && !zone && !district && !province)
+    // A branch narrows it on its own too, which is what the Branch Pivot's top row asks for.
+    || (!locationId && !officerId && !officerIds.length && !assignedOnly && !unassignedOnly && !zone && !district && !province && !branchId)
   ) {
     return NextResponse.json({ error: "A valid Account Officer or location report scope is required." }, { status: 400 });
   }
@@ -383,7 +401,7 @@ export async function GET(request: NextRequest) {
       allBranches: officer.allBranches,
       branchIds: officer.branchAccess.map((access) => access.branchId)
     })),
-    canAssignOfficer: user.role === "ADMIN" || user.role === "AREA_TEAM_LEADER",
+    canAssignOfficer: await canAssignRemedialOfficer(user),
     locations: await prisma.locationMasterlist.findMany({
       orderBy: [{ province: "asc" }, { municipality: "asc" }, { barangay: "asc" }],
       select: { id: true, province: true, municipality: true, barangay: true }
@@ -444,6 +462,10 @@ export async function POST(request: NextRequest) {
   }
   if (wantsOfficer && (!officer || (!officer.allBranches && !officer.branchAccess.some((access) => access.branchId === loan.branchId)))) {
     return NextResponse.json({ error: "The selected Account Officer has no access to this loan branch." }, { status: 400 });
+  }
+  // The page hides this control from everyone else, but hiding a button is not a rule.
+  if (wantsOfficer && !(await canAssignRemedialOfficer(user))) {
+    return NextResponse.json({ error: "You do not have permission to assign a Loan / Remedial Officer." }, { status: 403 });
   }
 
   const location = wantsLocation

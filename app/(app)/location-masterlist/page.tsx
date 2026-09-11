@@ -67,6 +67,15 @@ type ProvinceNode = {
   municipalities: Map<string, MunicipalityNode>;
 };
 
+// A branch and the places its loans sit in, for the Branch Pivot. It reuses ProvinceNode and
+// MunicipalityNode so the rows underneath a branch render exactly like the Location Pivot's.
+type BranchPivotLocationNode = {
+  key: string;
+  name: string;
+  metrics: Metrics;
+  provinces: Map<string, ProvinceNode>;
+};
+
 type AccountOfficerNode = {
   key: string;
   name: string;
@@ -234,6 +243,60 @@ function officerNodesForLocation(
       if (b.key === "unassigned") return -1;
       return a.name.localeCompare(b.name);
     });
+}
+
+// Turns the four branch-keyed accumulators into a branch/province/city/barangay tree. Called
+// twice: once for the whole book, once for the loans carrying no officer.
+function branchPivotNodes(
+  byBranch: Map<string, MetricAccumulator>,
+  byProvince: Map<string, MetricAccumulator>,
+  byMunicipality: Map<string, MetricAccumulator>,
+  byLocation: Map<string, MetricAccumulator>,
+  branchLabels: Map<string, string>,
+  locationByKey: Map<string, { id: number; province: string; municipality: string; barangay: string; zone: string | null; region: string | null }>
+): BranchPivotLocationNode[] {
+  const branches = new Map<string, BranchPivotLocationNode>();
+  for (const [key, accumulator] of byLocation) {
+    const separator = key.indexOf("\u0000");
+    if (separator < 0) continue;
+    const branchKey = key.slice(0, separator);
+    const location = locationByKey.get(key.slice(separator + 1));
+    // A barangay the masterlist no longer holds has nothing to name it, so it is left out
+    // rather than shown as a blank row.
+    if (!location) continue;
+    const branch = branches.get(branchKey) ?? {
+      key: branchKey,
+      name: branchLabels.get(branchKey) ?? "UNKNOWN BRANCH",
+      metrics: accumulatedMetrics(byBranch.get(branchKey)),
+      provinces: new Map<string, ProvinceNode>()
+    };
+    const provinceKey = normalizedProvince(location.province);
+    const municipalityKey = `${provinceKey}\u0000${normalizedMunicipality(location.municipality)}`;
+    const province: ProvinceNode = branch.provinces.get(location.province) ?? {
+      name: location.province,
+      metrics: accumulatedMetrics(byProvince.get(`${branchKey}\u0000${provinceKey}`)),
+      officers: [],
+      municipalities: new Map<string, MunicipalityNode>()
+    };
+    const municipality: MunicipalityNode = province.municipalities.get(location.municipality) ?? {
+      name: location.municipality,
+      metrics: accumulatedMetrics(byMunicipality.get(`${branchKey}\u0000${municipalityKey}`)),
+      officers: [],
+      barangays: []
+    };
+    municipality.barangays.push({
+      id: location.id,
+      name: location.barangay,
+      zone: location.zone,
+      region: location.region,
+      metrics: accumulatedMetrics(accumulator),
+      officers: []
+    });
+    province.municipalities.set(location.municipality, municipality);
+    branch.provinces.set(location.province, province);
+    branches.set(branchKey, branch);
+  }
+  return Array.from(branches.values()).sort(byPortfolioDesc);
 }
 
 function officerDetailLine(officer: {
@@ -578,6 +641,21 @@ export default async function LocationMasterlistPage() {
   const metricsByOfficerBranch = new Map<string, MetricAccumulator>();
   const branchNames = new Map<string, string>();
 
+  // The Branch Pivot reads the same loans the other pivots do, keyed branch-first. Unlike
+  // metricsByOfficerBranch above, these count every loan rather than only the assigned ones:
+  // a branch's book is its whole book, and the unassigned part of it is broken out as its own
+  // row rather than being left out of the totals.
+  const metricsByBranch = new Map<string, MetricAccumulator>();
+  const metricsByBranchProvince = new Map<string, MetricAccumulator>();
+  const metricsByBranchMunicipality = new Map<string, MetricAccumulator>();
+  const metricsByBranchLocation = new Map<string, MetricAccumulator>();
+  // The same four again over loans carrying no officer, which is what the "Without Loan /
+  // Remedial Officer" row and its drilldown are built from.
+  const metricsByBranchLoose = new Map<string, MetricAccumulator>();
+  const metricsByBranchProvinceLoose = new Map<string, MetricAccumulator>();
+  const metricsByBranchMunicipalityLoose = new Map<string, MetricAccumulator>();
+  const metricsByBranchLocationLoose = new Map<string, MetricAccumulator>();
+  const branchPivotNames = new Map<string, string>();
   const metricsByProvince = new Map<string, MetricAccumulator>();
   const metricsByMunicipality = new Map<string, MetricAccumulator>();
   const metricsByLocation = new Map<string, MetricAccumulator>();
@@ -692,6 +770,19 @@ export default async function LocationMasterlistPage() {
       addLoanMetrics(metricsByMunicipalityAreaTeamLeaderOfficer, `${municipalityKey}\u0000${areaTeamLeaderOfficerKey}`, loan, true, principalBalance, category);
       addLoanMetrics(metricsByLocationAreaTeamLeaderOfficer, `${barangayKey}\u0000${areaTeamLeaderOfficerKey}`, loan, true, principalBalance, category);
     }
+    // Branch Pivot: branch, then the place the loan is linked to.
+    const pivotBranchKey = String(loan.branchId);
+    branchPivotNames.set(pivotBranchKey, `${loan.branch.branchCode} - ${loan.branch.branchName}`);
+    addLoanMetrics(metricsByBranch, pivotBranchKey, loan, hasAssignedOfficer, principalBalance, category);
+    addLoanMetrics(metricsByBranchProvince, `${pivotBranchKey}\u0000${provinceKey}`, loan, hasAssignedOfficer, principalBalance, category);
+    addLoanMetrics(metricsByBranchMunicipality, `${pivotBranchKey}\u0000${municipalityKey}`, loan, hasAssignedOfficer, principalBalance, category);
+    addLoanMetrics(metricsByBranchLocation, `${pivotBranchKey}\u0000${barangayKey}`, loan, hasAssignedOfficer, principalBalance, category);
+    if (!hasAssignedOfficer) {
+      addLoanMetrics(metricsByBranchLoose, pivotBranchKey, loan, false, principalBalance, category);
+      addLoanMetrics(metricsByBranchProvinceLoose, `${pivotBranchKey}\u0000${provinceKey}`, loan, false, principalBalance, category);
+      addLoanMetrics(metricsByBranchMunicipalityLoose, `${pivotBranchKey}\u0000${municipalityKey}`, loan, false, principalBalance, category);
+      addLoanMetrics(metricsByBranchLocationLoose, `${pivotBranchKey}\u0000${barangayKey}`, loan, false, principalBalance, category);
+    }
     addLoanMetrics(metricsByOfficer, officerKey, loan, hasAssignedOfficer, principalBalance, category);
     addLoanMetrics(metricsByProvinceOfficer, `${provinceKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance, category);
     addLoanMetrics(metricsByMunicipalityOfficer, `${municipalityKey}\u0000${officerKey}`, loan, hasAssignedOfficer, principalBalance, category);
@@ -737,6 +828,25 @@ export default async function LocationMasterlistPage() {
     province.officers = officerNodesForLocation(provinceKey, metricsByProvinceOfficer, officerNames);
     provinces.set(location.province, province);
   }
+  // Names the Branch Pivot's barangay rows: its keys come from the loans, not the masterlist,
+  // so it needs a way back to the record that spells the place properly.
+  const locationByKey = new Map<string, { id: number; province: string; municipality: string; barangay: string; zone: string | null; region: string | null }>();
+  for (const location of locations) {
+    locationByKey.set(locationKey(location.province, location.municipality, location.barangay), location);
+  }
+  const branchPivotList = branchPivotNodes(
+    metricsByBranch, metricsByBranchProvince, metricsByBranchMunicipality, metricsByBranchLocation,
+    branchPivotNames, locationByKey
+  );
+  const branchPivotLooseList = branchPivotNodes(
+    metricsByBranchLoose, metricsByBranchProvinceLoose, metricsByBranchMunicipalityLoose, metricsByBranchLocationLoose,
+    branchPivotNames, locationByKey
+  );
+  // The same accumulator the Location and Officer pivots report in their amber rows, rather
+  // than a parallel count of the same thing that could drift away from them.
+  const branchPivotLooseTotal = accumulatedMetrics(metricsByOfficer.get("unassigned"));
+  const branchPivotTotal = accumulatedMetrics(metricsByOverall.get("all"));
+
   const provinceList = Array.from(provinces.values()).sort(byPortfolioDesc);
   const unassignedProvinceList: ProvinceNode[] = provinceList.flatMap((province) => {
     const provinceKey = normalizedProvince(province.name);
@@ -1024,6 +1134,45 @@ export default async function LocationMasterlistPage() {
 
       <section className="panel overflow-hidden">
         <div className="border-b border-slate-200 p-5">
+          <h3 className="text-lg font-bold text-slate-950">Branch Pivot</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            The same portfolio as the Location Pivot, read branch first. Open a branch for its provinces, then a
+            province for its cities and municipalities, then one of those for its barangays. Click any client count
+            for the loans behind it.
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            A branch counts each of its clients once, and the grand total counts each client once across all
+            branches. A client borrowing at two branches would be counted by both rows and once in the total.
+          </p>
+        </div>
+        <div className="text-sm">
+          <div className={`${locationRowGrid} bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500 shadow-sm`}>
+            <span>Branch / Province / City / Barangay</span><span className="text-right">No. of Clients</span>
+            <span className="text-right">Portfolio</span>
+            <StatusHeader label="Current" /><StatusHeader label="Delayed" />
+            <StatusHeader label="Past Due" /><StatusHeader label="Litigated" />
+          </div>
+          <div>
+            {/* Loans nobody is handling, in their own row at the top - the same place and the
+                same wording the other pivots give them. */}
+            {branchPivotLooseList.length ? (
+              <BranchPivotUnassignedRows branches={branchPivotLooseList} total={branchPivotLooseTotal} />
+            ) : null}
+            {branchPivotList.map((branch) => (
+              <BranchPivotRows key={branch.key} branch={branch} />
+            ))}
+            {!branchPivotList.length ? <p className="px-4 py-10 text-center font-semibold text-slate-500">No linked outstanding loans to group by branch.</p> : null}
+          </div>
+          {branchPivotList.length ? (
+            <div className={`${locationRowGrid} border-t-2 border-slate-300 bg-slate-50 px-4 py-3 font-extrabold text-slate-950`}>
+              <span>Branch Grand Total</span><MetricCells metrics={branchPivotTotal} />
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="panel overflow-hidden">
+        <div className="border-b border-slate-200 p-5">
           <h3 className="text-lg font-bold text-slate-950">Loan / Remedial Officer Location Pivot</h3>
           <p className="mt-1 text-sm text-slate-600">
             Area Team Leaders and Branch Team Leaders sit side by side. Open a team leader for its officers, then an officer for the province, city/municipality, and barangay of their assigned loans.
@@ -1236,6 +1385,137 @@ export default async function LocationMasterlistPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+// One branch of the Branch Pivot: its provinces, their cities, and the barangays under those.
+// Every level reports the same metrics and opens the same loan report, narrowed by branch.
+function BranchPivotRows({ branch }: { branch: BranchPivotLocationNode }) {
+  const branchId = Number(branch.key);
+  return (
+    <details className="group/branch border-b border-slate-100 last:border-b-0">
+      <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/branch:bg-blue-100`}>
+        <span className="font-bold text-slate-950 before:mr-2 before:inline-block before:content-['▶'] group-open/branch:before:rotate-90">
+          <span className="mr-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">Branch</span>
+          <span className="loc-caps">{branch.name}</span>
+        </span>
+        <MetricCells metrics={branch.metrics} reportScope={{ branchId, locationName: `Branch Pivot — ${branch.name}` }} />
+      </summary>
+      <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
+        {Array.from(branch.provinces.values()).sort(byPortfolioDesc).map((province) => (
+          <details key={province.name} className="group/branch-province border-b border-slate-100 last:border-b-0">
+            <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/branch-province:bg-blue-100`}>
+              <span className="font-bold text-slate-900 before:mr-2 before:inline-block before:content-['▶'] group-open/branch-province:before:rotate-90">
+                <span className="mr-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">Province</span>
+                <span className="loc-caps">{province.name}</span>
+              </span>
+              <MetricCells
+                metrics={province.metrics}
+                reportScope={{ branchId, province: province.name, locationName: `Branch Pivot — ${branch.name} — ${province.name}` }}
+              />
+            </summary>
+            <div className="border-t border-slate-100 bg-white pl-6">
+              {Array.from(province.municipalities.values()).sort(byPortfolioDesc).map((municipality) => (
+                <details key={municipality.name} className="group/branch-city border-b border-slate-100 last:border-b-0">
+                  <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/branch-city:bg-blue-100`}>
+                    <span className="font-semibold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/branch-city:before:rotate-90">
+                      <span className="mr-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">City / Municipality</span>
+                      <span className="loc-caps">{municipality.name}</span>
+                    </span>
+                    <MetricCells
+                      metrics={municipality.metrics}
+                      reportScope={{ branchId, province: province.name, municipality: municipality.name, locationName: `Branch Pivot — ${branch.name} — ${municipality.name}, ${province.name}` }}
+                    />
+                  </summary>
+                  <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
+                    {[...municipality.barangays].sort(byPortfolioDesc).map((barangay) => (
+                      <div key={barangay.id} className={`${locationRowGrid} selected-report-row border-b border-slate-100 px-4 py-3 last:border-b-0`}>
+                        <span className="text-slate-700">
+                          <span className="mr-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">Barangay</span>
+                          <span className="loc-caps">{barangay.name}</span>
+                        </span>
+                        <MetricCells
+                          metrics={barangay.metrics}
+                          reportScope={{ branchId, locationId: barangay.id, locationName: `Branch Pivot — ${branch.name} — ${barangay.name}, ${municipality.name}, ${province.name}` }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </details>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+// The Branch Pivot's amber row. Same shape as UnassignedLocationRows, one level deeper: the
+// loans carrying no officer, by branch and then by place.
+function BranchPivotUnassignedRows({ branches, total }: { branches: BranchPivotLocationNode[]; total: Metrics }) {
+  return (
+    <details className="group/loose border-b border-amber-200 bg-amber-50/40">
+      <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-amber-50 group-open/loose:bg-amber-100`}>
+        <span className="font-extrabold text-amber-900 before:mr-2 before:inline-block before:content-['▶'] group-open/loose:before:rotate-90">
+          Without Loan / Remedial Officer
+        </span>
+        <MetricCells metrics={total} reportScope={{ unassignedOnly: true, locationName: "Without Loan / Remedial Officer — All Branches" }} />
+      </summary>
+      <div className="border-t border-amber-200 bg-white pl-6">
+        {branches.map((branch) => {
+          const branchId = Number(branch.key);
+          return (
+            <details key={branch.key} className="group/loose-branch border-b border-slate-100 last:border-b-0">
+              <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/loose-branch:bg-blue-100`}>
+                <span className="font-bold text-slate-900 before:mr-2 before:inline-block before:content-['▶'] group-open/loose-branch:before:rotate-90">
+                  <span className="mr-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">Branch</span>
+                  <span className="loc-caps">{branch.name}</span>
+                </span>
+                <MetricCells metrics={branch.metrics} reportScope={{ branchId, unassignedOnly: true, locationName: `Without Loan / Remedial Officer — ${branch.name}` }} />
+              </summary>
+              <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
+                {Array.from(branch.provinces.values()).sort(byPortfolioDesc).map((province) => (
+                  <details key={province.name} className="group/loose-province border-b border-slate-100 last:border-b-0">
+                    <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/loose-province:bg-blue-100`}>
+                      <span className="font-semibold text-slate-800 before:mr-2 before:inline-block before:content-['▶'] group-open/loose-province:before:rotate-90">
+                        <span className="mr-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">Province</span>
+                        <span className="loc-caps">{province.name}</span>
+                      </span>
+                      <MetricCells metrics={province.metrics} reportScope={{ branchId, province: province.name, unassignedOnly: true, locationName: `Without Loan / Remedial Officer — ${branch.name} — ${province.name}` }} />
+                    </summary>
+                    <div className="border-t border-slate-100 bg-white pl-6">
+                      {Array.from(province.municipalities.values()).sort(byPortfolioDesc).map((municipality) => (
+                        <details key={municipality.name} className="group/loose-city border-b border-slate-100 last:border-b-0">
+                          <summary className={`${locationRowGrid} cursor-pointer list-none px-4 py-3 hover:bg-blue-50 group-open/loose-city:bg-blue-100`}>
+                            <span className="font-semibold text-slate-700 before:mr-2 before:inline-block before:content-['▶'] group-open/loose-city:before:rotate-90">
+                              <span className="mr-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">City / Municipality</span>
+                              <span className="loc-caps">{municipality.name}</span>
+                            </span>
+                            <MetricCells metrics={municipality.metrics} reportScope={{ branchId, province: province.name, municipality: municipality.name, unassignedOnly: true, locationName: `Without Loan / Remedial Officer — ${branch.name} — ${municipality.name}, ${province.name}` }} />
+                          </summary>
+                          <div className="border-t border-slate-100 bg-slate-50/40 pl-6">
+                            {[...municipality.barangays].sort(byPortfolioDesc).map((barangay) => (
+                              <div key={barangay.id} className={`${locationRowGrid} selected-report-row border-b border-slate-100 px-4 py-3 last:border-b-0`}>
+                                <span className="text-slate-700">
+                                  <span className="mr-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">Barangay</span>
+                                  <span className="loc-caps">{barangay.name}</span>
+                                </span>
+                                <MetricCells metrics={barangay.metrics} reportScope={{ branchId, locationId: barangay.id, unassignedOnly: true, locationName: `Without Loan / Remedial Officer — ${branch.name} — ${barangay.name}, ${municipality.name}, ${province.name}` }} />
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      ))}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </details>
+          );
+        })}
+      </div>
+    </details>
   );
 }
 
